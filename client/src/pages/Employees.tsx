@@ -15,7 +15,7 @@ import {
   RefreshCw,
   AlertCircle,
 } from 'lucide-react';
-import type { Employee, Contract, AttendanceRecord, TimeOffRequest, Payrun, Gender } from '../types';
+import type { Employee, Contract, AttendanceRecord, TimeOffRequest, Gender, EmployeePayslipHistoryItem } from '../types';
 import { employeesApi, type CreateEmployeePayload, type UpdateEmployeePayload } from '../api/employees';
 import { contractsApi } from '../api/contracts';
 import { schedulesApi, type ScheduleRecord } from '../api/schedules';
@@ -26,6 +26,8 @@ import { salaryRulesApi, type SalaryRule } from '../api/salaryRules';
 import { payrollApi } from '../api/payroll';
 import { ApiError } from '../api/client';
 import { useAuth } from '../context/AuthContext';
+import { DetailedPayslipModal } from '../components/DetailedPayslipModal';
+import { formatCurrency, formatDate } from '../utils/formatters';
 
 export function formatGender(gender?: string | null): string {
   if (!gender) return '—';
@@ -495,14 +497,7 @@ interface HubData {
   timeOff: TimeOffRequest[];
   salaryStructure: SalaryStructure | null;
   salaryRules: SalaryRule[];
-  payruns: Array<{
-    id: string;
-    name: string;
-    period: string;
-    status: string;
-    gross: number;
-    net: number;
-  }>;
+  payruns: EmployeePayslipHistoryItem[];
 }
 
 const Employee360Hub: React.FC<Employee360HubProps> = ({
@@ -517,6 +512,7 @@ const Employee360Hub: React.FC<Employee360HubProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'contracts' | 'attendance' | 'timeoff' | 'salary' | 'payruns'>('overview');
   const [showEditModal, setShowEditModal] = useState<boolean>(false);
+  const [selectedPayslipId, setSelectedPayslipId] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     let active = true;
@@ -532,13 +528,13 @@ const Employee360Hub: React.FC<Employee360HubProps> = ({
       setEmployee(emp);
 
       // 2. Concurrently fetch all associated domain collections
-      const [allContracts, allSchedules, allAttendance, allTimeOff, allStructures, allPayruns] = await Promise.all([
+      const [allContracts, allSchedules, allAttendance, allTimeOff, allStructures, empPayslips] = await Promise.all([
         contractsApi.getAll().catch(() => [] as Contract[]),
         schedulesApi.getAll().catch(() => [] as ScheduleRecord[]),
         attendanceApi.getAll().catch(() => [] as AttendanceRecord[]),
         timeOffApi.getAll().catch(() => [] as TimeOffRequest[]),
         salaryStructuresApi.getAll().catch(() => [] as SalaryStructure[]),
-        payrollApi.getAll().catch(() => [] as Payrun[]),
+        payrollApi.getEmployeePayslips(employeeId).catch(() => [] as EmployeePayslipHistoryItem[]),
       ]);
       if (!active) return;
 
@@ -592,36 +588,6 @@ const Employee360Hub: React.FC<Employee360HubProps> = ({
       }
       if (!active) return;
 
-      // Extract payslips / payruns for this employee
-      const empPayruns: Array<{
-        id: string;
-        name: string;
-        period: string;
-        status: string;
-        gross: number;
-        net: number;
-      }> = [];
-
-      for (const pr of allPayruns) {
-        if (Array.isArray(pr.payslips)) {
-          const match = pr.payslips.find(
-            (p) =>
-              p.employeeId === employeeId ||
-              p.employeeName?.toLowerCase() === emp.name?.toLowerCase()
-          );
-          if (match) {
-            empPayruns.push({
-              id: pr.id,
-              name: pr.name,
-              period: pr.period,
-              status: pr.status,
-              gross: match.gross,
-              net: match.net,
-            });
-          }
-        }
-      }
-
       setHubData({
         contracts: empContracts,
         activeContract,
@@ -630,7 +596,7 @@ const Employee360Hub: React.FC<Employee360HubProps> = ({
         timeOff: empTimeOff,
         salaryStructure: matchedStructure,
         salaryRules: rules,
-        payruns: empPayruns,
+        payruns: empPayslips,
       });
     } catch (err: any) {
       if (!active) return;
@@ -1210,38 +1176,57 @@ const Employee360Hub: React.FC<Employee360HubProps> = ({
       {activeTab === 'payruns' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <div className="table-container">
-            <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--slate-200)', fontWeight: 700, fontSize: '14px' }}>
-              Payrun &amp; Payslip History ({hubData?.payruns?.length ?? 0})
+            <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--slate-200)', fontWeight: 700, fontSize: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>Historical Payslips ({hubData?.payruns?.length ?? 0})</span>
+              <span style={{ fontSize: '12px', color: 'var(--slate-500)', fontWeight: 500 }}>
+                Persisted historical calculation records
+              </span>
             </div>
             <table>
               <thead>
                 <tr>
-                  <th>Payrun Name</th>
-                  <th>Period</th>
+                  <th>Cycle Name</th>
+                  <th>Payroll Period</th>
                   <th>Gross Pay</th>
+                  <th>Total Deductions</th>
                   <th>Net Disbursement</th>
                   <th>Status</th>
+                  <th>Action</th>
                 </tr>
               </thead>
               <tbody>
                 {!hubData?.payruns || hubData.payruns.length === 0 ? (
                   <tr>
-                    <td colSpan={5} style={{ textAlign: 'center', padding: '36px 20px', color: 'var(--slate-400)', fontSize: '13px' }}>
-                      No historical payslips or payruns found for this employee.
+                    <td colSpan={7} style={{ textAlign: 'center', padding: '36px 20px', color: 'var(--slate-400)', fontSize: '13px' }}>
+                      No historical payslips found for this employee.
                     </td>
                   </tr>
                 ) : (
                   hubData.payruns.map((p) => (
-                    <tr key={p.id}>
-                      <td style={{ fontWeight: 600, color: 'var(--slate-900)' }}>{p.name}</td>
-                      <td>{p.period}</td>
-                      <td style={{ fontWeight: 600 }}>₹{p.gross.toLocaleString('en-IN')}.00</td>
-                      <td style={{ fontWeight: 700, color: 'var(--primary)' }}>₹{p.net.toLocaleString('en-IN')}.00</td>
+                    <tr key={p.payslipId}>
+                      <td style={{ fontWeight: 600, color: 'var(--slate-900)' }}>{p.payrunName}</td>
                       <td>
-                        <span className={`badge ${p.status === 'PAID' ? 'badge-success' : 'badge-warning'}`}>
+                        {p.payrollPeriod.start && p.payrollPeriod.end 
+                          ? `${formatDate(p.payrollPeriod.start)} – ${formatDate(p.payrollPeriod.end)}` 
+                          : 'Regular Cycle'}
+                      </td>
+                      <td style={{ fontWeight: 600 }}>{formatCurrency(p.grossSalary)}</td>
+                      <td style={{ color: '#be123c' }}>-{formatCurrency(p.totalDeductions)}</td>
+                      <td style={{ fontWeight: 700, color: 'var(--primary)' }}>{formatCurrency(p.netSalary)}</td>
+                      <td>
+                        <span className={`badge ${p.status === 'PAID' ? 'badge-success' : p.status === 'VALIDATED' ? 'badge-info' : 'badge-warning'}`}>
                           <span className="badge-dot" />
                           {p.status}
                         </span>
+                      </td>
+                      <td>
+                        <button 
+                          className="btn btn-secondary btn-sm" 
+                          onClick={() => setSelectedPayslipId(p.payslipId)}
+                          style={{ display: 'flex', alignItems: 'center', gap: '4px' }}
+                        >
+                          <FileText size={12} /> View Payslip
+                        </button>
                       </td>
                     </tr>
                   ))
@@ -1250,6 +1235,14 @@ const Employee360Hub: React.FC<Employee360HubProps> = ({
             </table>
           </div>
         </div>
+      )}
+
+      {/* Detailed Payslip Modal */}
+      {selectedPayslipId && (
+        <DetailedPayslipModal
+          payslipId={selectedPayslipId}
+          onClose={() => setSelectedPayslipId(null)}
+        />
       )}
     </div>
   );

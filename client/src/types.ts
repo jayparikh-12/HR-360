@@ -93,6 +93,58 @@ export interface PayslipItem {
   warning?: string;
 }
 
+export interface BreakdownItem {
+  ruleCode: string;
+  ruleName: string;
+  category: 'BASIC' | 'ALLOWANCE' | 'GROSS' | 'DEDUCTION' | 'NET';
+  amount: number;
+}
+
+export interface DetailedPayslip {
+  payslipId: string;
+  payrunId: string;
+  payrunName: string;
+  employee: {
+    id: string;
+    employeeId: string;
+    name: string;
+    department: string;
+    position: string;
+  };
+  payrollPeriod: {
+    start: string | null;
+    end: string | null;
+  };
+  status: 'DRAFT' | 'COMPUTED' | 'VALIDATED' | 'PAID' | string;
+  baseSalary: number;
+  earnings: BreakdownItem[];
+  deductions: BreakdownItem[];
+  grossSalary: number;
+  totalDeductions: number;
+  netSalary: number;
+  calculatedAt: string;
+  validatedAt: string | null;
+  paidAt: string | null;
+  paymentReference?: string | null;
+  warning?: string | null;
+}
+
+export interface EmployeePayslipHistoryItem {
+  payslipId: string;
+  payrunId: string;
+  payrunName: string;
+  payrollPeriod: {
+    start: string | null;
+    end: string | null;
+  };
+  status: 'DRAFT' | 'COMPUTED' | 'VALIDATED' | 'PAID' | string;
+  grossSalary: number;
+  totalDeductions: number;
+  netSalary: number;
+  calculatedAt: string;
+  paidAt: string | null;
+}
+
 export interface Payrun {
   id: string;
   name: string;
@@ -102,5 +154,10 @@ export interface Payrun {
   totalNet: number;
   employeeCount: number;
   status: 'DRAFT' | 'COMPUTED' | 'VALIDATED' | 'PAID';
+  validatedAt?: string | null;
+  validatedBy?: string | null;
+  paidAt?: string | null;
+  paidBy?: string | null;
+  paymentReference?: string | null;
   payslips: PayslipItem[];
 }

@@ -119,6 +119,11 @@ CREATE TABLE IF NOT EXISTS payruns (
     total_net DECIMAL(14,2) DEFAULT 0.0,
     employee_count INT DEFAULT 0,
     status VARCHAR(20) DEFAULT 'DRAFT', -- DRAFT, COMPUTED, VALIDATED, PAID
+    validated_at TIMESTAMP NULL,
+    validated_by VARCHAR(100) NULL,
+    paid_at TIMESTAMP NULL,
+    paid_by VARCHAR(100) NULL,
+    payment_reference VARCHAR(100) NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_payruns_salary_structure FOREIGN KEY (salary_structure_id)
         REFERENCES salary_structures(id)
@@ -129,10 +134,14 @@ CREATE TABLE IF NOT EXISTS payruns (
 -- 9. Payslips Table (In BCNF: Candidate keys are {id}, {payrun_id, employee_id})
 -- Note: Redundant transitive columns employee_name and department are eliminated to satisfy BCNF.
 -- Employee details are joined from employees at query time.
+-- Historical calculation snapshots & structured breakdowns (Phase 5.1) are persisted for immutability.
 CREATE TABLE IF NOT EXISTS payslips (
     id VARCHAR(50) PRIMARY KEY,
     payrun_id VARCHAR(50) NOT NULL,
     employee_id VARCHAR(50) NOT NULL,
+    period_start DATE NULL,
+    period_end DATE NULL,
+    contract_wage DECIMAL(12,2) NULL,
     basic DECIMAL(12,2) NOT NULL,
     hra DECIMAL(12,2) NOT NULL,
     allowance DECIMAL(12,2) NOT NULL,
@@ -140,6 +149,11 @@ CREATE TABLE IF NOT EXISTS payslips (
     tax DECIMAL(12,2) NOT NULL,
     other_deductions DECIMAL(12,2) NOT NULL,
     net DECIMAL(12,2) NOT NULL,
+    earnings_breakdown JSON NULL,
+    deductions_breakdown JSON NULL,
+    calculation_snapshot JSON NULL,
+    calculation_timestamp TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+    calculation_version INT NOT NULL DEFAULT 1,
     status VARCHAR(20) DEFAULT 'DRAFT', -- DRAFT, COMPUTED, VALIDATED, PAID
     warning TEXT,
     CONSTRAINT uq_payslips_payrun_employee UNIQUE (payrun_id, employee_id),
@@ -150,5 +164,6 @@ CREATE TABLE IF NOT EXISTS payslips (
     CONSTRAINT fk_payslips_employee FOREIGN KEY (employee_id)
         REFERENCES employees(id)
         ON DELETE CASCADE
-        ON UPDATE CASCADE
+        ON UPDATE CASCADE,
+    INDEX idx_payslips_employee_period (employee_id, period_start)
 );

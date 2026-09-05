@@ -7,7 +7,8 @@ import {
   Palmtree, 
   FileText, 
   Settings,
-  Sparkles
+  Sparkles,
+  CreditCard
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -137,6 +138,17 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onSelectTab, emplo
                 </button>
               </li>
             )}
+            <li>
+              <button
+                className={`nav-link ${currentTab === 'payslips' ? 'active' : ''}`}
+                onClick={() => onSelectTab('payslips')}
+              >
+                <div className="nav-link-left">
+                  <CreditCard size={17} />
+                  <span>{isEmployee ? 'My Payslips' : 'Payslips'}</span>
+                </div>
+              </button>
+            </li>
           </ul>
         </div>
 

@@ -5,7 +5,6 @@ import {
   IndianRupee, 
   FileText, 
   Download, 
-  Printer, 
   X,
   AlertCircle,
   Loader2
@@ -14,6 +13,7 @@ import type { Payrun, PayslipItem, Employee } from '../types';
 import { payrollApi } from '../api/payroll';
 import { ApiError } from '../api/client';
 import { useAuth } from '../context/AuthContext';
+import { DetailedPayslipModal } from '../components/DetailedPayslipModal';
 
 interface PayrunsProps {
   payruns: Payrun[];
@@ -638,96 +638,14 @@ export const Payruns: React.FC<PayrunsProps> = ({
         </div>
       )}
 
-      {/* INDIVIDUAL PAYSLIP VOUCHER MODAL */}
-      {selectedPayslip && activePayrun && (
-        <div className="modal-overlay">
-          <div className="modal-content" style={{ maxWidth: '640px' }}>
-            <div className="modal-header">
-              <h3 className="modal-title">Official Payslip Voucher</h3>
-              <button className="btn btn-secondary btn-sm" onClick={() => setSelectedPayslip(null)}>
-                <X size={14} />
-              </button>
-            </div>
-
-            {/* Voucher Body */}
-            <div style={{ border: '1px solid var(--slate-200)', padding: '20px', borderRadius: '8px', background: '#fff' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--slate-200)', paddingBottom: '14px', marginBottom: '14px' }}>
-                <div>
-                  <div style={{ fontWeight: 800, fontSize: '16px', color: 'var(--primary)' }}>PeoplePay360 Inc.</div>
-                  <div style={{ fontSize: '12px', color: 'var(--slate-500)' }}>100 Enterprise Way, Suite 400</div>
-                </div>
-                <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontWeight: 700 }}>{activePayrun.period}</div>
-                  <div style={{ fontSize: '12px', color: 'var(--slate-500)' }}>Voucher #{selectedPayslip.id}</div>
-                </div>
-              </div>
-
-              {/* Employee Meta */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px', fontSize: '13px', marginBottom: '16px' }}>
-                <div><strong>Employee:</strong> {selectedPayslip.employeeName}</div>
-                <div><strong>ID:</strong> {selectedPayslip.employeeId}</div>
-                <div><strong>Department:</strong> {selectedPayslip.department}</div>
-                <div><strong>Status:</strong> <span className="badge badge-success">Disbursed</span></div>
-              </div>
-
-              {/* Itemized Table */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '16px' }}>
-                {/* Earnings */}
-                <div style={{ border: '1px solid var(--slate-200)', borderRadius: '6px', padding: '12px' }}>
-                  <div style={{ fontWeight: 700, fontSize: '12px', color: 'var(--slate-500)', marginBottom: '8px' }}>EARNINGS</div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', marginBottom: '4px' }}>
-                    <span>Basic Salary</span>
-                    <span>₹{selectedPayslip.basic.toLocaleString('en-IN')}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', marginBottom: '4px' }}>
-                    <span>HRA Allowance</span>
-                    <span>₹{selectedPayslip.hra.toLocaleString('en-IN')}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', marginBottom: '4px' }}>
-                    <span>Special Allowance</span>
-                    <span>₹{selectedPayslip.allowance.toLocaleString('en-IN')}</span>
-                  </div>
-                  <div style={{ borderTop: '1px solid var(--slate-200)', marginTop: '8px', paddingTop: '8px', display: 'flex', justifyContent: 'space-between', fontWeight: 700 }}>
-                    <span>GROSS</span>
-                    <span>₹{selectedPayslip.gross.toLocaleString('en-IN')}.00</span>
-                  </div>
-                </div>
-
-                {/* Deductions */}
-                <div style={{ border: '1px solid var(--slate-200)', borderRadius: '6px', padding: '12px' }}>
-                  <div style={{ fontWeight: 700, fontSize: '12px', color: 'var(--slate-500)', marginBottom: '8px' }}>DEDUCTIONS</div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', marginBottom: '4px' }}>
-                    <span>Income Tax (TDS)</span>
-                    <span>-₹{selectedPayslip.tax.toLocaleString('en-IN')}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', marginBottom: '4px' }}>
-                    <span>Social Security/PF</span>
-                    <span>-₹{selectedPayslip.otherDeductions.toLocaleString('en-IN')}</span>
-                  </div>
-                  <div style={{ borderTop: '1px solid var(--slate-200)', marginTop: '36px', paddingTop: '8px', display: 'flex', justifyContent: 'space-between', fontWeight: 700, color: '#be123c' }}>
-                    <span>TOTAL DEDUCT</span>
-                    <span>-₹{(selectedPayslip.tax + selectedPayslip.otherDeductions).toLocaleString('en-IN')}.00</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Net Payout Banner */}
-              <div style={{ background: 'var(--primary-light)', border: '1px solid #c7d2fe', padding: '12px', borderRadius: '6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontWeight: 700, color: 'var(--primary)' }}>NET SALARY PAYABLE:</span>
-                <span style={{ fontSize: '20px', fontWeight: 800, color: 'var(--primary)' }}>₹{selectedPayslip.net.toLocaleString('en-IN')}.00</span>
-              </div>
-            </div>
-
-            <div className="modal-footer">
-              <button className="btn btn-secondary" onClick={() => window.print()}>
-                <Printer size={14} /> Print PDF
-              </button>
-              <button className="btn btn-primary" onClick={() => { alert('Downloaded official Payslip PDF'); setSelectedPayslip(null); }}>
-                <Download size={14} /> Download Voucher
-              </button>
-            </div>
-          </div>
-        </div>
+      {/* DETAILED PAYSLIP BREAKDOWN MODAL */}
+      {selectedPayslip && (
+        <DetailedPayslipModal
+          payslipId={selectedPayslip.id}
+          payrunId={activePayrun?.id}
+          employeeId={selectedPayslip.employeeId}
+          onClose={() => setSelectedPayslip(null)}
+        />
       )}
     </div>
   );

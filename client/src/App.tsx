@@ -15,6 +15,7 @@ import { Login } from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
 import { Employees } from './pages/Employees';
 import { Payruns } from './pages/Payruns';
+import { Payslips } from './pages/Payslips';
 import { Attendance } from './pages/Attendance';
 import { TimeOff } from './pages/TimeOff';
 import { Contracts } from './pages/Contracts';
@@ -41,6 +42,7 @@ const PATH_TO_TAB: Record<string, string> = {
   '/attendance':       'attendance',
   '/time-off':         'time-off',
   '/payruns':          'payruns',
+  '/payslips':         'payslips',
   '/salary-rules':     'salary-rules',
   '/settings':         'settings',
 };
@@ -52,13 +54,13 @@ const TAB_TO_PATH: Record<string, string> = Object.fromEntries(
 const isTabAllowed = (tab: string, role: UserRole): boolean => {
   if (role === 'Admin') return true;
   if (role === 'HR Manager') {
-    return ['dashboard', 'employees', 'contracts', 'schedules', 'attendance', 'time-off'].includes(tab);
+    return ['dashboard', 'employees', 'contracts', 'schedules', 'attendance', 'time-off', 'payslips'].includes(tab);
   }
   if (role === 'HR Payroll Manager' || role === 'HR Payroll User') {
-    return ['dashboard', 'employees', 'contracts', 'attendance', 'payruns'].includes(tab);
+    return ['dashboard', 'employees', 'contracts', 'attendance', 'payruns', 'payslips'].includes(tab);
   }
   if (role === 'Employee') {
-    return ['dashboard', 'attendance', 'time-off'].includes(tab);
+    return ['dashboard', 'attendance', 'time-off', 'payslips'].includes(tab);
   }
   return tab === 'dashboard';
 };
@@ -203,6 +205,7 @@ const AppShell: React.FC = () => {
                 onSelectPayrun={setActivePayrunId}
               />
             } />
+            <Route path="/payslips" element={<Payslips />} />
             <Route path="/contracts"  element={<Contracts  onNavigateTab={(tab) => navigate(TAB_TO_PATH[tab] ?? '/dashboard')} />} />
             <Route path="/schedules"  element={<Schedules  onNavigateTab={(tab) => navigate(TAB_TO_PATH[tab] ?? '/dashboard')} />} />
             <Route path="/attendance" element={<Attendance />} />

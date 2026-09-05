@@ -199,6 +199,67 @@ export async function apiFetch<T>(
 }
 
 /**
+ * Binary blob download helper
+ */
+export async function apiFetchBlob(
+    endpoint: string,
+    options: RequestInit = {}
+): Promise<{ blob: Blob; filename: string | null }> {
+    const url = endpoint.startsWith('http')
+        ? endpoint
+        : `${API_BASE_URL}${endpoint.startsWith('/') ? '' : '/'}${endpoint}`;
+
+    const headers = new Headers(options.headers || {});
+    if (!headers.has('Authorization')) {
+        const token = getStoredToken();
+        if (token) {
+            headers.set('Authorization', `Bearer ${token}`);
+        }
+    }
+
+    let response: Response;
+    try {
+        response = await fetch(url, {
+            ...options,
+            headers,
+        });
+    } catch (networkError) {
+        throw new ApiError(
+            'Unable to connect to the PeoplePay360 server. Please verify the backend service is running.',
+            0,
+            networkError
+        );
+    }
+
+    if (!response.ok) {
+        if (response.status === 401 && !endpoint.includes('/auth/login')) {
+            notifyUnauthorized();
+        }
+        let message = `Request failed with status ${response.status}`;
+        try {
+            const errJson = await response.json();
+            if (errJson?.message) message = errJson.message;
+        } catch {
+            // fallback
+        }
+        throw new ApiError(message, response.status);
+    }
+
+    // Extract filename from Content-Disposition if present
+    const disposition = response.headers.get('content-disposition');
+    let filename: string | null = null;
+    if (disposition) {
+        const match = /filename=["']?([^"';]+)["']?/.exec(disposition);
+        if (match && match[1]) {
+            filename = match[1];
+        }
+    }
+
+    const blob = await response.blob();
+    return { blob, filename };
+}
+
+/**
  * Specialized Authentication API endpoints
  */
 export const authApi = {

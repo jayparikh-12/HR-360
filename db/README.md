@@ -9,6 +9,7 @@ MySQL schema and seed data for the PeoplePay360 HR and payroll platform.
 - `migrations/`: Versioned migration scripts:
   - `001_add_gender_to_employees.sql`: Adds gender column to employees.
   - `002_normalize_bcnf_and_foreign_keys.sql`: Normalizes `payslips` (drops redundant transitive `employee_name` & `department`), adds candidate keys, and applies explicit `FOREIGN KEY` constraints.
+  - `003_add_payroll_snapshot_to_payslips.sql`: Adds historical calculation snapshot, period bounds, contract wage, and structured earnings/deductions breakdown columns to `payslips`.
 
 ## Quick Setup with MySQL
 

@@ -106,6 +106,7 @@ The server is built with Express.js + TypeScript at `d:\Odoo\server`:
 - **Migrations (`d:\Odoo\db\migrations/`):**
   - `001_add_gender_to_employees.sql`: Added `gender` enum to `employees`.
   - `002_normalize_bcnf_and_foreign_keys.sql`: Normalized `payslips` to BCNF, added candidate keys, and replaced inline `REFERENCES` with active InnoDB `FOREIGN KEY` constraints.
+  - `003_add_payroll_snapshot_to_payslips.sql`: Added historical calculation snapshot JSON, period bounds, contract wage, and structured breakdown columns to `payslips`.
 - **[seeds.sql](file:///d:/Odoo/db/seeds.sql):** Pre-populated with 6 multi-department employees, active contracts, working schedules, and September 2026 salary structures.
 
 ---
