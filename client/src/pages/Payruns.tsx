@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Play, 
   Check, 
-  DollarSign, 
+  IndianRupee, 
   FileText, 
   Download, 
   Printer, 
@@ -433,7 +433,7 @@ export const Payruns: React.FC<PayrunsProps> = ({
                   {actionLoading ? (
                     <Loader2 size={14} className="spin" style={{ animation: 'spin 1s linear infinite' }} />
                   ) : (
-                    <DollarSign size={14} />
+                    <IndianRupee size={14} />
                   )}
                   <span>{actionLoading ? 'Processing Payment...' : 'Mark Paid & Disburse'}</span>
                 </button>
@@ -462,18 +462,18 @@ export const Payruns: React.FC<PayrunsProps> = ({
           </div>
           <div>
             <div style={{ fontSize: '11px', color: 'var(--slate-500)', textTransform: 'uppercase' }}>Total Gross</div>
-            <div style={{ fontSize: '16px', fontWeight: 700 }}>${activePayrun.totalGross.toLocaleString()}.00</div>
+            <div style={{ fontSize: '16px', fontWeight: 700 }}>₹{activePayrun.totalGross.toLocaleString('en-IN')}.00</div>
           </div>
           <div>
             <div style={{ fontSize: '11px', color: 'var(--slate-500)', textTransform: 'uppercase' }}>Total Deductions</div>
             <div style={{ fontSize: '16px', fontWeight: 700, color: '#be123c' }}>
-              -${(activePayrun.totalGross - activePayrun.totalNet).toLocaleString()}.00
+              -₹{(activePayrun.totalGross - activePayrun.totalNet).toLocaleString('en-IN')}.00
             </div>
           </div>
           <div>
             <div style={{ fontSize: '11px', color: 'var(--slate-500)', textTransform: 'uppercase' }}>Net Disbursement</div>
             <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--primary)' }}>
-              ${activePayrun.totalNet.toLocaleString()}.00
+              ₹{activePayrun.totalNet.toLocaleString('en-IN')}.00
             </div>
           </div>
         </div>
@@ -505,9 +505,9 @@ export const Payruns: React.FC<PayrunsProps> = ({
                   )}
                 </td>
                 <td>{slip.department}</td>
-                <td style={{ fontWeight: 600 }}>${slip.gross.toLocaleString()}.00</td>
-                <td style={{ color: '#be123c' }}>-${(slip.tax + slip.otherDeductions).toLocaleString()}.00</td>
-                <td style={{ fontWeight: 700, color: 'var(--primary)' }}>${slip.net.toLocaleString()}.00</td>
+                <td style={{ fontWeight: 600 }}>₹{slip.gross.toLocaleString('en-IN')}.00</td>
+                <td style={{ color: '#be123c' }}>-₹{(slip.tax + slip.otherDeductions).toLocaleString('en-IN')}.00</td>
+                <td style={{ fontWeight: 700, color: 'var(--primary)' }}>₹{slip.net.toLocaleString('en-IN')}.00</td>
                 <td>
                   <span className={`badge ${slip.status === 'PAID' ? 'badge-success' : slip.status === 'VALIDATED' ? 'badge-info' : 'badge-warning'}`}>
                     {slip.status}
@@ -606,7 +606,7 @@ export const Payruns: React.FC<PayrunsProps> = ({
                         }}
                       />
                       <span style={{ fontWeight: 600 }}>{emp.name}</span>
-                      <span style={{ color: 'var(--slate-500)', fontSize: '12px' }}>({emp.department} • ${emp.wage}/mo)</span>
+                      <span style={{ color: 'var(--slate-500)', fontSize: '12px' }}>({emp.department} • ₹{emp.wage.toLocaleString('en-IN')}/mo)</span>
                     </label>
                   ))}
                 </div>
@@ -677,19 +677,19 @@ export const Payruns: React.FC<PayrunsProps> = ({
                   <div style={{ fontWeight: 700, fontSize: '12px', color: 'var(--slate-500)', marginBottom: '8px' }}>EARNINGS</div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', marginBottom: '4px' }}>
                     <span>Basic Salary</span>
-                    <span>${selectedPayslip.basic.toLocaleString()}</span>
+                    <span>₹{selectedPayslip.basic.toLocaleString('en-IN')}</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', marginBottom: '4px' }}>
                     <span>HRA Allowance</span>
-                    <span>${selectedPayslip.hra.toLocaleString()}</span>
+                    <span>₹{selectedPayslip.hra.toLocaleString('en-IN')}</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', marginBottom: '4px' }}>
                     <span>Special Allowance</span>
-                    <span>${selectedPayslip.allowance.toLocaleString()}</span>
+                    <span>₹{selectedPayslip.allowance.toLocaleString('en-IN')}</span>
                   </div>
                   <div style={{ borderTop: '1px solid var(--slate-200)', marginTop: '8px', paddingTop: '8px', display: 'flex', justifyContent: 'space-between', fontWeight: 700 }}>
                     <span>GROSS</span>
-                    <span>${selectedPayslip.gross.toLocaleString()}.00</span>
+                    <span>₹{selectedPayslip.gross.toLocaleString('en-IN')}.00</span>
                   </div>
                 </div>
 
@@ -698,15 +698,15 @@ export const Payruns: React.FC<PayrunsProps> = ({
                   <div style={{ fontWeight: 700, fontSize: '12px', color: 'var(--slate-500)', marginBottom: '8px' }}>DEDUCTIONS</div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', marginBottom: '4px' }}>
                     <span>Income Tax (TDS)</span>
-                    <span>-${selectedPayslip.tax.toLocaleString()}</span>
+                    <span>-₹{selectedPayslip.tax.toLocaleString('en-IN')}</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', marginBottom: '4px' }}>
                     <span>Social Security/PF</span>
-                    <span>-${selectedPayslip.otherDeductions.toLocaleString()}</span>
+                    <span>-₹{selectedPayslip.otherDeductions.toLocaleString('en-IN')}</span>
                   </div>
                   <div style={{ borderTop: '1px solid var(--slate-200)', marginTop: '36px', paddingTop: '8px', display: 'flex', justifyContent: 'space-between', fontWeight: 700, color: '#be123c' }}>
                     <span>TOTAL DEDUCT</span>
-                    <span>-${(selectedPayslip.tax + selectedPayslip.otherDeductions).toLocaleString()}.00</span>
+                    <span>-₹{(selectedPayslip.tax + selectedPayslip.otherDeductions).toLocaleString('en-IN')}.00</span>
                   </div>
                 </div>
               </div>
@@ -714,7 +714,7 @@ export const Payruns: React.FC<PayrunsProps> = ({
               {/* Net Payout Banner */}
               <div style={{ background: 'var(--primary-light)', border: '1px solid #c7d2fe', padding: '12px', borderRadius: '6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontWeight: 700, color: 'var(--primary)' }}>NET SALARY PAYABLE:</span>
-                <span style={{ fontSize: '20px', fontWeight: 800, color: 'var(--primary)' }}>${selectedPayslip.net.toLocaleString()}.00</span>
+                <span style={{ fontSize: '20px', fontWeight: 800, color: 'var(--primary)' }}>₹{selectedPayslip.net.toLocaleString('en-IN')}.00</span>
               </div>
             </div>
 

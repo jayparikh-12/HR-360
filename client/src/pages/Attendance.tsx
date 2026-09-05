@@ -67,6 +67,24 @@ export const Attendance: React.FC<AttendanceProps> = ({ onAddRecord }) => {
     loadAttendance();
   }, [loadAttendance]);
 
+  const getSystemTime = (): string => {
+    const now = new Date();
+    let hours = now.getHours();
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12;
+    hours = hours ? hours : 12;
+    return `${String(hours).padStart(2, '0')}:${minutes} ${ampm}`;
+  };
+
+  const getSystemDate = (): string => {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  };
+
   const handleToggleCheck = async () => {
     if (submitting) return;
 
@@ -81,17 +99,23 @@ export const Attendance: React.FC<AttendanceProps> = ({ onAddRecord }) => {
 
     try {
       if (!isCheckedIn) {
-        // Clock In
+        // Clock In with exact system time
+        const currentTime = getSystemTime();
+        const currentDate = getSystemDate();
         const created = await attendanceApi.checkIn({
           employeeId: empId,
+          checkIn: currentTime,
+          date: currentDate,
         });
         await loadAttendance();
         onAddRecord?.(created);
       } else {
-        // Clock Out
+        // Clock Out with exact system time
+        const currentTime = getSystemTime();
         await attendanceApi.checkOut({
           recordId: activeRecord?.id,
           employeeId: empId,
+          checkOut: currentTime,
         });
         await loadAttendance();
       }
