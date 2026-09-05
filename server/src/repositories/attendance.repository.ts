@@ -170,11 +170,11 @@ const ATTENDANCE_SELECT = `
     a.check_out,
     a.worked_hours,
     a.status,
-    TRIM(CONCAT(COALESCE(e.firstName, ''), ' ', COALESCE(e.lastName, ''))) AS name,
+    e.name,
     e.department
   FROM attendance_records a
   LEFT JOIN employees e
-    ON (e.id = a.employee_id COLLATE utf8mb4_unicode_ci OR e.empCode = a.employee_id COLLATE utf8mb4_unicode_ci)
+    ON e.id = a.employee_id COLLATE utf8mb4_unicode_ci
 `;
 
 // ── Repository Functions ─────────────────────────────────────────────────────
@@ -206,10 +206,10 @@ export async function getAttendanceById(id: string): Promise<AttendanceRecord | 
 export async function getActiveCheckIn(employeeId: string, date?: string): Promise<AttendanceRecord | null> {
   let sql = `
     ${ATTENDANCE_SELECT}
-    WHERE (a.employee_id = ? OR a.employee_id COLLATE utf8mb4_unicode_ci = (SELECT empCode FROM employees WHERE id = ? COLLATE utf8mb4_unicode_ci LIMIT 1))
+    WHERE a.employee_id = ?
       AND (a.check_out IS NULL OR a.check_out = '' OR a.check_out = 'Active')
   `;
-  const params: unknown[] = [employeeId, employeeId];
+  const params: unknown[] = [employeeId];
 
   if (date) {
     sql += ' AND a.date = ?';
@@ -230,9 +230,9 @@ export async function findEmployeeByIdOrCode(identifier: string): Promise<Employ
   const trimmed = identifier.trim();
 
   const sql = `
-    SELECT id, TRIM(CONCAT(COALESCE(firstName, ''), ' ', COALESCE(lastName, ''))) AS name, department
+    SELECT id, name, department
     FROM employees
-    WHERE id = ? OR empCode = ? OR empCode = REPLACE(?, '-', '')
+    WHERE id = ?
     LIMIT 1
   `;
   interface SimpleEmpRow extends RowDataPacket {
@@ -240,7 +240,7 @@ export async function findEmployeeByIdOrCode(identifier: string): Promise<Employ
     name: string;
     department?: string;
   }
-  const rows = await executeQuery<SimpleEmpRow[]>(sql, [trimmed, trimmed, trimmed]);
+  const rows = await executeQuery<SimpleEmpRow[]>(sql, [trimmed]);
   if (!rows || rows.length === 0) return null;
   return {
     id: rows[0].id,

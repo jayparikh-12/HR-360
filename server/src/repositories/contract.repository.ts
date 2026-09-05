@@ -144,12 +144,12 @@ const CONTRACT_SELECT = `
     c.start_date,
     c.end_date,
     c.status,
-    TRIM(CONCAT(COALESCE(e.firstName, ''), ' ', COALESCE(e.lastName, ''))) AS name,
+    e.name,
     e.department,
-    e.jobPosition AS position
+    e.position
   FROM contracts c
   LEFT JOIN employees e
-    ON (e.id = c.employee_id COLLATE utf8mb4_unicode_ci OR e.empCode = c.employee_id COLLATE utf8mb4_unicode_ci)
+    ON e.id = c.employee_id COLLATE utf8mb4_unicode_ci
 `;
 
 // ── Repository Functions ─────────────────────────────────────────────────────
@@ -180,10 +180,10 @@ export async function getContractById(id: string): Promise<ContractRecord | null
 export async function getContractsByEmployeeId(employeeId: string): Promise<ContractRecord[]> {
   const sql = `
     ${CONTRACT_SELECT}
-    WHERE (c.employee_id = ? OR e.empCode = ? COLLATE utf8mb4_unicode_ci)
+    WHERE c.employee_id = ?
     ORDER BY c.id ASC
   `;
-  const rows = await executeQuery<ContractRow[]>(sql, [employeeId, employeeId]);
+  const rows = await executeQuery<ContractRow[]>(sql, [employeeId]);
   return rows.map(mapRowToRecord);
 }
 
@@ -193,11 +193,11 @@ export async function getContractsByEmployeeId(employeeId: string): Promise<Cont
 export async function getActiveContractByEmployeeId(employeeId: string): Promise<ContractRecord | null> {
   const sql = `
     ${CONTRACT_SELECT}
-    WHERE (c.employee_id = ? OR e.empCode = ? COLLATE utf8mb4_unicode_ci)
+    WHERE c.employee_id = ?
       AND c.status = 'ACTIVE'
     LIMIT 1
   `;
-  const rows = await executeQuery<ContractRow[]>(sql, [employeeId, employeeId]);
+  const rows = await executeQuery<ContractRow[]>(sql, [employeeId]);
   if (!rows || rows.length === 0) return null;
   return mapRowToRecord(rows[0]);
 }
@@ -209,16 +209,16 @@ export async function getActiveContractByEmployeeId(employeeId: string): Promise
 export async function findEmployeeByIdOrCode(identifier: string): Promise<EmployeeLookupResult | null> {
   const trimmed = identifier.trim();
   const sql = `
-    SELECT id, TRIM(CONCAT(COALESCE(firstName, ''), ' ', COALESCE(lastName, ''))) AS name
+    SELECT id, name
     FROM employees
-    WHERE id = ? OR empCode = ? OR empCode = REPLACE(?, '-', '')
+    WHERE id = ?
     LIMIT 1
   `;
   interface SimpleEmpRow extends RowDataPacket {
     id: string;
     name: string;
   }
-  const rows = await executeQuery<SimpleEmpRow[]>(sql, [trimmed, trimmed, trimmed]);
+  const rows = await executeQuery<SimpleEmpRow[]>(sql, [trimmed]);
   if (!rows || rows.length === 0) return null;
   return {
     id: rows[0].id,
