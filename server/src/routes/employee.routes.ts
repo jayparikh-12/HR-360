@@ -37,6 +37,7 @@ router.use(authenticateToken);
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const VALID_EMP_TYPES = new Set(['FULL_TIME', 'PART_TIME', 'CONTRACT']);
 const VALID_STATUSES = new Set(['ACTIVE', 'INACTIVE']);
+const VALID_GENDERS = new Set(['MALE', 'FEMALE', 'NON_BINARY', 'OTHER', 'PREFER_NOT_TO_SAY']);
 
 function isNonEmptyString(v: unknown): v is string {
   return typeof v === 'string' && v.trim().length > 0;
@@ -129,6 +130,16 @@ router.post('/', authorize(PERMISSIONS.EMPLOYEE_WRITE), async (req: Request, res
     res.status(400).json({ success: false, message: 'status must be ACTIVE or INACTIVE.' });
     return;
   }
+  if (body.gender !== undefined && body.gender !== null && body.gender !== '') {
+    const normalizedGender = String(body.gender).trim().toUpperCase();
+    if (!VALID_GENDERS.has(normalizedGender)) {
+      res.status(400).json({
+        success: false,
+        message: 'gender must be one of: MALE, FEMALE, NON_BINARY, OTHER, PREFER_NOT_TO_SAY.',
+      });
+      return;
+    }
+  }
 
   const input: CreateEmployeeInput = {
     firstName:       (body.firstName as string).trim(),
@@ -136,6 +147,7 @@ router.post('/', authorize(PERMISSIONS.EMPLOYEE_WRITE), async (req: Request, res
     email:           emailStr,
     department:      (body.department as string).trim(),
     jobPosition:     (body.jobPosition as string).trim(),
+    gender:          body.gender ? String(body.gender).trim().toUpperCase() : null,
     employeeType:    body.employeeType,
     status:          body.status,
     phone:           typeof body.phone === 'string' ? body.phone.trim() || null : null,
@@ -209,6 +221,16 @@ router.patch('/:id', authorize(PERMISSIONS.EMPLOYEE_WRITE), async (req: Request,
   if (body.status !== undefined && !VALID_STATUSES.has(body.status as string)) {
     res.status(400).json({ success: false, message: 'status must be ACTIVE or INACTIVE.' });
     return;
+  }
+  if (body.gender !== undefined && body.gender !== null && body.gender !== '') {
+    const normalizedGender = String(body.gender).trim().toUpperCase();
+    if (!VALID_GENDERS.has(normalizedGender)) {
+      res.status(400).json({
+        success: false,
+        message: 'gender must be one of: MALE, FEMALE, NON_BINARY, OTHER, PREFER_NOT_TO_SAY.',
+      });
+      return;
+    }
   }
 
   // ── Strip protected/system fields the client should never control ──

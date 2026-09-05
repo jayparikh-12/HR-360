@@ -28,6 +28,7 @@ export interface EmployeeRow extends RowDataPacket {
   email: string;
   department: string;
   position: string;
+  gender: string | null;
   status: string;
   join_date: Date | string | null;
   bank_account: string | null;
@@ -47,6 +48,7 @@ export interface EmployeeRecord {
   email: string;
   department: string;
   position: string;
+  gender?: 'MALE' | 'FEMALE' | 'NON_BINARY' | 'OTHER' | 'PREFER_NOT_TO_SAY' | null;
   status: 'ACTIVE' | 'PROBATION' | 'TERMINATED';
   avatarInitials: string;
   joinDate: string;
@@ -70,6 +72,7 @@ export interface CreateEmployeeInput {
   department: string;
   position?: string;
   jobPosition?: string;
+  gender?: string | null;
   employeeType?: string;
   status?: string;
   phone?: string | null;
@@ -93,6 +96,7 @@ export interface UpdateEmployeeInput {
   department?: string;
   position?: string;
   jobPosition?: string;
+  gender?: string | null;
   employeeType?: string;
   status?: string;
   phone?: string | null;
@@ -168,6 +172,7 @@ function mapRowToRecord(row: EmployeeRow): EmployeeRecord {
     email: row.email,
     department: row.department,
     position: row.position,
+    gender: (row.gender as EmployeeRecord['gender']) ?? null,
     status: normalizeStatus(row.status),
     avatarInitials: deriveInitials(fullName),
     joinDate: normalizeDate(row.join_date || row.created_at),
@@ -190,6 +195,7 @@ const EMPLOYEE_SELECT = `
     e.email,
     e.department,
     e.jobPosition AS position,
+    e.gender,
     e.status,
     e.workingSchedule AS working_schedule,
     e.bankAccountNo AS bank_account,
@@ -296,9 +302,9 @@ export async function createEmployee(input: CreateEmployeeInput): Promise<Employ
   await executeQuery<ResultSetHeader>(
     `INSERT INTO employees
        (id, empCode, firstName, lastName, email, phone, department, jobPosition,
-        employeeType, status, workingSchedule, managerId, bankName, bankAccountNo,
+        gender, employeeType, status, workingSchedule, managerId, bankName, bankAccountNo,
         ifscRouting, createdAt, updatedAt)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       id,
       empCode,
@@ -308,6 +314,7 @@ export async function createEmployee(input: CreateEmployeeInput): Promise<Employ
       input.phone?.trim() ?? null,
       department,
       position,
+      input.gender ? input.gender.trim().toUpperCase() : null,
       input.employeeType ?? 'FULL_TIME',
       dbStatus,
       schedule,
@@ -370,6 +377,11 @@ export async function updateEmployee(
   if (pos !== undefined) {
     setClauses.push('jobPosition = ?');
     values.push(pos.trim());
+  }
+
+  if (input.gender !== undefined) {
+    setClauses.push('gender = ?');
+    values.push(input.gender ? input.gender.trim().toUpperCase() : null);
   }
 
   if (input.status !== undefined) {
