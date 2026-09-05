@@ -24,6 +24,7 @@ import {
   type ScheduleRecord,
   type CreateScheduleInput,
 } from '../repositories/schedule.repository.js';
+import { handleDatabaseError } from '../middleware/errorHandler.js';
 
 const router = Router();
 
@@ -103,7 +104,7 @@ router.post('/', authorize(PERMISSIONS.CONTRACT_WRITE), async (req: Request, res
   // ── Optional: validate working hours format (basic check) ──
   const workingHours = body.workingHours.trim();
   // Accept common formats like "40h", "37.5h", "9-to-5", etc.
-  const whRegex = /^[a-zA-Z0-9\s\-]+$/;
+  const whRegex = /^[a-zA-Z0-9\s\-.]+$/;
   if (!whRegex.test(workingHours)) {
     res.status(400).json({ success: false, message: 'workingHours contains invalid characters.' });
     return;
@@ -122,11 +123,7 @@ router.post('/', authorize(PERMISSIONS.CONTRACT_WRITE), async (req: Request, res
       res.status(409).json({ success: false, message: 'A schedule with this name already exists.' });
       return;
     }
-    console.error('[Schedule API] Failed to create schedule:', err instanceof Error ? err.message : err);
-    res.status(500).json({
-      success: false,
-      message: 'Unable to create schedule record. Please try again.',
-    });
+    handleDatabaseError(err, res, 'Failed to create schedule');
   }
 });
 

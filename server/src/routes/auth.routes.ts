@@ -9,6 +9,7 @@ import { getPermissionsForRole } from '../config/permissions.js';
 
 
 import { JWT_SECRET, JWT_SIGN_OPTIONS } from '../config/jwt.config.js';
+import { isValidEmail } from '../utils/validators.js';
 
 const router = Router();
 
@@ -40,6 +41,15 @@ router.post('/login', async (req: Request<{}, {}, LoginRequest>, res: Response<L
     }
 
     const normalizedEmail = email.trim().toLowerCase();
+
+    // Validate email format
+    if (!isValidEmail(normalizedEmail)) {
+      res.status(400).json({
+        success: false,
+        message: 'Invalid email address format',
+      });
+      return;
+    }
 
     // Authenticate against demo user repository
     const userAccount = findUserByEmail(normalizedEmail);

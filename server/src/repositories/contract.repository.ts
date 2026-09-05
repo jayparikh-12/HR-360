@@ -151,9 +151,9 @@ const CONTRACT_SELECT = `
     c.start_date,
     c.end_date,
     c.status,
-    COALESCE(e.name, '') AS name,
+    COALESCE(CONCAT(COALESCE(e.firstName, ''), ' ', COALESCE(e.lastName, '')), '') AS name,
     e.department,
-    e.position,
+    e.jobPosition AS position,
     COALESCE(e.empCode, e.id) AS emp_code,
     e.id AS employee_db_id
   FROM contracts c

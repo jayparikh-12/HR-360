@@ -172,7 +172,7 @@ const SNAPSHOT_SELECT = `
     p.id,
     p.payrun_id,
     p.employee_id,
-    COALESCE(e.name, '') AS employee_name,
+    COALESCE(CONCAT(COALESCE(e.firstName, ''), ' ', COALESCE(e.lastName, '')), '') AS employee_name,
     COALESCE(e.department, '') AS department,
     p.period_start,
     p.period_end,
@@ -381,7 +381,7 @@ export async function getPayrollSnapshotById(
  * Retrieves all snapshots belonging to a payrun batch.
  */
 export async function getPayrollSnapshotsByPayrun(payrunId: string): Promise<PayrollSnapshotRecord[]> {
-  const sql = `${SNAPSHOT_SELECT} WHERE p.payrun_id = ? ORDER BY COALESCE(e.name, p.employee_id) ASC`;
+  const sql = `${SNAPSHOT_SELECT} WHERE p.payrun_id = ? ORDER BY COALESCE(CONCAT(e.firstName, ' ', e.lastName), p.employee_id) ASC`;
   const rows = await executeQuery<RawPayslipSnapshotRow[]>(sql, [payrunId]);
   return rows.map(mapRowToSnapshot);
 }
@@ -478,9 +478,9 @@ const DETAILED_PAYSLIP_SELECT = `
     pr.payment_reference,
     p.employee_id,
     COALESCE(e.id, p.employee_id) AS emp_id,
-    COALESCE(e.name, '') AS employee_name,
+    COALESCE(CONCAT(COALESCE(e.firstName, ''), ' ', COALESCE(e.lastName, '')), '') AS employee_name,
     COALESCE(e.department, '') AS department,
-    COALESCE(e.position, '') AS position,
+    COALESCE(e.jobPosition, '') AS position,
     p.period_start,
     p.period_end,
     p.contract_wage,
