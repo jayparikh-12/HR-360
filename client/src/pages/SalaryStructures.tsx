@@ -23,6 +23,7 @@ import {
   type CreateSalaryRulePayload,
 } from '../api/salaryRules';
 import { ApiError } from '../api/client';
+import { useAuth } from '../context/AuthContext';
 
 interface SalaryStructuresProps {
   onNavigateTab?: (tab: string) => void;
@@ -1119,6 +1120,8 @@ export const CreateRuleModal: React.FC<CreateRuleModalProps> = ({
 // ── Main Page Component ──────────────────────────────────────────────────────
 
 export const SalaryStructures: React.FC<SalaryStructuresProps> = () => {
+  const { displayRole } = useAuth();
+  const isAdmin = displayRole === 'Admin';
   const [activeTab, setActiveTab] = useState<'structures' | 'rules'>('structures');
 
   // Data states
@@ -1233,21 +1236,25 @@ export const SalaryStructures: React.FC<SalaryStructuresProps> = () => {
             <RefreshCw size={14} />
             <span>Refresh</span>
           </button>
-          <button
-            className="btn btn-secondary"
-            onClick={() => setCreateRuleModalOpen(true)}
-            disabled={structures.length === 0}
-          >
-            <Plus size={14} />
-            <span>New Salary Rule</span>
-          </button>
-          <button
-            className="btn btn-primary"
-            onClick={() => setCreateStructureModalOpen(true)}
-          >
-            <Plus size={14} />
-            <span>New Structure</span>
-          </button>
+          {isAdmin && (
+            <>
+              <button
+                className="btn btn-secondary"
+                onClick={() => setCreateRuleModalOpen(true)}
+                disabled={structures.length === 0}
+              >
+                <Plus size={14} />
+                <span>New Salary Rule</span>
+              </button>
+              <button
+                className="btn btn-primary"
+                onClick={() => setCreateStructureModalOpen(true)}
+              >
+                <Plus size={14} />
+                <span>New Structure</span>
+              </button>
+            </>
+          )}
         </div>
       </div>
 

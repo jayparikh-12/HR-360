@@ -75,3 +75,35 @@ export function authorize(permission: AppPermission) {
     next();
   };
 }
+
+/**
+ * requireAdmin — Express middleware
+ *
+ * Strictly verifies that the authenticated request belongs to an Administrator
+ * based on the authenticated user's email (admin@company.com) or role (Admin),
+ * entirely preventing access by non-admin roles (Employee, HR Manager, HR Payroll).
+ */
+export function requireAdmin(req: Request, res: Response, next: NextFunction): void {
+  if (!req.user) {
+    res.status(401).json({
+      success: false,
+      message: 'Authentication required. Please sign in.',
+    });
+    return;
+  }
+
+  const email = (req.user.email || '').toLowerCase().trim();
+  const isAdminEmail = email === 'admin@company.com' || email === 'admin@peoplepay360.com';
+  const roleClean = (req.user.role || '').toUpperCase().trim();
+  const isAdminRole = roleClean === 'ADMIN';
+
+  if (!isAdminEmail && !isAdminRole) {
+    res.status(403).json({
+      success: false,
+      message: 'Forbidden: Only administrators can access this resource.',
+    });
+    return;
+  }
+
+  next();
+}

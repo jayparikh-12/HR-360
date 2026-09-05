@@ -50,9 +50,13 @@ function isNonEmptyString(val: unknown): val is string {
 
 // ── GET /api/attendance ───────────────────────────────────────────────────────
 
-router.get('/', async (_req: Request, res: Response): Promise<void> => {
+router.get('/', async (req: Request, res: Response): Promise<void> => {
   try {
-    const records = await getAllAttendance();
+    let records = await getAllAttendance();
+    // Scope attendance to self for Employee role
+    if (req.user?.role === 'Employee' && req.user.employeeId) {
+      records = records.filter((r) => r.employeeId === req.user?.employeeId);
+    }
     res.json({ success: true, data: records });
   } catch (err) {
     console.error('[Attendance API] Failed to list attendance records:', err instanceof Error ? err.message : err);
@@ -104,6 +108,14 @@ router.post('/check-in', async (req: Request, res: Response): Promise<void> => {
   if (!isNonEmptyString(employeeIdInput)) {
     res.status(400).json({ success: false, message: 'employeeId is required.' });
     return;
+  }
+
+  // Employee can only check in for themselves
+  if (req.user?.role === 'Employee' && req.user.employeeId) {
+    if (employeeIdInput.trim() !== req.user.employeeId) {
+      res.status(403).json({ success: false, message: 'Forbidden: Employees can only check in for themselves.' });
+      return;
+    }
   }
 
   // Optional date validation
@@ -181,6 +193,14 @@ router.post('/check-out', async (req: Request, res: Response): Promise<void> => 
       message: 'Either employeeId or recordId must be provided for check-out.',
     });
     return;
+  }
+
+  // Employee can only check out for themselves
+  if (req.user?.role === 'Employee' && req.user.employeeId) {
+    if (employeeIdInput && employeeIdInput.trim() !== req.user.employeeId) {
+      res.status(403).json({ success: false, message: 'Forbidden: Employees can only check out for themselves.' });
+      return;
+    }
   }
 
   try {

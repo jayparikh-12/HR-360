@@ -14,8 +14,8 @@ import { Schedules } from './pages/Schedules';
 import { SalaryStructures } from './pages/SalaryStructures';
 import { employeesApi } from './api/employees';
 import { payrollApi } from './api/payroll';
-import { initialEmployees, initialPayruns } from './data';
-import type { Employee, Payrun } from './types';
+import { initialEmployees } from './data';
+import type { Employee, Payrun, UserRole } from './types';
 import './App.css';
 
 /**
@@ -28,8 +28,22 @@ initialEmployees.forEach((e) => {
   LOCAL_STAT_SHIMS[e.id] = { attendanceRate: e.attendanceRate, leaveBalance: e.leaveBalance };
 });
 
+const isTabAllowed = (tab: string, role: UserRole): boolean => {
+  if (role === 'Admin') return true;
+  if (role === 'HR Manager') {
+    return ['dashboard', 'employees', 'contracts', 'schedules', 'attendance', 'time-off'].includes(tab);
+  }
+  if (role === 'HR Payroll Manager' || role === 'HR Payroll User') {
+    return ['dashboard', 'employees', 'contracts', 'attendance', 'payruns'].includes(tab);
+  }
+  if (role === 'Employee') {
+    return ['dashboard', 'attendance', 'time-off'].includes(tab);
+  }
+  return tab === 'dashboard';
+};
+
 const AppContent: React.FC = () => {
-  const { isAuthenticated, isLoading, user, displayRole, setDisplayRole, logout } = useAuth();
+  const { isAuthenticated, isLoading, user, displayRole, logout } = useAuth();
   const [currentTab, setCurrentTab] = useState<string>('dashboard');
 
   // ── Employee state (MySQL-backed, Phase 2.2) ────────────────────────────────
@@ -48,45 +62,46 @@ const AppContent: React.FC = () => {
         ...(LOCAL_STAT_SHIMS[emp.id] ?? { attendanceRate: 0, leaveBalance: 0 }),
       }));
       setEmployees(merged);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('[App] Failed to load employees from API:', err);
-      setEmployeesError(err?.message || 'Could not load employee data from server.');
+      setEmployeesError(err instanceof Error ? err.message : 'Could not load employee data from server.');
     } finally {
       setEmployeesLoading(false);
     }
   }, []);
 
-  // ── Payruns state (MySQL-backed) ───────────────────────────────────────────
-  const [payruns, setPayruns] = useState<Payrun[]>(initialPayruns);
+  // ── Payrun state ─────────────────────────────────────────────────────────────
+  const [payruns, setPayruns] = useState<Payrun[]>([]);
 
   const fetchPayruns = useCallback(async () => {
     try {
       const apiPayruns = await payrollApi.getAll();
-      if (apiPayruns && apiPayruns.length > 0) {
-        setPayruns((prev) => {
-          return apiPayruns.map((pr) => {
-            const existing = prev.find((p) => p.id === pr.id);
-            return {
-              ...existing,
-              ...pr,
-              status: pr.status,
-              payslips: (pr.payslips && pr.payslips.length > 0) ? pr.payslips : (existing?.payslips || []),
-            };
-          });
-        });
+      if (apiPayruns) {
+        setPayruns(apiPayruns);
       }
     } catch (err) {
       console.warn('[App] Failed to load payruns from API:', err);
     }
   }, []);
 
-  // Fetch employees and payruns when the user authenticates
+  // Fetch employees and payruns when the user authenticates (scoped by role permission)
   useEffect(() => {
     if (isAuthenticated) {
-      fetchEmployees();
-      fetchPayruns();
+      if (displayRole !== 'Employee') {
+        fetchEmployees();
+      }
+      if (displayRole === 'Admin' || displayRole === 'HR Payroll Manager' || displayRole === 'HR Payroll User') {
+        fetchPayruns();
+      }
     }
-  }, [isAuthenticated, fetchEmployees, fetchPayruns]);
+  }, [isAuthenticated, displayRole, fetchEmployees, fetchPayruns]);
+
+  // Ensure currentTab is permissible for the active role
+  useEffect(() => {
+    if (isAuthenticated && !isTabAllowed(currentTab, displayRole)) {
+      setCurrentTab('dashboard');
+    }
+  }, [isAuthenticated, currentTab, displayRole]);
 
   const handleUpdatePayrun = (updated: Payrun) => {
     setPayruns((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
@@ -205,7 +220,6 @@ const AppContent: React.FC = () => {
         <Header
           currentRole={displayRole}
           userName={user?.name || 'Elena Rostova'}
-          onRoleChange={setDisplayRole}
           onQuickPayrun={() => setCurrentTab('payruns')}
           onLogout={logout}
         />

@@ -12,7 +12,8 @@ interface TimeOffProps {
 }
 
 export const TimeOff: React.FC<TimeOffProps> = ({ onApprove, onRefuse }) => {
-  const { user } = useAuth();
+  const { user, displayRole } = useAuth();
+  const canApprove = displayRole === 'Admin' || displayRole === 'HR Manager';
   const [requests, setRequests] = useState<TimeOffRequest[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -220,24 +221,30 @@ export const TimeOff: React.FC<TimeOffProps> = ({ onApprove, onRefuse }) => {
                   </td>
                   <td>
                     {req.status === 'PENDING' ? (
-                      <div style={{ display: 'flex', gap: '6px' }}>
-                        <button
-                          className="btn btn-primary btn-sm"
-                          style={{ backgroundColor: '#059669' }}
-                          disabled={actionLoadingId === req.id}
-                          onClick={() => handleAction(req.id, 'APPROVED')}
-                        >
-                          <Check size={12} /> {actionLoadingId === req.id ? '...' : 'Approve'}
-                        </button>
-                        <button
-                          className="btn btn-secondary btn-sm"
-                          style={{ color: '#be123c' }}
-                          disabled={actionLoadingId === req.id}
-                          onClick={() => handleAction(req.id, 'REFUSED')}
-                        >
-                          <X size={12} /> {actionLoadingId === req.id ? '...' : 'Refuse'}
-                        </button>
-                      </div>
+                      canApprove ? (
+                        <div style={{ display: 'flex', gap: '6px' }}>
+                          <button
+                            className="btn btn-primary btn-sm"
+                            style={{ backgroundColor: '#059669' }}
+                            disabled={actionLoadingId === req.id}
+                            onClick={() => handleAction(req.id, 'APPROVED')}
+                          >
+                            <Check size={12} /> {actionLoadingId === req.id ? '...' : 'Approve'}
+                          </button>
+                          <button
+                            className="btn btn-secondary btn-sm"
+                            style={{ color: '#be123c' }}
+                            disabled={actionLoadingId === req.id}
+                            onClick={() => handleAction(req.id, 'REFUSED')}
+                          >
+                            <X size={12} /> {actionLoadingId === req.id ? '...' : 'Refuse'}
+                          </button>
+                        </div>
+                      ) : (
+                        <span style={{ fontSize: '12px', color: 'var(--slate-400)', fontStyle: 'italic' }}>
+                          Pending Approval
+                        </span>
+                      )
                     ) : (
                       <span style={{ fontSize: '12px', color: 'var(--slate-400)', fontStyle: 'italic' }}>
                         Resolved

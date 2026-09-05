@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { schedulesApi, type ScheduleRecord, type CreateSchedulePayload } from '../api/schedules';
 import { ApiError } from '../api/client';
+import { useAuth } from '../context/AuthContext';
 
 interface SchedulesProps {
   onNavigateTab?: (tab: string) => void;
@@ -322,6 +323,8 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({ onClos
 // ── Main Schedules View ─────────────────────────────────────────────────────
 
 export const Schedules: React.FC<SchedulesProps> = () => {
+  const { displayRole } = useAuth();
+  const canCreateSchedule = displayRole === 'Admin' || displayRole === 'HR Manager';
   const [schedules, setSchedules] = useState<ScheduleRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -376,13 +379,15 @@ export const Schedules: React.FC<SchedulesProps> = () => {
             Operational work time models and baseline shift schedules persisted in MySQL.
           </p>
         </div>
-        <button
-          className="btn btn-primary btn-sm"
-          onClick={() => setShowCreateModal(true)}
-          style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
-        >
-          <Plus size={14} /> New Schedule
-        </button>
+        {canCreateSchedule && (
+          <button
+            className="btn btn-primary btn-sm"
+            onClick={() => setShowCreateModal(true)}
+            style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+          >
+            <Plus size={14} /> New Schedule
+          </button>
+        )}
       </div>
 
       {/* Error state banner with retry */}

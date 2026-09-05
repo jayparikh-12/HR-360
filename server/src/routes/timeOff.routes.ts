@@ -21,6 +21,8 @@
 
 import { Router, Request, Response } from 'express';
 import { authenticateToken } from '../middleware/auth.middleware.js';
+import { authorize } from '../middleware/authorize.js';
+import { PERMISSIONS } from '../types/rbac.js';
 import {
   getAllTimeOffRequests,
   getTimeOffRequestById,
@@ -56,7 +58,7 @@ function isNonEmptyString(val: unknown): val is string {
 
 // ─── GET /api/time-off ────────────────────────────────────────────────────────
 // Returns database-backed time off requests, with optional ?employeeId= and ?status= filters.
-router.get('/', async (req: Request, res: Response): Promise<void> => {
+router.get('/', authorize(PERMISSIONS.TIMEOFF_READ), async (req: Request, res: Response): Promise<void> => {
   try {
     const { employeeId, status } = req.query;
 
@@ -73,9 +75,14 @@ router.get('/', async (req: Request, res: Response): Promise<void> => {
       statusFilter = upperStatus;
     }
 
-    const employeeIdFilter = typeof employeeId === 'string' && employeeId.trim().length > 0
+    let employeeIdFilter = typeof employeeId === 'string' && employeeId.trim().length > 0
       ? employeeId.trim().slice(0, 50)
       : undefined;
+
+    // Self-service scoping: Regular employees only see their own requests
+    if (req.user && req.user.role === 'Employee' && req.user.employeeId) {
+      employeeIdFilter = req.user.employeeId;
+    }
 
     const records = await getTimeOffRequests({
       employeeId: employeeIdFilter,
@@ -128,6 +135,18 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
   const body = req.body || {};
 
   const employeeIdInput = body.employeeId || body.employee_id || req.user?.employeeId;
+
+  // Authorization check: Employees can only request leave for themselves
+  if (req.user && req.user.role === 'Employee' && req.user.employeeId) {
+    if (typeof employeeIdInput === 'string' && employeeIdInput.trim() !== req.user.employeeId) {
+      res.status(403).json({
+        success: false,
+        message: 'Forbidden: Employees can only request leave for themselves.',
+      });
+      return;
+    }
+  }
+
   const leaveTypeInput = body.leaveType || body.leave_type;
   const startDateInput = body.startDate || body.start_date;
   const endDateInput = body.endDate || body.end_date;
@@ -228,16 +247,7 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
 
 // ─── PATCH /api/time-off/:id/approve ──────────────────────────────────────────
 // Approves a PENDING leave request (PENDING -> APPROVED).
-router.patch('/:id/approve', async (req: Request, res: Response): Promise<void> => {
-  // Authorization check: Employees cannot approve leave requests
-  if (req.user && req.user.role === 'Employee') {
-    res.status(403).json({
-      success: false,
-      message: 'Forbidden: Insufficient permission to approve leave requests.',
-    });
-    return;
-  }
-
+router.patch('/:id/approve', authorize(PERMISSIONS.TIMEOFF_APPROVE), async (req: Request, res: Response): Promise<void> => {
   const { id } = req.params;
   if (!isNonEmptyString(id)) {
     res.status(400).json({ success: false, message: 'Invalid time off request ID.' });
@@ -272,16 +282,7 @@ router.patch('/:id/approve', async (req: Request, res: Response): Promise<void> 
 
 // ─── PATCH /api/time-off/:id/refuse ───────────────────────────────────────────
 // Refuses a PENDING leave request (PENDING -> REFUSED).
-router.patch('/:id/refuse', async (req: Request, res: Response): Promise<void> => {
-  // Authorization check: Employees cannot refuse leave requests
-  if (req.user && req.user.role === 'Employee') {
-    res.status(403).json({
-      success: false,
-      message: 'Forbidden: Insufficient permission to refuse leave requests.',
-    });
-    return;
-  }
-
+router.patch('/:id/refuse', authorize(PERMISSIONS.TIMEOFF_APPROVE), async (req: Request, res: Response): Promise<void> => {
   const { id } = req.params;
   if (!isNonEmptyString(id)) {
     res.status(400).json({ success: false, message: 'Invalid time off request ID.' });

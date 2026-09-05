@@ -49,8 +49,10 @@ export const PERMISSIONS = {
   // Own payslip self-service
   PAYSLIP_READ: 'PAYSLIP_READ',
 
-  // System-level
+  // System-level and Salary Structure/Rule Configuration
   SYSTEM_ADMIN: 'SYSTEM_ADMIN',
+  STRUCTURE_READ: 'STRUCTURE_READ',
+  STRUCTURE_WRITE: 'STRUCTURE_WRITE',
 } as const;
 
 export type AppPermission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];

@@ -1201,12 +1201,8 @@ export const Employees: React.FC<EmployeesProps> = ({
   onNavigateTab,
   onRefresh,
 }) => {
-  const { displayRole, user } = useAuth();
-  const canAddEmployee =
-    displayRole === 'Admin' ||
-    displayRole === 'HR Manager' ||
-    displayRole === 'HR Payroll Manager' ||
-    (user?.role && user.role !== 'Employee');
+  const { displayRole } = useAuth();
+  const canAddEmployee = displayRole === 'Admin' || displayRole === 'HR Manager';
 
   const [selectedEmpId, setSelectedEmpId] = useState<string | null>(null);
   const [search, setSearch] = useState('');

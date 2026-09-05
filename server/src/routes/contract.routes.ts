@@ -15,6 +15,8 @@
 
 import { Router, Request, Response } from 'express';
 import { authenticateToken } from '../middleware/auth.middleware.js';
+import { authorize } from '../middleware/authorize.js';
+import { PERMISSIONS } from '../types/rbac.js';
 import {
   getAllContracts,
   getContractById,
@@ -53,7 +55,7 @@ function isNonEmptyString(val: unknown): val is string {
 
 // ── GET /api/contracts ────────────────────────────────────────────────────────
 
-router.get('/', async (_req: Request, res: Response): Promise<void> => {
+router.get('/', authorize(PERMISSIONS.CONTRACT_READ), async (_req: Request, res: Response): Promise<void> => {
   try {
     const contracts = await getAllContracts();
     res.json({ success: true, data: contracts });
@@ -68,7 +70,7 @@ router.get('/', async (_req: Request, res: Response): Promise<void> => {
 
 // ── GET /api/contracts/:id ────────────────────────────────────────────────────
 
-router.get('/:id', async (req: Request, res: Response): Promise<void> => {
+router.get('/:id', authorize(PERMISSIONS.CONTRACT_READ), async (req: Request, res: Response): Promise<void> => {
   const { id } = req.params;
 
   if (!isNonEmptyString(id)) {
@@ -98,7 +100,7 @@ router.get('/:id', async (req: Request, res: Response): Promise<void> => {
 
 // ── POST /api/contracts ───────────────────────────────────────────────────────
 
-router.post('/', async (req: Request, res: Response): Promise<void> => {
+router.post('/', authorize(PERMISSIONS.CONTRACT_WRITE), async (req: Request, res: Response): Promise<void> => {
   const body = req.body;
 
   if (!body || typeof body !== 'object') {

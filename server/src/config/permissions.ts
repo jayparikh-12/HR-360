@@ -19,8 +19,7 @@ import { ROLES, PERMISSIONS } from '../types/rbac.js';
 // ---------------------------------------------------------------------------
 export const ROLE_PERMISSIONS: Readonly<Record<AppRole, ReadonlySet<AppPermission>>> = {
   // ── ADMIN ──────────────────────────────────────────────────────────────
-  // Full system access. Explicitly enumerated so additions to PERMISSIONS
-  // require a conscious decision to include them here.
+  // Full system access across all HR, Payroll, Structure and Admin domains.
   [ROLES.ADMIN]: new Set<AppPermission>([
     PERMISSIONS.EMPLOYEE_READ,
     PERMISSIONS.EMPLOYEE_WRITE,
@@ -34,18 +33,20 @@ export const ROLE_PERMISSIONS: Readonly<Record<AppRole, ReadonlySet<AppPermissio
     PERMISSIONS.PAYRUN_CREATE,
     PERMISSIONS.PAYRUN_VALIDATE,
     PERMISSIONS.PAYRUN_PAY,
+    PERMISSIONS.STRUCTURE_READ,
+    PERMISSIONS.STRUCTURE_WRITE,
     PERMISSIONS.SYSTEM_ADMIN,
   ]),
 
   // ── HR_PAYROLL_MANAGER ─────────────────────────────────────────────────
-  // Full HR view + full payroll lifecycle (create → validate → mark paid).
+  // Full payroll lifecycle (create → compute → validate → mark paid).
+  // Read-only access to employee and contract records for payroll calculation.
+  // NO rights to modify employee/contract records, approve time-off, or edit salary rules.
   [ROLES.HR_PAYROLL_MANAGER]: new Set<AppPermission>([
     PERMISSIONS.EMPLOYEE_READ,
     PERMISSIONS.CONTRACT_READ,
     PERMISSIONS.ATTENDANCE_READ,
-    PERMISSIONS.ATTENDANCE_WRITE,
-    PERMISSIONS.TIMEOFF_READ,
-    PERMISSIONS.TIMEOFF_APPROVE,
+    PERMISSIONS.STRUCTURE_READ,
     PERMISSIONS.PAYRUN_READ,
     PERMISSIONS.PAYRUN_CREATE,
     PERMISSIONS.PAYRUN_VALIDATE,
@@ -53,35 +54,38 @@ export const ROLE_PERMISSIONS: Readonly<Record<AppRole, ReadonlySet<AppPermissio
   ]),
 
   // ── HR_MANAGER ─────────────────────────────────────────────────────────
-  // People management (employees, contracts) + attendance view + time-off approval.
-  // Cannot touch payroll financials.
+  // People management (employees, contracts, working schedules) + attendance + time-off approval.
+  // CANNOT touch payroll runs, validate/pay payruns, or edit salary structures/rules.
   [ROLES.HR_MANAGER]: new Set<AppPermission>([
     PERMISSIONS.EMPLOYEE_READ,
     PERMISSIONS.EMPLOYEE_WRITE,
     PERMISSIONS.CONTRACT_READ,
     PERMISSIONS.CONTRACT_WRITE,
     PERMISSIONS.ATTENDANCE_READ,
+    PERMISSIONS.ATTENDANCE_WRITE,
     PERMISSIONS.TIMEOFF_READ,
     PERMISSIONS.TIMEOFF_APPROVE,
   ]),
 
   // ── HR_PAYROLL_USER ────────────────────────────────────────────────────
-  // Operational payroll preparation: can read employees, review attendance,
-  // and draft/read payruns. Cannot validate/pay or manage HR records.
+  // Operational payroll preparation: read employees, attendance, and draft/read payruns.
+  // Cannot validate/pay payruns or modify HR records.
   [ROLES.HR_PAYROLL_USER]: new Set<AppPermission>([
     PERMISSIONS.EMPLOYEE_READ,
+    PERMISSIONS.CONTRACT_READ,
     PERMISSIONS.ATTENDANCE_READ,
     PERMISSIONS.PAYRUN_READ,
     PERMISSIONS.PAYRUN_CREATE,
   ]),
 
-  // ── EMPLOYEE ───────────────────────────────────────────────────────────────
-  // Self-service only: own attendance view, own time-off, own payslip.
+  // ── EMPLOYEE ───────────────────────────────────────────────────────────
+  // Self-service only: own attendance check-in/out, own time-off request, own payslips.
+  // Cannot access employee directory, company payruns, contracts, or salary rules.
   [ROLES.EMPLOYEE]: new Set<AppPermission>([
     PERMISSIONS.ATTENDANCE_READ,
+    PERMISSIONS.ATTENDANCE_WRITE,
     PERMISSIONS.TIMEOFF_READ,
-    PERMISSIONS.PAYRUN_READ,    // own payslips only — scoped at route level in Part 2
-    PERMISSIONS.PAYSLIP_READ,   // explicit self-service payslip access
+    PERMISSIONS.PAYSLIP_READ,
   ]),
 };
 

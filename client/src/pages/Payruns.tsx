@@ -13,6 +13,7 @@ import {
 import type { Payrun, PayslipItem, Employee } from '../types';
 import { payrollApi } from '../api/payroll';
 import { ApiError } from '../api/client';
+import { useAuth } from '../context/AuthContext';
 
 interface PayrunsProps {
   payruns: Payrun[];
@@ -21,6 +22,10 @@ interface PayrunsProps {
 }
 
 export const Payruns: React.FC<PayrunsProps> = ({ payruns, employees, onUpdatePayrun }) => {
+  const { displayRole } = useAuth();
+  const canValidateAndPay = displayRole === 'Admin' || displayRole === 'HR Payroll Manager';
+  const canCreatePayrun = displayRole === 'Admin' || displayRole === 'HR Payroll Manager' || displayRole === 'HR Payroll User';
+
   const [activePayrun, setActivePayrun] = useState<Payrun>(payruns[0]);
   const [selectedPayslip, setSelectedPayslip] = useState<PayslipItem | null>(null);
   const [wizardOpen, setWizardOpen] = useState(false);
@@ -191,10 +196,12 @@ export const Payruns: React.FC<PayrunsProps> = ({ payruns, employees, onUpdatePa
           <h1 className="page-title">Payrun Command Center</h1>
           <p className="page-desc">Batch calculate deterministic salary structures, validate deductions, and export payslips.</p>
         </div>
-        <button className="btn btn-primary" onClick={() => setWizardOpen(true)}>
-          <Play size={14} />
-          <span>New Payrun Wizard</span>
-        </button>
+        {canCreatePayrun && (
+          <button className="btn btn-primary" onClick={() => setWizardOpen(true)}>
+            <Play size={14} />
+            <span>New Payrun Wizard</span>
+          </button>
+        )}
       </div>
 
       {/* Error Alert Banner */}
@@ -288,33 +295,45 @@ export const Payruns: React.FC<PayrunsProps> = ({ payruns, employees, onUpdatePa
               </button>
             )}
             {(activePayrun.status === 'DRAFT' || activePayrun.status === 'COMPUTED') && (
-              <button
-                className="btn btn-primary"
-                disabled={actionLoading}
-                onClick={handleValidate}
-              >
-                {actionLoading ? (
-                  <Loader2 size={14} className="spin" style={{ animation: 'spin 1s linear infinite' }} />
-                ) : (
-                  <Check size={14} />
-                )}
-                <span>{actionLoading ? 'Validating...' : 'Validate & Confirm Payrun'}</span>
-              </button>
+              canValidateAndPay ? (
+                <button
+                  className="btn btn-primary"
+                  disabled={actionLoading}
+                  onClick={handleValidate}
+                >
+                  {actionLoading ? (
+                    <Loader2 size={14} className="spin" style={{ animation: 'spin 1s linear infinite' }} />
+                  ) : (
+                    <Check size={14} />
+                  )}
+                  <span>{actionLoading ? 'Validating...' : 'Validate & Confirm Payrun'}</span>
+                </button>
+              ) : (
+                <span style={{ fontSize: '13px', color: 'var(--slate-400)', fontStyle: 'italic', alignSelf: 'center' }}>
+                  Payroll Manager validation required
+                </span>
+              )
             )}
             {activePayrun.status === 'VALIDATED' && (
-              <button
-                className="btn btn-primary"
-                style={{ backgroundColor: '#059669' }}
-                disabled={actionLoading}
-                onClick={handlePay}
-              >
-                {actionLoading ? (
-                  <Loader2 size={14} className="spin" style={{ animation: 'spin 1s linear infinite' }} />
-                ) : (
-                  <DollarSign size={14} />
-                )}
-                <span>{actionLoading ? 'Processing Payment...' : 'Mark Paid & Disburse'}</span>
-              </button>
+              canValidateAndPay ? (
+                <button
+                  className="btn btn-primary"
+                  style={{ backgroundColor: '#059669' }}
+                  disabled={actionLoading}
+                  onClick={handlePay}
+                >
+                  {actionLoading ? (
+                    <Loader2 size={14} className="spin" style={{ animation: 'spin 1s linear infinite' }} />
+                  ) : (
+                    <DollarSign size={14} />
+                  )}
+                  <span>{actionLoading ? 'Processing Payment...' : 'Mark Paid & Disburse'}</span>
+                </button>
+              ) : (
+                <span style={{ fontSize: '13px', color: 'var(--slate-400)', fontStyle: 'italic', alignSelf: 'center' }}>
+                  Payroll Manager disbursement required
+                </span>
+              )
             )}
             {activePayrun.status === 'PAID' && (
               <button

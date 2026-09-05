@@ -15,6 +15,8 @@
 
 import { Router, Request, Response } from 'express';
 import { authenticateToken } from '../middleware/auth.middleware.js';
+import { authorize } from '../middleware/authorize.js';
+import { PERMISSIONS } from '../types/rbac.js';
 import {
   getAllSchedules,
   getScheduleById,
@@ -79,7 +81,7 @@ router.get('/:id', async (req: Request, res: Response): Promise<void> => {
 
 // ── POST /api/schedules ───────────────────────────────────────────────────────
 
-router.post('/', async (req: Request, res: Response): Promise<void> => {
+router.post('/', authorize(PERMISSIONS.CONTRACT_WRITE), async (req: Request, res: Response): Promise<void> => {
   const body = req.body;
 
   if (!body || typeof body !== 'object') {

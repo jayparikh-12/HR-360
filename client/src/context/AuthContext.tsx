@@ -31,7 +31,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [token, setToken] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [overrideDisplayRole, setOverrideDisplayRole] = useState<UserRole | null>(null);
 
   // Prevent concurrent login requests
   const isLoggingInRef = useRef<boolean>(false);
@@ -140,7 +139,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Update centralized auth state
       setToken(response.token);
       setUser(safeUser);
-      setOverrideDisplayRole(null);
       setIsAuthenticated(true);
     } finally {
       isLoggingInRef.current = false;
@@ -154,21 +152,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     clearStoredToken();
     setToken(null);
     setUser(null);
-    setOverrideDisplayRole(null);
     setIsAuthenticated(false);
   }, []);
 
   // --------------------------------------------------------------------------
-  // Role display integration for UI continuity
+  // Role display integration strictly derived from authenticated session token
   // --------------------------------------------------------------------------
   const displayRole: UserRole = useMemo(() => {
-    if (overrideDisplayRole) return overrideDisplayRole;
     if (user?.role) return toDisplayRole(user.role);
-    return 'HR Payroll Manager';
-  }, [user, overrideDisplayRole]);
+    return 'Employee';
+  }, [user]);
 
-  const setDisplayRole = useCallback((role: UserRole) => {
-    setOverrideDisplayRole(role);
+  const setDisplayRole = useCallback((_role: UserRole) => {
+    // No-op: Role switching from the frontend is disabled for security.
+    console.warn('[Security] Frontend role switching is disabled. Roles are verified by backend authentication.');
   }, []);
 
   const value: ExtendedAuthContextValue = useMemo(

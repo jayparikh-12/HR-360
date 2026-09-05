@@ -20,6 +20,8 @@
 
 import { Router, Request, Response } from 'express';
 import { authenticateToken } from '../middleware/auth.middleware.js';
+import { authorize } from '../middleware/authorize.js';
+import { PERMISSIONS } from '../types/rbac.js';
 import {
   getAllPayruns,
   getPayrunById,
@@ -70,7 +72,7 @@ function isNonEmptyString(val: unknown): val is string {
 
 // ── GET /api/payroll/payruns ──────────────────────────────────────────────────
 
-router.get('/payruns', async (_req: Request, res: Response): Promise<void> => {
+router.get('/payruns', authorize(PERMISSIONS.PAYRUN_READ), async (_req: Request, res: Response): Promise<void> => {
   try {
     const payruns = await getAllPayruns();
     const enriched = payruns.map((pr) => ({
@@ -89,7 +91,7 @@ router.get('/payruns', async (_req: Request, res: Response): Promise<void> => {
 
 // ── GET /api/payroll/payruns/:id ──────────────────────────────────────────────
 
-router.get('/payruns/:id', async (req: Request, res: Response): Promise<void> => {
+router.get('/payruns/:id', authorize(PERMISSIONS.PAYRUN_READ), async (req: Request, res: Response): Promise<void> => {
   const { id } = req.params;
 
   if (!isNonEmptyString(id)) {
@@ -122,7 +124,7 @@ router.get('/payruns/:id', async (req: Request, res: Response): Promise<void> =>
 
 // ── POST /api/payroll/payruns/create ──────────────────────────────────────────
 
-router.post('/payruns/create', async (req: Request, res: Response): Promise<void> => {
+router.post('/payruns/create', authorize(PERMISSIONS.PAYRUN_CREATE), async (req: Request, res: Response): Promise<void> => {
   const body = req.body || {};
   const { name, period, salaryStructure, employeeIds, startDate, endDate, id: customId } = body;
 
@@ -271,7 +273,7 @@ router.post('/payruns/create', async (req: Request, res: Response): Promise<void
 
 // ── PATCH /api/payroll/payruns/:id/validate ───────────────────────────────────
 
-router.patch('/payruns/:id/validate', async (req: Request, res: Response): Promise<void> => {
+router.patch('/payruns/:id/validate', authorize(PERMISSIONS.PAYRUN_VALIDATE), async (req: Request, res: Response): Promise<void> => {
   const { id } = req.params;
 
   if (!isNonEmptyString(id)) {
@@ -338,7 +340,7 @@ router.patch('/payruns/:id/validate', async (req: Request, res: Response): Promi
 
 // ── PATCH /api/payroll/payruns/:id/pay ────────────────────────────────────────
 
-router.patch('/payruns/:id/pay', async (req: Request, res: Response): Promise<void> => {
+router.patch('/payruns/:id/pay', authorize(PERMISSIONS.PAYRUN_PAY), async (req: Request, res: Response): Promise<void> => {
   const { id } = req.params;
 
   if (!isNonEmptyString(id)) {

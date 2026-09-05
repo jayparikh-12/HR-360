@@ -16,6 +16,8 @@
 
 import { Router, Request, Response } from 'express';
 import { authenticateToken } from '../middleware/auth.middleware.js';
+import { authorize } from '../middleware/authorize.js';
+import { PERMISSIONS } from '../types/rbac.js';
 import {
   getAllEmployees,
   getEmployeeById,
@@ -42,7 +44,7 @@ function isNonEmptyString(v: unknown): v is string {
 
 // ── GET /api/employees ────────────────────────────────────────────────────────
 
-router.get('/', async (_req: Request, res: Response): Promise<void> => {
+router.get('/', authorize(PERMISSIONS.EMPLOYEE_READ), async (_req: Request, res: Response): Promise<void> => {
   try {
     const employees = await getAllEmployees();
     res.json({ success: true, data: employees });
@@ -67,6 +69,14 @@ router.get('/:id', async (req: Request, res: Response): Promise<void> => {
 
   const sanitizedId = id.trim().slice(0, 191);
 
+  // Allow if user is inspecting their own profile or holds EMPLOYEE_READ permission
+  const isSelf = req.user?.employeeId && req.user.employeeId === sanitizedId;
+  const isManagerOrAdmin = req.user?.role && req.user.role !== 'Employee';
+  if (!isSelf && !isManagerOrAdmin) {
+    res.status(403).json({ success: false, message: 'Forbidden: Insufficient permission to view employee record.' });
+    return;
+  }
+
   try {
     const employee = await getEmployeeById(sanitizedId);
     if (!employee) {
@@ -85,15 +95,7 @@ router.get('/:id', async (req: Request, res: Response): Promise<void> => {
 
 // ── POST /api/employees ───────────────────────────────────────────────────────
 
-router.post('/', async (req: Request, res: Response): Promise<void> => {
-  // Authorization check: Non-admin employees cannot create employee records
-  if (req.user && req.user.role === 'Employee') {
-    res.status(403).json({
-      success: false,
-      message: 'Forbidden: Insufficient permission to create employee records.',
-    });
-    return;
-  }
+router.post('/', authorize(PERMISSIONS.EMPLOYEE_WRITE), async (req: Request, res: Response): Promise<void> => {
 
   const body = req.body as Partial<CreateEmployeeInput>;
 
@@ -162,15 +164,7 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
 
 // ── PATCH /api/employees/:id ──────────────────────────────────────────────────
 
-router.patch('/:id', async (req: Request, res: Response): Promise<void> => {
-  // Authorization check: Non-admin employees cannot modify or deactivate employee records
-  if (req.user && req.user.role === 'Employee') {
-    res.status(403).json({
-      success: false,
-      message: 'Forbidden: Insufficient permission to update or deactivate employee records.',
-    });
-    return;
-  }
+router.patch('/:id', authorize(PERMISSIONS.EMPLOYEE_WRITE), async (req: Request, res: Response): Promise<void> => {
 
   const { id } = req.params;
 

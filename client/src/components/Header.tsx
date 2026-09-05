@@ -6,19 +6,20 @@ import type { UserRole } from '../types';
 interface HeaderProps {
   currentRole: UserRole;
   userName: string;
-  onRoleChange: (role: UserRole) => void;
+  onRoleChange?: (role: UserRole) => void;
   onQuickPayrun: () => void;
   onLogout: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({ 
   currentRole, 
-  userName,
-  onRoleChange, 
+  userName, 
   onQuickPayrun,
   onLogout
 }) => {
   const { theme, toggleTheme } = useTheme();
+
+  const canRunPayroll = currentRole === 'Admin' || currentRole === 'HR Payroll Manager' || currentRole === 'HR Payroll User';
 
   const getInitials = (role: UserRole) => {
     switch (role) {
@@ -59,24 +60,33 @@ export const Header: React.FC<HeaderProps> = ({
           <span>Sep 2026 Cycle</span>
         </div>
 
-        {/* Quick Action */}
-        <button className="btn btn-primary btn-sm" onClick={onQuickPayrun}>
-          <Plus size={14} />
-          <span>Run Payroll</span>
-        </button>
+        {/* Quick Action - Only for Payroll Roles */}
+        {canRunPayroll && (
+          <button className="btn btn-primary btn-sm" onClick={onQuickPayrun}>
+            <Plus size={14} />
+            <span>Run Payroll</span>
+          </button>
+        )}
 
-        {/* Role Switcher */}
-        <select 
-          className="role-select" 
-          value={currentRole}
-          onChange={(e) => onRoleChange(e.target.value as UserRole)}
+        {/* Authenticated Role Badge (Strictly read-only, verified from auth token) */}
+        <div 
+          className="role-badge" 
+          style={{ 
+            padding: '5px 12px', 
+            borderRadius: '6px', 
+            fontSize: '12px', 
+            fontWeight: 600, 
+            backgroundColor: 'var(--surface-color, #1e293b)',
+            color: 'var(--text-primary, #f8fafc)',
+            border: '1px solid var(--border-color, #334155)',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px'
+          }}
         >
-          <option value="HR Payroll Manager">Role: HR Payroll Manager</option>
-          <option value="HR Manager">Role: HR Manager</option>
-          <option value="HR Payroll User">Role: HR Payroll User</option>
-          <option value="Employee">Role: Employee (Self-Service)</option>
-          <option value="Admin">Role: Admin</option>
-        </select>
+          <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#6366f1' }} />
+          <span>Role: {currentRole}</span>
+        </div>
 
         {/* Avatar */}
         <div className="avatar" title={`${userName} (${currentRole})`}>

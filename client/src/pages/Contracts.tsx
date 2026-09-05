@@ -19,6 +19,7 @@ import { contractsApi, type CreateContractPayload } from '../api/contracts';
 import { employeesApi } from '../api/employees';
 import { schedulesApi, type ScheduleRecord } from '../api/schedules';
 import { ApiError } from '../api/client';
+import { useAuth } from '../context/AuthContext';
 
 interface ContractsProps {
   onNavigateTab?: (tab: string) => void;
@@ -465,6 +466,8 @@ export const CreateContractModal: React.FC<CreateContractModalProps> = ({
 // ── Main Contracts View ─────────────────────────────────────────────────────
 
 export const Contracts: React.FC<ContractsProps> = () => {
+  const { displayRole } = useAuth();
+  const canCreateContract = displayRole === 'Admin' || displayRole === 'HR Manager';
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [schedules, setSchedules] = useState<ScheduleRecord[]>([]);
@@ -551,13 +554,15 @@ export const Contracts: React.FC<ContractsProps> = () => {
             Enterprise employment agreements and compensation records persisted in MySQL.
           </p>
         </div>
-        <button
-          className="btn btn-primary btn-sm"
-          onClick={() => setShowCreateModal(true)}
-          style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
-        >
-          <Plus size={14} /> New Contract
-        </button>
+        {canCreateContract && (
+          <button
+            className="btn btn-primary btn-sm"
+            onClick={() => setShowCreateModal(true)}
+            style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+          >
+            <Plus size={14} /> New Contract
+          </button>
+        )}
       </div>
 
       {/* Metric Cards */}

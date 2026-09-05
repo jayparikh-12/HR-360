@@ -14,6 +14,8 @@
 
 import { Router, Request, Response } from 'express';
 import { authenticateToken } from '../middleware/auth.middleware.js';
+import { authorize, requireAdmin } from '../middleware/authorize.js';
+import { PERMISSIONS } from '../types/rbac.js';
 import {
   getAllSalaryRules,
   getSalaryRuleById,
@@ -40,7 +42,7 @@ function isNonEmptyString(val: unknown): val is string {
 
 // ── GET /api/salary-rules ────────────────────────────────────────────────────
 
-router.get('/', async (req: Request, res: Response): Promise<void> => {
+router.get('/', authorize(PERMISSIONS.STRUCTURE_READ), async (req: Request, res: Response): Promise<void> => {
   const structureIdQuery = (req.query.structureId || req.query.structure_id) as string | undefined;
 
   try {
@@ -57,7 +59,7 @@ router.get('/', async (req: Request, res: Response): Promise<void> => {
 
 // ── GET /api/salary-rules/:id ────────────────────────────────────────────────
 
-router.get('/:id', async (req: Request, res: Response): Promise<void> => {
+router.get('/:id', authorize(PERMISSIONS.STRUCTURE_READ), async (req: Request, res: Response): Promise<void> => {
   const { id } = req.params;
 
   if (!isNonEmptyString(id)) {
@@ -87,7 +89,7 @@ router.get('/:id', async (req: Request, res: Response): Promise<void> => {
 
 // ── POST /api/salary-rules ───────────────────────────────────────────────────
 
-router.post('/', async (req: Request, res: Response): Promise<void> => {
+router.post('/', requireAdmin, async (req: Request, res: Response): Promise<void> => {
   const body = req.body || {};
 
   const nameInput = body.name;
