@@ -181,22 +181,27 @@ export async function getEmployeeMetrics(
     params.push(dateRange.endDate);
   }
 
-  // Note: Employee Type filter is unavailable because the current domain model does not support it.
+  if (filters.employeeType && filters.employeeType.trim().toUpperCase() !== 'ALL') {
+    whereClauses.push('(CASE WHEN ws.weekly_hours < 40 THEN "PART_TIME" ELSE "FULL_TIME" END = ?)');
+    params.push(filters.employeeType.trim().toUpperCase());
+  }
 
   const whereSql = whereClauses.join(' AND ');
 
   // Summary counts
   const summarySql = `
     SELECT
-      COUNT(e.id) AS total,
+      COUNT(DISTINCT e.id) AS total,
       SUM(CASE WHEN e.status = 'ACTIVE' THEN 1 ELSE 0 END) AS active,
       SUM(CASE WHEN e.status IN ('INACTIVE', 'TERMINATED') THEN 1 ELSE 0 END) AS inactive,
       SUM(CASE WHEN e.status = 'PROBATION' THEN 1 ELSE 0 END) AS probation,
       SUM(CASE WHEN e.status = 'ACTIVE' AND NOT EXISTS (
-        SELECT 1 FROM contracts c WHERE c.employee_id = e.id AND c.status = 'ACTIVE'
+        SELECT 1 FROM contracts c2 WHERE c2.employee_id = e.id AND c2.status = 'ACTIVE'
       ) THEN 1 ELSE 0 END) AS uncontracted,
       COUNT(DISTINCT e.department) AS department_count
     FROM employees e
+    LEFT JOIN contracts c ON c.employee_id = e.id AND c.status = 'ACTIVE'
+    LEFT JOIN working_schedules ws ON ws.id = c.working_schedule_id
     WHERE ${whereSql}
   `;
 
@@ -214,8 +219,10 @@ export async function getEmployeeMetrics(
   const deptSql = `
     SELECT
       COALESCE(e.department, 'Unassigned') AS department,
-      COUNT(e.id) AS count
+      COUNT(DISTINCT e.id) AS count
     FROM employees e
+    LEFT JOIN contracts c ON c.employee_id = e.id AND c.status = 'ACTIVE'
+    LEFT JOIN working_schedules ws ON ws.id = c.working_schedule_id
     WHERE ${whereSql}
     GROUP BY e.department
   `;
@@ -259,6 +266,11 @@ export async function getDepartmentWages(
     params.push(dateRange.endDate);
   }
 
+  if (filters.employeeType && filters.employeeType.trim().toUpperCase() !== 'ALL') {
+    whereClauses.push('(CASE WHEN ws.weekly_hours < 40 THEN "PART_TIME" ELSE "FULL_TIME" END = ?)');
+    params.push(filters.employeeType.trim().toUpperCase());
+  }
+
   const whereSql = whereClauses.join(' AND ');
 
   const sql = `
@@ -267,6 +279,7 @@ export async function getDepartmentWages(
       COALESCE(SUM(c.wage), 0) AS total_wage
     FROM employees e
     LEFT JOIN contracts c ON c.employee_id = e.id AND c.status = 'ACTIVE'
+    LEFT JOIN working_schedules ws ON ws.id = c.working_schedule_id
     WHERE ${whereSql}
     GROUP BY e.department
   `;
@@ -348,7 +361,10 @@ export async function getPayrollMetrics(
     payslipParams.push(filters.department.trim());
   }
 
-  // Note: Employee Type filter unavailable because current domain model does not support it.
+  if (filters.employeeType && filters.employeeType.trim().toUpperCase() !== 'ALL') {
+    payslipWhereClauses.push('(CASE WHEN ws.weekly_hours < 40 THEN "PART_TIME" ELSE "FULL_TIME" END = ?)');
+    payslipParams.push(filters.employeeType.trim().toUpperCase());
+  }
 
   const payslipWhereSql = payslipWhereClauses.join(' AND ');
 
@@ -361,6 +377,8 @@ export async function getPayrollMetrics(
       COUNT(p.id) AS payslip_count
     FROM payslips p
     JOIN employees e ON e.id = p.employee_id
+    LEFT JOIN contracts c ON c.employee_id = e.id AND c.status = 'ACTIVE'
+    LEFT JOIN working_schedules ws ON ws.id = c.working_schedule_id
     WHERE ${payslipWhereSql}
   `;
 
@@ -381,6 +399,8 @@ export async function getPayrollMetrics(
       COALESCE(SUM(p.gross), 0) AS total_gross
     FROM payslips p
     JOIN employees e ON e.id = p.employee_id
+    LEFT JOIN contracts c ON c.employee_id = e.id AND c.status = 'ACTIVE'
+    LEFT JOIN working_schedules ws ON ws.id = c.working_schedule_id
     WHERE ${payslipWhereSql}
     GROUP BY e.department
   `;
@@ -439,7 +459,10 @@ export async function getAttendanceMetrics(
     params.push(filters.department.trim());
   }
 
-  // Note: Employee Type filter unavailable because current domain model does not support it.
+  if (filters.employeeType && filters.employeeType.trim().toUpperCase() !== 'ALL') {
+    whereClauses.push('(CASE WHEN ws.weekly_hours < 40 THEN "PART_TIME" ELSE "FULL_TIME" END = ?)');
+    params.push(filters.employeeType.trim().toUpperCase());
+  }
 
   const whereSql = whereClauses.join(' AND ');
 
@@ -453,6 +476,8 @@ export async function getAttendanceMetrics(
       SUM(CASE WHEN a.status = 'MISSING_CHECKOUT' OR (a.check_in IS NOT NULL AND a.check_out IS NULL) THEN 1 ELSE 0 END) AS missing_checkout_count
     FROM attendance_records a
     LEFT JOIN employees e ON e.id = a.employee_id
+    LEFT JOIN contracts c ON c.employee_id = e.id AND c.status = 'ACTIVE'
+    LEFT JOIN working_schedules ws ON ws.id = c.working_schedule_id
     WHERE ${whereSql}
   `;
 
@@ -503,7 +528,10 @@ export async function getTimeOffMetrics(
     params.push(filters.department.trim());
   }
 
-  // Note: Employee Type filter unavailable because current domain model does not support it.
+  if (filters.employeeType && filters.employeeType.trim().toUpperCase() !== 'ALL') {
+    whereClauses.push('(CASE WHEN ws.weekly_hours < 40 THEN "PART_TIME" ELSE "FULL_TIME" END = ?)');
+    params.push(filters.employeeType.trim().toUpperCase());
+  }
 
   const whereSql = whereClauses.join(' AND ');
 
@@ -517,6 +545,8 @@ export async function getTimeOffMetrics(
       COALESCE(SUM(CASE WHEN t.status = 'APPROVED' THEN t.duration_days ELSE 0 END), 0) AS approved_days
     FROM time_off_requests t
     LEFT JOIN employees e ON e.id = t.employee_id
+    LEFT JOIN contracts c ON c.employee_id = e.id AND c.status = 'ACTIVE'
+    LEFT JOIN working_schedules ws ON ws.id = c.working_schedule_id
     WHERE ${whereSql}
   `;
 
@@ -1192,6 +1222,19 @@ export async function getPendingPayrunsForAlerts(
       )
     )`);
     params.push(filters.department.trim());
+  }
+
+  if (filters.employeeType && filters.employeeType.trim().toUpperCase() !== 'ALL') {
+    whereClauses.push(`(
+      pr.status = 'DRAFT' OR EXISTS (
+        SELECT 1 FROM payslips ps
+        JOIN employees e ON e.id = ps.employee_id
+        LEFT JOIN contracts c ON c.employee_id = e.id AND c.status = 'ACTIVE'
+        LEFT JOIN working_schedules ws ON ws.id = c.working_schedule_id
+        WHERE ps.payrun_id = pr.id AND (CASE WHEN ws.weekly_hours < 40 THEN 'PART_TIME' ELSE 'FULL_TIME' END = ?)
+      )
+    )`);
+    params.push(filters.employeeType.trim().toUpperCase());
   }
 
   const whereSql = whereClauses.join(' AND ');
