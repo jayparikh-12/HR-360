@@ -1262,7 +1262,7 @@ export const Employees: React.FC<EmployeesProps> = ({
   onRefresh,
 }) => {
   const { displayRole } = useAuth();
-  const canAddEmployee = displayRole === 'Admin' || displayRole === 'HR Manager';
+  const canAddEmployee = displayRole === 'Admin';
 
   const [selectedEmpId, setSelectedEmpId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
@@ -1426,13 +1426,15 @@ export const Employees: React.FC<EmployeesProps> = ({
                             <div style={{ fontSize: '13px', marginBottom: '14px' }}>
                               There are currently no employee records in the database.
                             </div>
-                            <button
-                              className="btn btn-primary btn-sm"
-                              onClick={() => setShowAddForm(true)}
-                              style={{ margin: '0 auto', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-                            >
-                              <UserPlus size={14} /> Add First Employee
-                            </button>
+                            {canAddEmployee && (
+                              <button
+                                className="btn btn-primary btn-sm"
+                                onClick={() => setShowAddForm(true)}
+                                style={{ margin: '0 auto', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                              >
+                                <UserPlus size={14} /> Add First Employee
+                              </button>
+                            )}
                           </div>
                         ) : (
                           <div>

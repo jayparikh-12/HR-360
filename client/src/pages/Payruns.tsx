@@ -183,18 +183,35 @@ export const Payruns: React.FC<PayrunsProps> = ({
     }
   };
 
-  // Local computation: DRAFT → COMPUTED (client-side only; no /compute API endpoint exists)
-  const handleComputePayslips = () => {
-    if (!activePayrun) return;
+  // Compute Payrun via backend API (POST /api/payroll/payruns/:id/compute)
+  const handleComputePayslips = async () => {
+    if (actionLoading || !activePayrun) return;
     setError(null);
-    const updated: Payrun = {
-      ...activePayrun,
-      status: 'COMPUTED',
-      payslips: activePayrun.payslips.map((p) => ({ ...p, status: 'COMPUTED' })),
-    };
-    setActivePayrun(updated);
-    onUpdatePayrun(updated);
-    onSelectPayrun?.(updated.id);
+    setActionLoading(true);
+
+    try {
+      const updated = await payrollApi.compute(activePayrun.id);
+      const mergedPayslips = (updated.payslips && updated.payslips.length > 0)
+        ? updated.payslips
+        : activePayrun.payslips.map((p) => ({ ...p, status: 'COMPUTED' as const }));
+
+      const newActive: Payrun = {
+        ...activePayrun,
+        ...updated,
+        status: updated.status || 'COMPUTED',
+        payslips: mergedPayslips,
+      };
+
+      setActivePayrun(newActive);
+      onUpdatePayrun(newActive);
+      onSelectPayrun?.(newActive.id);
+    } catch (err: any) {
+      console.error('[Payruns] Compute failed:', err instanceof Error ? err.message : String(err));
+      const msg = err instanceof ApiError ? err.message : (err?.message || 'Failed to compute payrun. Please try again.');
+      setError(msg);
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   /**
@@ -399,10 +416,13 @@ export const Payruns: React.FC<PayrunsProps> = ({
                 disabled={actionLoading}
                 onClick={handleComputePayslips}
               >
-                ⚡ Compute All Payslips
+                {actionLoading ? (
+                  <Loader2 size={14} className="spin" style={{ animation: 'spin 1s linear infinite' }} />
+                ) : null}
+                <span>{actionLoading ? 'Computing Payslips...' : '⚡ Compute All Payslips'}</span>
               </button>
             )}
-            {(activePayrun.status === 'DRAFT' || activePayrun.status === 'COMPUTED') && (
+            {activePayrun.status === 'COMPUTED' && (
               canValidateAndPay ? (
                 <button
                   className="btn btn-primary"
