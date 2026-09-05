@@ -30,11 +30,9 @@ export interface ContractRow extends RowDataPacket {
   end_date: Date | string | null;
   status: string;
   // Joined from employees table
-  empCode?: string | null;
-  firstName?: string | null;
-  lastName?: string | null;
+  name?: string | null;
   department?: string | null;
-  jobPosition?: string | null;
+  position?: string | null;
 }
 
 /**
@@ -74,9 +72,10 @@ export interface CreateContractInput {
 
 export interface EmployeeLookupResult {
   id: string;
-  empCode: string;
-  firstName: string;
-  lastName: string;
+  name: string;
+  empCode?: string;
+  firstName?: string;
+  lastName?: string;
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -103,10 +102,7 @@ function formatDate(val: Date | string | null | undefined): string | null {
  * Maps a raw database row to a type-safe ContractRecord.
  */
 function mapRowToRecord(row: ContractRow): ContractRecord {
-  const firstName = row.firstName ? String(row.firstName).trim() : '';
-  const lastName = row.lastName ? String(row.lastName).trim() : '';
-  const fullName = `${firstName} ${lastName}`.trim();
-  const employeeName = fullName.length > 0 ? fullName : (row.empCode || 'Unknown Employee');
+  const employeeName = row.name ? String(row.name).trim() : (row.employee_id || 'Unknown Employee');
 
   const startDate = formatDate(row.start_date) || '';
   const endDate = formatDate(row.end_date);
@@ -123,9 +119,8 @@ function mapRowToRecord(row: ContractRow): ContractRecord {
     id: row.id,
     employeeId: row.employee_id || '',
     employeeName,
-    empCode: row.empCode || undefined,
     department: row.department || undefined,
-    position: row.jobPosition || undefined,
+    position: row.position || undefined,
     startDate,
     endDate: endDate || null,
     wage: isNaN(wageNum) ? 0 : wageNum,
@@ -149,14 +144,12 @@ const CONTRACT_SELECT = `
     c.start_date,
     c.end_date,
     c.status,
-    e.empCode,
-    e.firstName,
-    e.lastName,
+    e.name,
     e.department,
-    e.jobPosition
+    e.position
   FROM contracts c
   LEFT JOIN employees e
-    ON (e.id = c.employee_id COLLATE utf8mb4_unicode_ci OR e.empCode = c.employee_id COLLATE utf8mb4_unicode_ci)
+    ON e.id = c.employee_id
 `;
 
 // ── Repository Functions ─────────────────────────────────────────────────────
@@ -187,10 +180,10 @@ export async function getContractById(id: string): Promise<ContractRecord | null
 export async function getContractsByEmployeeId(employeeId: string): Promise<ContractRecord[]> {
   const sql = `
     ${CONTRACT_SELECT}
-    WHERE (c.employee_id = ? OR e.empCode = ? COLLATE utf8mb4_unicode_ci)
+    WHERE c.employee_id = ?
     ORDER BY c.id ASC
   `;
-  const rows = await executeQuery<ContractRow[]>(sql, [employeeId, employeeId]);
+  const rows = await executeQuery<ContractRow[]>(sql, [employeeId]);
   return rows.map(mapRowToRecord);
 }
 
@@ -200,39 +193,35 @@ export async function getContractsByEmployeeId(employeeId: string): Promise<Cont
 export async function getActiveContractByEmployeeId(employeeId: string): Promise<ContractRecord | null> {
   const sql = `
     ${CONTRACT_SELECT}
-    WHERE (c.employee_id = ? OR e.empCode = ? COLLATE utf8mb4_unicode_ci)
+    WHERE c.employee_id = ?
       AND c.status = 'ACTIVE'
     LIMIT 1
   `;
-  const rows = await executeQuery<ContractRow[]>(sql, [employeeId, employeeId]);
+  const rows = await executeQuery<ContractRow[]>(sql, [employeeId]);
   if (!rows || rows.length === 0) return null;
   return mapRowToRecord(rows[0]);
 }
 
 /**
- * Checks whether an employee exists in MySQL by id or empCode.
+ * Checks whether an employee exists in MySQL by id.
  * Returns safe employee metadata if found, or null if nonexistent.
  */
 export async function findEmployeeByIdOrCode(identifier: string): Promise<EmployeeLookupResult | null> {
   const sql = `
-    SELECT id, empCode, firstName, lastName
+    SELECT id, name
     FROM employees
-    WHERE id = ? OR empCode = ?
+    WHERE id = ?
     LIMIT 1
   `;
   interface SimpleEmpRow extends RowDataPacket {
     id: string;
-    empCode: string;
-    firstName: string;
-    lastName: string;
+    name: string;
   }
-  const rows = await executeQuery<SimpleEmpRow[]>(sql, [identifier, identifier]);
+  const rows = await executeQuery<SimpleEmpRow[]>(sql, [identifier]);
   if (!rows || rows.length === 0) return null;
   return {
     id: rows[0].id,
-    empCode: rows[0].empCode,
-    firstName: rows[0].firstName,
-    lastName: rows[0].lastName,
+    name: rows[0].name,
   };
 }
 

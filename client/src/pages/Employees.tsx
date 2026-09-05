@@ -14,6 +14,9 @@ import {
 } from 'lucide-react';
 import type { Employee } from '../types';
 import { employeesApi, type CreateEmployeePayload, type UpdateEmployeePayload } from '../api/employees';
+import { schedulesApi, type ScheduleRecord } from '../api/schedules';
+import { ContractDetailModal, CreateContractModal } from './Contracts';
+import { ScheduleDetailModal } from './Schedules';
 import { ApiError } from '../api/client';
 
 interface EmployeesProps {
@@ -285,6 +288,15 @@ export const Employees: React.FC<EmployeesProps> = ({ employees, onNavigateTab, 
   const [showAddForm, setShowAddForm] = useState(false);
   const [showEditStatus, setShowEditStatus] = useState(false);
 
+  const [viewingContractId, setViewingContractId] = useState<string | null>(null);
+  const [viewingScheduleId, setViewingScheduleId] = useState<string | null>(null);
+  const [showNewContractForEmp, setShowNewContractForEmp] = useState<string | null>(null);
+  const [schedulesList, setSchedulesList] = useState<ScheduleRecord[]>([]);
+
+  React.useEffect(() => {
+    schedulesApi.getAll().then(setSchedulesList).catch(() => {});
+  }, []);
+
   const filtered = employees.filter((emp) => {
     const matchSearch =
       emp.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -317,6 +329,32 @@ export const Employees: React.FC<EmployeesProps> = ({ employees, onNavigateTab, 
           employee={selectedEmp}
           onClose={() => setShowEditStatus(false)}
           onUpdated={handleUpdated}
+        />
+      )}
+
+      {/* Contract & Schedule Modals */}
+      {viewingContractId && (
+        <ContractDetailModal
+          contractId={viewingContractId}
+          onClose={() => setViewingContractId(null)}
+        />
+      )}
+      {showNewContractForEmp && (
+        <CreateContractModal
+          employees={employees}
+          schedules={schedulesList}
+          preselectedEmployeeId={showNewContractForEmp}
+          onClose={() => setShowNewContractForEmp(null)}
+          onCreated={() => {
+            onRefresh?.();
+            setShowNewContractForEmp(null);
+          }}
+        />
+      )}
+      {viewingScheduleId && (
+        <ScheduleDetailModal
+          scheduleId={viewingScheduleId}
+          onClose={() => setViewingScheduleId(null)}
         />
       )}
 
@@ -360,9 +398,20 @@ export const Employees: React.FC<EmployeesProps> = ({ employees, onNavigateTab, 
 
               {/* SMART STAT ACTION BUTTONS */}
               <div className="smart-pills-bar" style={{ marginBottom: 0 }}>
-                <div className="smart-pill" onClick={() => alert(`Active Contract: ${selectedEmp.activeContractId}\nWage: $${selectedEmp.wage}/mo\nSchedule: ${selectedEmp.schedule}`)}>
+                <div
+                  className="smart-pill"
+                  onClick={() => {
+                    if (selectedEmp.activeContractId) {
+                      setViewingContractId(selectedEmp.activeContractId);
+                    } else {
+                      setShowNewContractForEmp(selectedEmp.id);
+                    }
+                  }}
+                  style={{ cursor: 'pointer' }}
+                  title="Click to view or manage active contract"
+                >
                   <FileText size={14} color="var(--primary)" />
-                  <span>Contract: <strong>1 Active</strong></span>
+                  <span>Contract: <strong>{selectedEmp.activeContractId ? '1 Active' : 'Create New'}</strong></span>
                 </div>
                 <div className="smart-pill" onClick={() => onNavigateTab('attendance')}>
                   <Clock size={14} color="#059669" />
@@ -396,9 +445,22 @@ export const Employees: React.FC<EmployeesProps> = ({ employees, onNavigateTab, 
                   <span style={{ color: 'var(--slate-500)' }}>Work Email</span>
                   <span style={{ fontWeight: 600 }}>{selectedEmp.email}</span>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span style={{ color: 'var(--slate-500)' }}>Working Schedule</span>
-                  <span style={{ fontWeight: 600 }}>{selectedEmp.schedule}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ fontWeight: 600 }}>{selectedEmp.schedule}</span>
+                    <button
+                      className="btn btn-secondary btn-sm"
+                      style={{ padding: '2px 8px', fontSize: '11px', height: '22px' }}
+                      onClick={() => {
+                        const found = schedulesList.find((s) => s.name.toLowerCase() === selectedEmp.schedule.toLowerCase());
+                        setViewingScheduleId(found ? found.id : (schedulesList[0]?.id || 'SCH-001'));
+                      }}
+                      title="View schedule details"
+                    >
+                      View
+                    </button>
+                  </div>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <span style={{ color: 'var(--slate-500)' }}>Joined Organization</span>

@@ -30,13 +30,25 @@ export interface Employee {
 export interface Contract {
   id: string;
   employeeId: string;
-  employeeName: string;
+  employeeName?: string;
+  empCode?: string;
+  department?: string;
+  position?: string;
   startDate: string;
-  endDate?: string;
+  endDate?: string | null;
   wage: number;
+  structure?: string;
   salaryStructure: string;
+  schedule?: string;
   workingSchedule: string;
   status: 'ACTIVE' | 'FUTURE' | 'HISTORICAL';
+}
+
+export interface WorkingSchedule {
+  id: string;
+  name: string;
+  weeklyHours: number;
+  workingHours?: string;
 }
 
 export interface AttendanceRecord {

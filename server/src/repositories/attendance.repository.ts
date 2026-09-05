@@ -24,9 +24,7 @@ export interface AttendanceRow extends RowDataPacket {
   worked_hours: number | string | null;
   status: string | null;
   // Joined from employees
-  empCode?: string | null;
-  firstName?: string | null;
-  lastName?: string | null;
+  name?: string | null;
   department?: string | null;
 }
 
@@ -59,10 +57,8 @@ export interface RecordCheckOutInput {
 
 export interface EmployeeLookupResult {
   id: string;
-  empCode: string;
-  firstName: string;
-  lastName: string;
-  department: string;
+  name: string;
+  department?: string;
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -137,10 +133,7 @@ function formatCurrentTime(): string {
 }
 
 function mapRowToRecord(row: AttendanceRow): AttendanceRecord {
-  const firstName = row.firstName ? String(row.firstName).trim() : '';
-  const lastName = row.lastName ? String(row.lastName).trim() : '';
-  const fullName = `${firstName} ${lastName}`.trim();
-  const employeeName = fullName.length > 0 ? fullName : (row.empCode || 'Unknown Employee');
+  const employeeName = row.name ? String(row.name).trim() : (row.employee_id || 'Unknown Employee');
 
   const validStatus = (['PRESENT', 'LATE', 'ABSENT', 'OVERTIME', 'MISSING_CHECKOUT'].includes(row.status || '')
     ? row.status
@@ -157,7 +150,6 @@ function mapRowToRecord(row: AttendanceRow): AttendanceRecord {
     id: row.id,
     employeeId: row.employee_id || '',
     employeeName,
-    empCode: row.empCode || undefined,
     department: row.department || undefined,
     date: formatDate(row.date),
     checkIn: row.check_in || '—',
@@ -178,13 +170,11 @@ const ATTENDANCE_SELECT = `
     a.check_out,
     a.worked_hours,
     a.status,
-    e.empCode,
-    e.firstName,
-    e.lastName,
+    e.name,
     e.department
   FROM attendance_records a
   LEFT JOIN employees e
-    ON (e.id = a.employee_id COLLATE utf8mb4_unicode_ci OR e.empCode = a.employee_id COLLATE utf8mb4_unicode_ci)
+    ON e.id = a.employee_id
 `;
 
 // ── Repository Functions ─────────────────────────────────────────────────────
@@ -216,10 +206,10 @@ export async function getAttendanceById(id: string): Promise<AttendanceRecord | 
 export async function getActiveCheckIn(employeeId: string, date?: string): Promise<AttendanceRecord | null> {
   let sql = `
     ${ATTENDANCE_SELECT}
-    WHERE (a.employee_id = ? OR e.empCode = ? COLLATE utf8mb4_unicode_ci)
+    WHERE a.employee_id = ?
       AND (a.check_out IS NULL OR a.check_out = '' OR a.check_out = 'Active')
   `;
-  const params: unknown[] = [employeeId, employeeId];
+  const params: unknown[] = [employeeId];
 
   if (date) {
     sql += ' AND a.date = ?';
@@ -234,32 +224,27 @@ export async function getActiveCheckIn(employeeId: string, date?: string): Promi
 }
 
 /**
- * Checks whether an employee exists in MySQL by UUID, empCode, or dashed code.
+ * Checks whether an employee exists in MySQL by ID.
  */
 export async function findEmployeeByIdOrCode(identifier: string): Promise<EmployeeLookupResult | null> {
   const trimmed = identifier.trim();
-  const stripped = trimmed.replace(/-/g, '');
 
   const sql = `
-    SELECT id, empCode, firstName, lastName, department
+    SELECT id, name, department
     FROM employees
-    WHERE id = ? OR empCode = ? OR empCode = ?
+    WHERE id = ?
     LIMIT 1
   `;
   interface SimpleEmpRow extends RowDataPacket {
     id: string;
-    empCode: string;
-    firstName: string;
-    lastName: string;
-    department: string;
+    name: string;
+    department?: string;
   }
-  const rows = await executeQuery<SimpleEmpRow[]>(sql, [trimmed, trimmed, stripped]);
+  const rows = await executeQuery<SimpleEmpRow[]>(sql, [trimmed]);
   if (!rows || rows.length === 0) return null;
   return {
     id: rows[0].id,
-    empCode: rows[0].empCode,
-    firstName: rows[0].firstName,
-    lastName: rows[0].lastName,
+    name: rows[0].name,
     department: rows[0].department,
   };
 }

@@ -22,13 +22,21 @@ export const Attendance: React.FC<AttendanceProps> = ({ onAddRecord }) => {
   const todayStr = new Date().toISOString().split('T')[0];
 
   const syncActiveState = useCallback((fetchedRecords: AttendanceRecord[]) => {
-    // Determine if current user has an open active check-in
+    // Determine if current user has an open active check-in using their canonical employee ID
+    const empId = user?.employeeId || (user?.id?.startsWith('EMP-') ? user.id : undefined);
+    if (!empId) {
+      setIsCheckedIn(false);
+      setActiveRecord(null);
+      return;
+    }
+
     const active = fetchedRecords.find(
       (r) =>
-        (r.employeeId === user?.employeeId ||
-          r.employeeName.toLowerCase() === (user?.name || '').toLowerCase() ||
-          r.employeeId === user?.id) &&
-        (r.checkOut === 'Active' || !r.checkOut || r.checkOut === '—' || r.workedHours === 0)
+        r.employeeId === empId &&
+        r.status !== 'ABSENT' &&
+        r.checkIn &&
+        r.checkIn !== '—' &&
+        (r.checkOut === 'Active' || !r.checkOut || r.checkOut === '—' || r.checkOut.trim() === '')
     );
 
     if (active) {
@@ -61,6 +69,13 @@ export const Attendance: React.FC<AttendanceProps> = ({ onAddRecord }) => {
 
   const handleToggleCheck = async () => {
     if (submitting) return;
+
+    const empId = user?.employeeId || (user?.id?.startsWith('EMP-') ? user.id : user?.id);
+    if (!empId) {
+      setError('No employee account linked to this user profile.');
+      return;
+    }
+
     setSubmitting(true);
     setError(null);
 
@@ -68,7 +83,7 @@ export const Attendance: React.FC<AttendanceProps> = ({ onAddRecord }) => {
       if (!isCheckedIn) {
         // Clock In
         const created = await attendanceApi.checkIn({
-          employeeId: user?.employeeId || user?.id,
+          employeeId: empId,
         });
         await loadAttendance();
         onAddRecord?.(created);
@@ -76,7 +91,7 @@ export const Attendance: React.FC<AttendanceProps> = ({ onAddRecord }) => {
         // Clock Out
         await attendanceApi.checkOut({
           recordId: activeRecord?.id,
-          employeeId: user?.employeeId || user?.id,
+          employeeId: empId,
         });
         await loadAttendance();
       }
@@ -138,8 +153,15 @@ export const Attendance: React.FC<AttendanceProps> = ({ onAddRecord }) => {
       </div>
 
       {error && (
-        <div style={{ marginBottom: '16px', padding: '10px 14px', background: '#fee2e2', border: '1px solid #f87171', borderRadius: '8px', fontSize: '13px', color: '#991b1b' }}>
-          ⚠️ {error}
+        <div style={{ marginBottom: '16px', padding: '10px 14px', background: '#fee2e2', border: '1px solid #f87171', borderRadius: '8px', fontSize: '13px', color: '#991b1b', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span>⚠️ {error}</span>
+          <button
+            onClick={() => setError(null)}
+            style={{ background: 'transparent', border: 'none', color: '#991b1b', cursor: 'pointer', fontWeight: 600, fontSize: '16px', lineHeight: 1 }}
+            title="Dismiss"
+          >
+            ×
+          </button>
         </div>
       )}
 

@@ -141,7 +141,7 @@ router.post('/check-in', async (req: Request, res: Response): Promise<void> => {
     if (existingActive) {
       res.status(409).json({
         success: false,
-        message: `Employee ${employee.firstName} ${employee.lastName} already has an active check-in (${existingActive.id}) for this date. Please clock out before checking in again.`,
+        message: `Employee ${employee.name} already has an active check-in (${existingActive.id}) for this date. Please clock out before checking in again.`,
         activeRecord: existingActive,
       });
       return;

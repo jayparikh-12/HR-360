@@ -46,6 +46,7 @@ export const TimeOff: React.FC<TimeOffProps> = ({ onApprove, onRefuse }) => {
   }, [loadRequests]);
 
   const handleAction = async (id: string, newStatus: 'APPROVED' | 'REFUSED') => {
+    if (actionLoadingId) return;
     setActionLoadingId(id);
     setError(null);
     try {
@@ -67,18 +68,33 @@ export const TimeOff: React.FC<TimeOffProps> = ({ onApprove, onRefuse }) => {
   };
 
   const handleCreateRequest = async () => {
+    if (modalSubmitting) return;
+
+    if (!startDate || !endDate) {
+      setModalError('Please select both start and end dates.');
+      return;
+    }
+
+    if (new Date(endDate) < new Date(startDate)) {
+      setModalError('End date cannot be before start date.');
+      return;
+    }
+
+    const empId = user?.employeeId || (user?.id?.startsWith('EMP-') ? user.id : 'EMP-004');
+
     setModalSubmitting(true);
     setModalError(null);
     try {
-      const created = await timeOffApi.create({
-        employeeId: user?.employeeId || user?.id || 'EMP-001',
+      await timeOffApi.create({
+        employeeId: empId,
         leaveType,
         startDate,
         endDate,
-        reason,
+        reason: reason.trim() || undefined,
       });
-      setRequests((prev) => [created, ...prev]);
+      await loadRequests();
       setNewModalOpen(false);
+      setReason('');
     } catch (err) {
       console.error('[TimeOff Modal] Failed to submit request:', err);
       setModalError(err instanceof ApiError ? err.message : 'Failed to submit time-off request.');
@@ -109,8 +125,15 @@ export const TimeOff: React.FC<TimeOffProps> = ({ onApprove, onRefuse }) => {
       </div>
 
       {error && (
-        <div style={{ marginBottom: '16px', padding: '10px 14px', background: '#fee2e2', border: '1px solid #f87171', borderRadius: '8px', fontSize: '13px', color: '#991b1b' }}>
-          ⚠️ {error}
+        <div style={{ marginBottom: '16px', padding: '10px 14px', background: '#fee2e2', border: '1px solid #f87171', borderRadius: '8px', fontSize: '13px', color: '#991b1b', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span>⚠️ {error}</span>
+          <button
+            onClick={() => setError(null)}
+            style={{ background: 'transparent', border: 'none', color: '#991b1b', cursor: 'pointer', fontWeight: 600, fontSize: '16px', lineHeight: 1 }}
+            title="Dismiss"
+          >
+            ×
+          </button>
         </div>
       )}
 

@@ -30,14 +30,8 @@ export interface TimeOffRow extends RowDataPacket {
   duration_days: number | string;
   reason: string | null;
   status: string | null;
-  approved_by?: string | null;
-  refused_by?: string | null;
-  createdAt?: Date | string | null;
-  updatedAt?: Date | string | null;
   // Joined from employees
-  empCode?: string | null;
-  firstName?: string | null;
-  lastName?: string | null;
+  name?: string | null;
   department?: string | null;
 }
 
@@ -82,10 +76,8 @@ export interface TimeOffFilterOptions {
 
 export interface EmployeeLookupResult {
   id: string;
-  empCode: string;
-  firstName: string;
-  lastName: string;
-  department: string;
+  name: string;
+  department?: string;
 }
 
 // ── Custom Error Classes ─────────────────────────────────────────────────────
@@ -174,10 +166,7 @@ export function normalizeTimeOffStatus(rawStatus?: string | null): 'PENDING' | '
  * Maps a raw MySQL database row to a clean, strongly typed TimeOffRecord.
  */
 export function mapRowToRecord(row: TimeOffRow): TimeOffRecord {
-  const firstName = row.firstName ? String(row.firstName).trim() : '';
-  const lastName = row.lastName ? String(row.lastName).trim() : '';
-  const fullName = `${firstName} ${lastName}`.trim();
-  const employeeName = fullName.length > 0 ? fullName : (row.empCode || row.employee_id || 'Unknown Employee');
+  const employeeName = row.name ? String(row.name).trim() : (row.employee_id || 'Unknown Employee');
 
   const durationNum = typeof row.duration_days === 'number'
     ? row.duration_days
@@ -188,7 +177,6 @@ export function mapRowToRecord(row: TimeOffRow): TimeOffRecord {
     id: row.id,
     employeeId: row.employee_id || '',
     employeeName,
-    empCode: row.empCode || undefined,
     department: row.department || undefined,
     leaveType: row.leave_type || 'Paid Annual Leave',
     startDate: formatDate(row.start_date),
@@ -197,10 +185,6 @@ export function mapRowToRecord(row: TimeOffRow): TimeOffRecord {
     numberOfDays: safeDuration,
     reason: row.reason || '',
     status: normalizeTimeOffStatus(row.status),
-    approvedBy: row.approved_by || null,
-    refusedBy: row.refused_by || null,
-    createdAt: formatDate(row.createdAt),
-    updatedAt: formatDate(row.updatedAt),
   };
 }
 
@@ -216,27 +200,21 @@ const TIME_OFF_SELECT = `
     tor.duration_days,
     tor.reason,
     tor.status,
-    tor.approved_by,
-    tor.refused_by,
-    tor.createdAt,
-    tor.updatedAt,
-    e.empCode,
-    e.firstName,
-    e.lastName,
+    e.name,
     e.department
   FROM time_off_requests tor
   LEFT JOIN employees e
-    ON (e.id = tor.employee_id COLLATE utf8mb4_unicode_ci OR e.empCode = tor.employee_id COLLATE utf8mb4_unicode_ci)
+    ON e.id = tor.employee_id
 `;
 
 // ── Repository Functions ─────────────────────────────────────────────────────
 
 /**
- * Returns all time off requests ordered by creation timestamp descending.
+ * Returns all time off requests ordered by start date descending, ID descending.
  * Gracefully returns an empty array [] if the table is empty.
  */
 export async function getAllTimeOffRequests(): Promise<TimeOffRecord[]> {
-  const sql = `${TIME_OFF_SELECT} ORDER BY tor.createdAt DESC, tor.id DESC`;
+  const sql = `${TIME_OFF_SELECT} ORDER BY tor.start_date DESC, tor.id DESC`;
   const rows = await executeQuery<TimeOffRow[]>(sql, []);
   return rows.map(mapRowToRecord);
 }
@@ -255,8 +233,8 @@ export async function getTimeOffRequestById(id: string): Promise<TimeOffRecord |
  * Returns all time off requests for a specific employee ID.
  */
 export async function getTimeOffRequestsByEmployeeId(employeeId: string): Promise<TimeOffRecord[]> {
-  const sql = `${TIME_OFF_SELECT} WHERE (tor.employee_id = ? OR e.empCode = ?) ORDER BY tor.start_date DESC, tor.createdAt DESC`;
-  const rows = await executeQuery<TimeOffRow[]>(sql, [employeeId, employeeId]);
+  const sql = `${TIME_OFF_SELECT} WHERE tor.employee_id = ? ORDER BY tor.start_date DESC, tor.id DESC`;
+  const rows = await executeQuery<TimeOffRow[]>(sql, [employeeId]);
   return rows.map(mapRowToRecord);
 }
 
@@ -265,7 +243,7 @@ export async function getTimeOffRequestsByEmployeeId(employeeId: string): Promis
  */
 export async function getTimeOffRequestsByStatus(status: string): Promise<TimeOffRecord[]> {
   const normalized = normalizeTimeOffStatus(status);
-  const sql = `${TIME_OFF_SELECT} WHERE tor.status = ? ORDER BY tor.start_date DESC, tor.createdAt DESC`;
+  const sql = `${TIME_OFF_SELECT} WHERE tor.status = ? ORDER BY tor.start_date DESC, tor.id DESC`;
   const rows = await executeQuery<TimeOffRow[]>(sql, [normalized]);
   return rows.map(mapRowToRecord);
 }
@@ -279,8 +257,8 @@ export async function getTimeOffRequests(options: TimeOffFilterOptions = {}): Pr
 
   if (options.employeeId && typeof options.employeeId === 'string' && options.employeeId.trim().length > 0) {
     const empId = options.employeeId.trim();
-    conditions.push('(tor.employee_id = ? OR e.empCode = ?)');
-    params.push(empId, empId);
+    conditions.push('tor.employee_id = ?');
+    params.push(empId);
   }
 
   if (options.status && typeof options.status === 'string' && options.status.trim().length > 0) {
@@ -289,39 +267,34 @@ export async function getTimeOffRequests(options: TimeOffFilterOptions = {}): Pr
   }
 
   const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-  const sql = `${TIME_OFF_SELECT} ${whereClause} ORDER BY tor.createdAt DESC, tor.id DESC`;
+  const sql = `${TIME_OFF_SELECT} ${whereClause} ORDER BY tor.start_date DESC, tor.id DESC`;
 
   const rows = await executeQuery<TimeOffRow[]>(sql, params);
   return rows.map(mapRowToRecord);
 }
 
 /**
- * Checks whether an employee exists in MySQL by UUID, empCode, or dashed empCode.
+ * Checks whether an employee exists in MySQL by ID.
  */
 export async function findEmployeeByIdOrCode(identifier: string): Promise<EmployeeLookupResult | null> {
   const trimmed = identifier.trim();
-  const stripped = trimmed.replace(/-/g, '');
 
   const sql = `
-    SELECT id, empCode, firstName, lastName, department
+    SELECT id, name, department
     FROM employees
-    WHERE id = ? OR empCode = ? OR empCode = ?
+    WHERE id = ?
     LIMIT 1
   `;
   interface SimpleEmpRow extends RowDataPacket {
     id: string;
-    empCode: string;
-    firstName: string;
-    lastName: string;
-    department: string;
+    name: string;
+    department?: string;
   }
-  const rows = await executeQuery<SimpleEmpRow[]>(sql, [trimmed, trimmed, stripped]);
+  const rows = await executeQuery<SimpleEmpRow[]>(sql, [trimmed]);
   if (!rows || rows.length === 0) return null;
   return {
     id: rows[0].id,
-    empCode: rows[0].empCode,
-    firstName: rows[0].firstName,
-    lastName: rows[0].lastName,
+    name: rows[0].name,
     department: rows[0].department,
   };
 }
@@ -375,10 +348,8 @@ export async function createTimeOffRequest(input: CreateTimeOffInput): Promise<T
       end_date,
       duration_days,
       reason,
-      status,
-      approved_by,
-      refused_by
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL)
+      status
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `;
 
   await executeQuery<ResultSetHeader>(insertSql, [
@@ -408,7 +379,7 @@ export async function createTimeOffRequest(input: CreateTimeOffInput): Promise<T
  * - APPROVED → APPROVED: 409 Conflict
  * - REFUSED → APPROVED: 409 Conflict
  */
-export async function approveTimeOffRequest(id: string, approvedBy: string = 'HR Manager'): Promise<TimeOffRecord> {
+export async function approveTimeOffRequest(id: string, _approvedBy: string = 'HR Manager'): Promise<TimeOffRecord> {
   const existing = await getTimeOffRequestById(id);
   if (!existing) {
     throw new TimeOffWorkflowError('NOT_FOUND', 'Time off request not found.');
@@ -429,14 +400,11 @@ export async function approveTimeOffRequest(id: string, approvedBy: string = 'HR
   // Atomic state transition
   const updateSql = `
     UPDATE time_off_requests
-    SET
-      status = 'APPROVED',
-      approved_by = ?,
-      updatedAt = NOW()
+    SET status = 'APPROVED'
     WHERE id = ? AND status = 'PENDING'
   `;
 
-  const result = await executeQuery<ResultSetHeader>(updateSql, [approvedBy.trim(), id]);
+  const result = await executeQuery<ResultSetHeader>(updateSql, [id]);
   if (result.affectedRows === 0) {
     // Concurrent update conflict check
     const recheck = await getTimeOffRequestById(id);
@@ -463,7 +431,7 @@ export async function approveTimeOffRequest(id: string, approvedBy: string = 'HR
  * - REFUSED → REFUSED: 409 Conflict
  * - APPROVED → REFUSED: 409 Conflict
  */
-export async function refuseTimeOffRequest(id: string, refusedBy: string = 'HR Manager'): Promise<TimeOffRecord> {
+export async function refuseTimeOffRequest(id: string, _refusedBy: string = 'HR Manager'): Promise<TimeOffRecord> {
   const existing = await getTimeOffRequestById(id);
   if (!existing) {
     throw new TimeOffWorkflowError('NOT_FOUND', 'Time off request not found.');
@@ -484,14 +452,11 @@ export async function refuseTimeOffRequest(id: string, refusedBy: string = 'HR M
   // Atomic state transition
   const updateSql = `
     UPDATE time_off_requests
-    SET
-      status = 'REFUSED',
-      refused_by = ?,
-      updatedAt = NOW()
+    SET status = 'REFUSED'
     WHERE id = ? AND status = 'PENDING'
   `;
 
-  const result = await executeQuery<ResultSetHeader>(updateSql, [refusedBy.trim(), id]);
+  const result = await executeQuery<ResultSetHeader>(updateSql, [id]);
   if (result.affectedRows === 0) {
     const recheck = await getTimeOffRequestById(id);
     throw new TimeOffWorkflowError(

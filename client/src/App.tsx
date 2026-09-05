@@ -8,9 +8,12 @@ import { Employees } from './pages/Employees';
 import { Payruns } from './pages/Payruns';
 import { Attendance } from './pages/Attendance';
 import { TimeOff } from './pages/TimeOff';
+import { Contracts } from './pages/Contracts';
+import { Schedules } from './pages/Schedules';
+import { SalaryStructures } from './pages/SalaryStructures';
 import { employeesApi } from './api/employees';
-import { initialEmployees, initialPayruns, initialAttendance, initialTimeOff } from './data';
-import type { Employee, Payrun, AttendanceRecord } from './types';
+import { initialEmployees, initialPayruns } from './data';
+import type { Employee, Payrun } from './types';
 import './App.css';
 
 /**
@@ -62,15 +65,9 @@ const AppContent: React.FC = () => {
 
   // ── Other module state (still local — Phase 2.3+) ──────────────────────────
   const [payruns, setPayruns] = useState<Payrun[]>(initialPayruns);
-  const [attendance, setAttendance] = useState<AttendanceRecord[]>(initialAttendance);
-  const [timeOff] = useState(initialTimeOff);
 
   const handleUpdatePayrun = (updated: Payrun) => {
     setPayruns(payruns.map((p) => (p.id === updated.id ? updated : p)));
-  };
-
-  const handleAddAttendance = (record: AttendanceRecord) => {
-    setAttendance([record, ...attendance]);
   };
 
   // 1. Initial loading: Render subtle splash screen to eliminate UI flicker
@@ -156,20 +153,16 @@ const AppContent: React.FC = () => {
           />
         );
       case 'attendance':
-        return (
-          <Attendance
-            attendanceRecords={attendance}
-            onAddRecord={handleAddAttendance}
-          />
-        );
+        return <Attendance />;
+      case 'contracts':
+        return <Contracts onNavigateTab={(tab) => setCurrentTab(tab)} />;
+      case 'schedules':
+        return <Schedules onNavigateTab={(tab) => setCurrentTab(tab)} />;
       case 'time-off':
-        return (
-          <TimeOff
-            requests={timeOff}
-            onApprove={(id) => console.log('Approved leave request', id)}
-            onRefuse={(id) => console.log('Refused leave request', id)}
-          />
-        );
+        return <TimeOff />;
+      case 'salary-rules':
+      case 'salary-structures':
+        return <SalaryStructures onNavigateTab={(tab) => setCurrentTab(tab)} />;
       default:
         return (
           <Dashboard

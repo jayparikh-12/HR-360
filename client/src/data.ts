@@ -1,4 +1,4 @@
-import type { Employee, Contract, AttendanceRecord, TimeOffRequest, Payrun } from './types';
+import type { Employee, Contract, Payrun } from './types';
 
 export const initialEmployees: Employee[] = [
   {
@@ -103,21 +103,6 @@ export const initialContracts: Contract[] = [
   { id: 'CON-001', employeeId: 'EMP-001', employeeName: 'John Doe', startDate: '2023-03-15', wage: 6500, salaryStructure: 'Standard Full-Time', workingSchedule: 'Standard 40h', status: 'ACTIVE' },
   { id: 'CON-002', employeeId: 'EMP-002', employeeName: 'Maya Lin', startDate: '2022-08-01', wage: 7200, salaryStructure: 'Executive Full-Time', workingSchedule: 'Standard 40h', status: 'ACTIVE' },
   { id: 'CON-003', employeeId: 'EMP-003', employeeName: 'Alex Rivera', startDate: '2024-01-10', wage: 5200, salaryStructure: 'Standard Full-Time', workingSchedule: 'Standard 40h', status: 'ACTIVE' },
-];
-
-export const initialAttendance: AttendanceRecord[] = [
-  { id: 'ATT-101', employeeId: 'EMP-001', employeeName: 'John Doe', date: '2026-09-05', checkIn: '08:58 AM', checkOut: '05:45 PM', workedHours: 8.2, status: 'PRESENT' },
-  { id: 'ATT-102', employeeId: 'EMP-002', employeeName: 'Maya Lin', date: '2026-09-05', checkIn: '09:22 AM', checkOut: '06:10 PM', workedHours: 8.0, status: 'LATE' },
-  { id: 'ATT-103', employeeId: 'EMP-003', employeeName: 'Alex Rivera', date: '2026-09-05', checkIn: '08:45 AM', checkOut: '05:30 PM', workedHours: 8.0, status: 'PRESENT' },
-  { id: 'ATT-104', employeeId: 'EMP-004', employeeName: 'Elena Rostova', date: '2026-09-05', checkIn: '09:00 AM', checkOut: '06:00 PM', workedHours: 8.0, status: 'PRESENT' },
-  { id: 'ATT-105', employeeId: 'EMP-005', employeeName: 'David Kim', date: '2026-09-05', checkIn: '08:30 AM', checkOut: '07:15 PM', workedHours: 9.8, status: 'OVERTIME' },
-  { id: 'ATT-106', employeeId: 'EMP-006', employeeName: 'Sarah Connor', date: '2026-09-05', checkIn: '—', checkOut: '—', workedHours: 0, status: 'ABSENT' },
-];
-
-export const initialTimeOff: TimeOffRequest[] = [
-  { id: 'TO-201', employeeId: 'EMP-001', employeeName: 'John Doe', leaveType: 'Paid Annual Leave', startDate: '2026-09-12', endDate: '2026-09-15', durationDays: 3, reason: 'Family vacation trip', status: 'PENDING' },
-  { id: 'TO-202', employeeId: 'EMP-002', employeeName: 'Maya Lin', leaveType: 'Sick Leave', startDate: '2026-09-02', endDate: '2026-09-02', durationDays: 1, reason: 'Medical appointment', status: 'APPROVED' },
-  { id: 'TO-203', employeeId: 'EMP-006', employeeName: 'Sarah Connor', leaveType: 'Unpaid Leave', startDate: '2026-09-05', endDate: '2026-09-05', durationDays: 1, reason: 'Personal emergency', status: 'APPROVED' },
 ];
 
 export const initialPayruns: Payrun[] = [

@@ -62,6 +62,28 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onSelectTab }) => 
             </li>
             <li>
               <button
+                className={`nav-link ${currentTab === 'contracts' ? 'active' : ''}`}
+                onClick={() => onSelectTab('contracts')}
+              >
+                <div className="nav-link-left">
+                  <FileText size={17} />
+                  <span>Contracts</span>
+                </div>
+              </button>
+            </li>
+            <li>
+              <button
+                className={`nav-link ${currentTab === 'schedules' ? 'active' : ''}`}
+                onClick={() => onSelectTab('schedules')}
+              >
+                <div className="nav-link-left">
+                  <Clock size={17} />
+                  <span>Working Schedules</span>
+                </div>
+              </button>
+            </li>
+            <li>
+              <button
                 className={`nav-link ${currentTab === 'attendance' ? 'active' : ''}`}
                 onClick={() => onSelectTab('attendance')}
               >
@@ -109,8 +131,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onSelectTab }) => 
           <ul className="menu-items">
             <li>
               <button
-                className="nav-link"
-                onClick={() => alert('Salary structures and rules are configured deterministically in the Payrun workflow.')}
+                className={`nav-link ${currentTab === 'salary-rules' || currentTab === 'salary-structures' ? 'active' : ''}`}
+                onClick={() => onSelectTab('salary-rules')}
               >
                 <div className="nav-link-left">
                   <FileText size={17} />
