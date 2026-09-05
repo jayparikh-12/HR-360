@@ -200,11 +200,11 @@ const TIME_OFF_SELECT = `
     tor.duration_days,
     tor.reason,
     tor.status,
-    e.name,
+    TRIM(CONCAT(COALESCE(e.firstName, ''), ' ', COALESCE(e.lastName, ''))) AS name,
     e.department
   FROM time_off_requests tor
   LEFT JOIN employees e
-    ON e.id = tor.employee_id COLLATE utf8mb4_unicode_ci
+    ON (e.id = tor.employee_id COLLATE utf8mb4_unicode_ci OR e.empCode = tor.employee_id COLLATE utf8mb4_unicode_ci)
 `;
 
 // ── Repository Functions ─────────────────────────────────────────────────────
@@ -280,9 +280,9 @@ export async function findEmployeeByIdOrCode(identifier: string): Promise<Employ
   const trimmed = identifier.trim();
 
   const sql = `
-    SELECT id, name, department
+    SELECT id, TRIM(CONCAT(COALESCE(firstName, ''), ' ', COALESCE(lastName, ''))) AS name, department
     FROM employees
-    WHERE id = ?
+    WHERE id = ? OR empCode = ? OR empCode = REPLACE(?, '-', '')
     LIMIT 1
   `;
   interface SimpleEmpRow extends RowDataPacket {
@@ -290,7 +290,7 @@ export async function findEmployeeByIdOrCode(identifier: string): Promise<Employ
     name: string;
     department?: string;
   }
-  const rows = await executeQuery<SimpleEmpRow[]>(sql, [trimmed]);
+  const rows = await executeQuery<SimpleEmpRow[]>(sql, [trimmed, trimmed, trimmed]);
   if (!rows || rows.length === 0) return null;
   return {
     id: rows[0].id,
