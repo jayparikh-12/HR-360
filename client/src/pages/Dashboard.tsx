@@ -43,7 +43,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ employees, payruns, onNavi
       <div className="grid-4">
         <div className="card">
           <div className="metric-title">Total Payroll Cost</div>
-          <div className="metric-val">${totalCost.toLocaleString()}.00</div>
+          <div className="metric-val">₹{totalCost.toLocaleString('en-IN')}.00</div>
           <div className="metric-trend">
             <TrendingUp size={13} />
             <span>+2.4% vs August</span>
@@ -98,7 +98,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ employees, payruns, onNavi
                 <div key={dept}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', marginBottom: '4px' }}>
                     <span style={{ fontWeight: 600 }}>{dept}</span>
-                    <span style={{ color: 'var(--slate-500)' }}>${cost.toLocaleString()} ({percent}%)</span>
+                    <span style={{ color: 'var(--slate-500)' }}>₹{cost.toLocaleString('en-IN')} ({percent}%)</span>
                   </div>
                   <div style={{ width: '100%', height: '6px', background: 'var(--slate-100)', borderRadius: '999px', overflow: 'hidden' }}>
                     <div style={{ width: `${percent}%`, height: '100%', background: 'var(--primary)', borderRadius: '999px' }} />

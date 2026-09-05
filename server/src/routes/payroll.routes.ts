@@ -117,7 +117,7 @@ async function getPayslipsForPayrun(payrunId: string) {
        p.id,
        p.payrun_id,
        p.employee_id,
-       COALESCE(TRIM(CONCAT(COALESCE(e.firstName, ''), ' ', COALESCE(e.lastName, ''))), p.employee_id) AS employee_name,
+       COALESCE(NULLIF(TRIM(CONCAT(COALESCE(e.firstName, ''), ' ', COALESCE(e.lastName, ''))), ''), e.name, p.employee_id) AS employee_name,
        COALESCE(e.department, 'Engineering') AS department,
        p.basic,
        p.hra,
@@ -127,7 +127,7 @@ async function getPayslipsForPayrun(payrunId: string) {
        p.other_deductions,
        p.net,
        p.status,
-       CASE WHEN p.employee_id = 'EMP-006' THEN 'Unpaid leave deduction applied (1 day)' ELSE NULL END AS warning
+       COALESCE(p.warning, CASE WHEN p.employee_id = 'EMP-006' THEN 'Unpaid leave deduction applied (1 day)' ELSE NULL END) AS warning
      FROM payslips p
      LEFT JOIN employees e
        ON (e.id = p.employee_id COLLATE utf8mb4_unicode_ci OR e.empCode = p.employee_id COLLATE utf8mb4_unicode_ci)
@@ -143,8 +143,8 @@ async function insertPayslips(payrunId: string, payslips: ReturnType<typeof Payr
     const slipId = `PSL-${randomUUID().slice(0, 8).toUpperCase()}`;
     await executeQuery(
       `INSERT INTO payslips
-        (id, payrun_id, employee_id, basic, hra, allowance, gross, tax, other_deductions, net, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        (id, payrun_id, employee_id, basic, hra, allowance, gross, tax, other_deductions, net, status, warning)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         slipId,
         payrunId,
@@ -157,6 +157,7 @@ async function insertPayslips(payrunId: string, payslips: ReturnType<typeof Payr
         slip.otherDeductions,
         slip.net,
         payrunStatus,
+        (slip as any).warning || null,
       ]
     );
   }

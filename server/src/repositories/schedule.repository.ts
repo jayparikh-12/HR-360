@@ -99,10 +99,17 @@ export async function createSchedule(input: CreateScheduleInput): Promise<Schedu
   const id = `SCH-${randomUUID().slice(0, 8).toUpperCase()}`;
   const weeklyHours = input.weeklyHours || (typeof input.workingHours === 'number' ? input.workingHours : parseFloat(String(input.workingHours || '40'))) || 40.0;
 
-  await executeQuery<ResultSetHeader>(
-    `INSERT INTO working_schedules (id, name, weekly_hours) VALUES (?, ?, ?)`,
-    [id, normalizedName, weeklyHours]
-  );
+  try {
+    await executeQuery<ResultSetHeader>(
+      `INSERT INTO working_schedules (id, name, weekly_hours) VALUES (?, ?, ?)`,
+      [id, normalizedName, weeklyHours]
+    );
+  } catch (err: unknown) {
+    if (err && typeof err === 'object' && 'code' in err && (err as { code: string }).code === 'ER_DUP_ENTRY') {
+      throw new Error('DUPLICATE_SCHEDULE');
+    }
+    throw err;
+  }
 
   const created = await getScheduleById(id);
   if (!created) throw new Error('Database operation failed. Please try again.');

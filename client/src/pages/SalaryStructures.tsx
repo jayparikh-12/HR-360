@@ -7,7 +7,7 @@ import {
   X,
   AlertCircle,
   RefreshCw,
-  DollarSign,
+  IndianRupee,
   Percent,
   Calculator,
   Eye,
@@ -53,7 +53,7 @@ function getCalculationTypeBadge(type: string) {
   const t = (type || '').toUpperCase();
   switch (t) {
     case 'FIXED':
-      return { icon: DollarSign, label: 'Fixed Amount', bg: '#f8fafc', color: '#334155' };
+      return { icon: IndianRupee, label: 'Fixed Amount', bg: '#f8fafc', color: '#334155' };
     case 'PERCENTAGE':
       return { icon: Percent, label: 'Percentage', bg: '#eff6ff', color: '#1d4ed8' };
     case 'FORMULA':
@@ -66,7 +66,7 @@ function getCalculationTypeBadge(type: string) {
 function formatRuleValue(rule: SalaryRule): string {
   if (rule.calculationType === 'FIXED') {
     return rule.amount !== null && rule.amount !== undefined
-      ? `$${rule.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}`
+      ? `₹${rule.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
       : 'Fixed';
   }
   if (rule.calculationType === 'PERCENTAGE') {
@@ -691,15 +691,15 @@ export const CreateStructureModal: React.FC<CreateStructureModalProps> = ({ onCl
 
           <div style={{ marginBottom: '20px' }}>
             <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--slate-700)', marginBottom: '4px' }}>
-              Default Base Wage <span style={{ fontSize: '11px', color: 'var(--slate-400)', fontWeight: 400 }}>(optional, USD)</span>
+              Default Base Wage <span style={{ fontSize: '11px', color: 'var(--slate-400)', fontWeight: 400 }}>(optional, INR)</span>
             </label>
             <input
               type="number"
               min="0"
-              step="0.01"
+              step="100"
               className="role-select"
               style={{ width: '100%', padding: '8px 12px' }}
-              placeholder="e.g. 6000.00"
+              placeholder="e.g. 60000.00"
               value={baseWage}
               onChange={(e) => setBaseWage(e.target.value)}
             />
@@ -1023,15 +1023,15 @@ export const CreateRuleModal: React.FC<CreateRuleModalProps> = ({
           {calculationType === 'FIXED' && (
             <div style={{ marginBottom: '14px' }}>
               <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--slate-700)', marginBottom: '4px' }}>
-                Fixed Amount (USD) <span style={{ color: '#ef4444' }}>*</span>
+                Fixed Amount (₹ / INR) <span style={{ color: '#ef4444' }}>*</span>
               </label>
               <input
                 type="number"
                 min="0"
-                step="0.01"
+                step="50"
                 className="role-select"
                 style={{ width: '100%', padding: '8px 12px' }}
-                placeholder="e.g. 250.00"
+                placeholder="e.g. 2500.00"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
                 required
@@ -1322,7 +1322,7 @@ export const SalaryStructures: React.FC<SalaryStructuresProps> = () => {
 
         <div className="stat-card">
           <div className="stat-icon" style={{ backgroundColor: '#dcfce7', color: '#15803d' }}>
-            <DollarSign size={18} />
+            <IndianRupee size={18} />
           </div>
           <div>
             <div className="stat-value">{allowancesCount}</div>

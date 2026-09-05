@@ -5,7 +5,7 @@ import {
   Search,
   X,
   Calendar,
-  DollarSign,
+  IndianRupee,
   Clock,
   Building,
   User,
@@ -142,10 +142,10 @@ export const ContractDetailModal: React.FC<ContractDetailModalProps> = ({ contra
 
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span style={{ color: 'var(--slate-500)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <DollarSign size={14} /> Base Monthly Wage
+                  <IndianRupee size={14} /> Base Monthly Wage
                 </span>
                 <span style={{ fontWeight: 700, color: 'var(--primary)', fontSize: '14px' }}>
-                  ${Number(contract.wage).toLocaleString()}.00 / mo
+                  ₹{Number(contract.wage).toLocaleString('en-IN')}.00 / mo
                 </span>
               </div>
 
@@ -363,15 +363,15 @@ export const CreateContractModal: React.FC<CreateContractModalProps> = ({
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
             <div style={fieldStyle}>
-              <label style={labelStyle}>Monthly Wage ($) *</label>
+              <label style={labelStyle}>Monthly Wage (₹) *</label>
               <input
                 type="number"
                 min="0"
-                step="50"
+                step="500"
                 style={inputStyle}
                 value={wage}
                 onChange={(e) => setWage(e.target.value)}
-                placeholder="e.g. 6500"
+                placeholder="e.g. 65000"
                 required
               />
             </div>
@@ -583,7 +583,7 @@ export const Contracts: React.FC<ContractsProps> = () => {
         </div>
         <div className="card">
           <div className="metric-title">Average Monthly Wage</div>
-          <div className="metric-val">${avgWage.toLocaleString()}</div>
+          <div className="metric-val">₹{avgWage.toLocaleString('en-IN')}</div>
           <div className="metric-trend" style={{ color: 'var(--primary)' }}>
             Across all staff
           </div>
@@ -717,7 +717,7 @@ export const Contracts: React.FC<ContractsProps> = () => {
                       </div>
                     </td>
                     <td style={{ padding: '12px 16px', fontWeight: 700, color: 'var(--slate-900)' }}>
-                      ${Number(c.wage).toLocaleString()}.00
+                      ₹{Number(c.wage).toLocaleString('en-IN')}.00
                     </td>
                     <td style={{ padding: '12px 16px', color: 'var(--slate-600)' }}>
                       {c.workingSchedule || c.schedule || 'Standard 40h'}

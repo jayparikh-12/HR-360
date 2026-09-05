@@ -224,6 +224,39 @@ export async function getActiveCheckIn(employeeId: string, date?: string): Promi
 }
 
 /**
+ * Retrieves attendance records for a specific employee, optionally filtered by date range.
+ * Parameterized query; ordered deterministically by date ASC, id ASC.
+ */
+export async function getAttendanceByEmployeeAndPeriod(
+  employeeId: string,
+  startDate?: string,
+  endDate?: string
+): Promise<AttendanceRecord[]> {
+  if (!employeeId || typeof employeeId !== 'string') return [];
+  const conditions: string[] = ['a.employee_id = ?'];
+  const params: unknown[] = [employeeId.trim()];
+
+  if (startDate) {
+    conditions.push('a.date >= ?');
+    params.push(startDate.trim());
+  }
+
+  if (endDate) {
+    conditions.push('a.date <= ?');
+    params.push(endDate.trim());
+  }
+
+  const sql = `
+    ${ATTENDANCE_SELECT}
+    WHERE ${conditions.join(' AND ')}
+    ORDER BY a.date ASC, a.id ASC
+  `;
+
+  const rows = await executeQuery<AttendanceRow[]>(sql, params);
+  return rows.map(mapRowToRecord);
+}
+
+/**
  * Checks whether an employee exists in MySQL by ID.
  */
 export async function findEmployeeByIdOrCode(identifier: string): Promise<EmployeeLookupResult | null> {

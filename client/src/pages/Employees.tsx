@@ -4,7 +4,7 @@ import {
   FileText,
   Clock,
   Palmtree,
-  DollarSign,
+  IndianRupee,
   ArrowLeft,
   Building,
   CreditCard,
@@ -818,8 +818,8 @@ const Employee360Hub: React.FC<Employee360HubProps> = ({
               style={activeTab === 'salary' ? { borderColor: 'var(--primary)', background: 'var(--primary-light)', color: 'var(--primary)' } : {}}
               onClick={() => setActiveTab('salary')}
             >
-              <DollarSign size={14} color="var(--primary)" />
-              <span>Wage: <strong>${effectiveWage.toLocaleString()}/mo</strong></span>
+              <IndianRupee size={14} color="var(--primary)" />
+              <span>Wage: <strong>₹{effectiveWage.toLocaleString('en-IN')}/mo</strong></span>
             </div>
           </div>
         </div>
@@ -840,7 +840,7 @@ const Employee360Hub: React.FC<Employee360HubProps> = ({
           { key: 'contracts', label: `Contracts & Schedule (${hubData?.contracts?.length ?? 0})`, icon: FileText },
           { key: 'attendance', label: `Attendance (${hubData?.attendance?.length ?? 0})`, icon: Clock },
           { key: 'timeoff', label: `Time Off (${hubData?.timeOff?.length ?? 0})`, icon: Palmtree },
-          { key: 'salary', label: 'Salary Structure & Rules', icon: DollarSign },
+          { key: 'salary', label: 'Salary Structure & Rules', icon: IndianRupee },
           { key: 'payruns', label: `Pay History (${hubData?.payruns?.length ?? 0})`, icon: CreditCard },
         ].map((t) => {
           const Icon = t.icon;
@@ -918,7 +918,7 @@ const Employee360Hub: React.FC<Employee360HubProps> = ({
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '13px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span style={{ color: 'var(--slate-500)' }}>Base Monthly Wage</span>
-                <span style={{ fontWeight: 700, color: 'var(--slate-900)' }}>${effectiveWage.toLocaleString()}.00</span>
+                <span style={{ fontWeight: 700, color: 'var(--slate-900)' }}>₹{effectiveWage.toLocaleString('en-IN')}.00</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span style={{ color: 'var(--slate-500)' }}>Salary Structure</span>
@@ -972,7 +972,7 @@ const Employee360Hub: React.FC<Employee360HubProps> = ({
                   hubData.contracts.map((c) => (
                     <tr key={c.id}>
                       <td style={{ fontWeight: 600, color: 'var(--slate-900)' }}>{c.id}</td>
-                      <td style={{ fontWeight: 600, color: 'var(--primary)' }}>${c.wage.toLocaleString()}/mo</td>
+                      <td style={{ fontWeight: 600, color: 'var(--primary)' }}>₹{c.wage.toLocaleString('en-IN')}/mo</td>
                       <td>{c.startDate}</td>
                       <td>{c.endDate || 'Ongoing'}</td>
                       <td>{c.salaryStructure}</td>
@@ -1129,7 +1129,7 @@ const Employee360Hub: React.FC<Employee360HubProps> = ({
           {/* Structure Summary Card */}
           <div className="card">
             <h3 style={{ fontSize: '14px', fontWeight: 700, marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <DollarSign size={16} color="var(--primary)" /> Assigned Salary Structure
+              <IndianRupee size={16} color="var(--primary)" /> Assigned Salary Structure
             </h3>
             {hubData?.salaryStructure ? (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', fontSize: '13px' }}>
@@ -1192,7 +1192,7 @@ const Employee360Hub: React.FC<Employee360HubProps> = ({
                       <td>{r.calculationType}</td>
                       <td style={{ fontWeight: 600, color: 'var(--primary)' }}>
                         {r.amount !== null && r.amount !== undefined
-                          ? `$${r.amount.toLocaleString()}`
+                          ? `₹${r.amount.toLocaleString('en-IN')}`
                           : r.percentage !== null && r.percentage !== undefined
                           ? `${r.percentage}%`
                           : r.formula || '—'}
@@ -1235,8 +1235,8 @@ const Employee360Hub: React.FC<Employee360HubProps> = ({
                     <tr key={p.id}>
                       <td style={{ fontWeight: 600, color: 'var(--slate-900)' }}>{p.name}</td>
                       <td>{p.period}</td>
-                      <td style={{ fontWeight: 600 }}>${p.gross.toLocaleString()}.00</td>
-                      <td style={{ fontWeight: 700, color: 'var(--primary)' }}>${p.net.toLocaleString()}.00</td>
+                      <td style={{ fontWeight: 600 }}>₹{p.gross.toLocaleString('en-IN')}.00</td>
+                      <td style={{ fontWeight: 700, color: 'var(--primary)' }}>₹{p.net.toLocaleString('en-IN')}.00</td>
                       <td>
                         <span className={`badge ${p.status === 'PAID' ? 'badge-success' : 'badge-warning'}`}>
                           <span className="badge-dot" />
@@ -1472,7 +1472,7 @@ export const Employees: React.FC<EmployeesProps> = ({
                           <div style={{ fontSize: '11px', color: 'var(--slate-500)' }}>{emp.position}</div>
                         </td>
                         <td>
-                          <div style={{ fontWeight: 600 }}>${emp.wage.toLocaleString()}/mo</div>
+                          <div style={{ fontWeight: 600 }}>₹{emp.wage.toLocaleString('en-IN')}/mo</div>
                           <div style={{ fontSize: '11px', color: 'var(--slate-500)' }}>{emp.schedule}</div>
                         </td>
                         <td>
