@@ -25,6 +25,7 @@ import { salaryStructuresApi, type SalaryStructure } from '../api/salaryStructur
 import { salaryRulesApi, type SalaryRule } from '../api/salaryRules';
 import { payrollApi } from '../api/payroll';
 import { ApiError } from '../api/client';
+import { useAuth } from '../context/AuthContext';
 
 interface EmployeesProps {
   employees: Employee[];
@@ -1200,6 +1201,13 @@ export const Employees: React.FC<EmployeesProps> = ({
   onNavigateTab,
   onRefresh,
 }) => {
+  const { displayRole, user } = useAuth();
+  const canAddEmployee =
+    displayRole === 'Admin' ||
+    displayRole === 'HR Manager' ||
+    displayRole === 'HR Payroll Manager' ||
+    (user?.role && user.role !== 'Employee');
+
   const [selectedEmpId, setSelectedEmpId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [selectedDept, setSelectedDept] = useState('ALL');
@@ -1259,13 +1267,15 @@ export const Employees: React.FC<EmployeesProps> = ({
               >
                 <RefreshCw size={13} className={loading ? 'spin' : ''} /> Refresh
               </button>
-              <button
-                className="btn btn-primary btn-sm"
-                onClick={() => setShowAddForm(true)}
-                style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
-              >
-                <UserPlus size={14} /> Add Employee
-              </button>
+              {canAddEmployee && (
+                <button
+                  className="btn btn-primary btn-sm"
+                  onClick={() => setShowAddForm(true)}
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+                >
+                  <UserPlus size={14} /> Add Employee
+                </button>
+              )}
             </div>
           </div>
 

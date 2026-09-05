@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Play, 
   Check, 
@@ -7,9 +7,12 @@ import {
   Download, 
   Printer, 
   X,
-  AlertCircle
+  AlertCircle,
+  Loader2
 } from 'lucide-react';
 import type { Payrun, PayslipItem, Employee } from '../types';
+import { payrollApi } from '../api/payroll';
+import { ApiError } from '../api/client';
 
 interface PayrunsProps {
   payruns: Payrun[];
@@ -23,13 +26,112 @@ export const Payruns: React.FC<PayrunsProps> = ({ payruns, employees, onUpdatePa
   const [wizardOpen, setWizardOpen] = useState(false);
   const [wizardStep, setWizardStep] = useState(1);
   const [selectedEmpIds, setSelectedEmpIds] = useState<string[]>(employees.map((e) => e.id));
+  const [actionLoading, setActionLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Advance workflow state
-  const handleAdvanceWorkflow = (targetState: 'COMPUTED' | 'VALIDATED' | 'PAID') => {
+  // Sync activePayrun with authoritative backend status on mount
+  useEffect(() => {
+    let isMounted = true;
+    const loadPersistedPayrun = async () => {
+      try {
+        const backendRuns = await payrollApi.getAll();
+        if (!isMounted || !backendRuns || backendRuns.length === 0) return;
+
+        setActivePayrun((prev) => {
+          const match = backendRuns.find((pr) => pr.id === prev.id) || backendRuns[0];
+          if (!match) return prev;
+
+          const mergedPayslips = (match.payslips && match.payslips.length > 0)
+            ? match.payslips
+            : prev.payslips.map((p) => ({ ...p, status: match.status }));
+
+          const enriched: Payrun = {
+            ...prev,
+            ...match,
+            status: match.status,
+            payslips: mergedPayslips,
+          };
+          onUpdatePayrun(enriched);
+          return enriched;
+        });
+      } catch (err) {
+        console.warn('[Payruns] Could not fetch persisted payrun on mount:', err);
+      }
+    };
+
+    loadPersistedPayrun();
+    return () => {
+      isMounted = false;
+    };
+  }, [onUpdatePayrun]);
+
+  // Validate Payrun via backend API (PATCH /api/payroll/payruns/:id/validate)
+  const handleValidate = async () => {
+    if (actionLoading) return;
+    setError(null);
+    setActionLoading(true);
+
+    try {
+      const updated = await payrollApi.validate(activePayrun.id);
+      const mergedPayslips = (updated.payslips && updated.payslips.length > 0)
+        ? updated.payslips
+        : activePayrun.payslips.map((p) => ({ ...p, status: 'VALIDATED' as const }));
+
+      const newActive: Payrun = {
+        ...activePayrun,
+        ...updated,
+        status: updated.status || 'VALIDATED',
+        payslips: mergedPayslips,
+      };
+
+      setActivePayrun(newActive);
+      onUpdatePayrun(newActive);
+    } catch (err: any) {
+      console.error('[Payruns] Validate failed:', err);
+      const msg = err instanceof ApiError ? err.message : (err?.message || 'Failed to validate payrun. Please try again.');
+      setError(msg);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Pay & Disburse Payrun via backend API (PATCH /api/payroll/payruns/:id/pay)
+  const handlePay = async () => {
+    if (actionLoading) return;
+    setError(null);
+    setActionLoading(true);
+
+    try {
+      const updated = await payrollApi.pay(activePayrun.id);
+      const mergedPayslips = (updated.payslips && updated.payslips.length > 0)
+        ? updated.payslips
+        : activePayrun.payslips.map((p) => ({ ...p, status: 'PAID' as const }));
+
+      const newActive: Payrun = {
+        ...activePayrun,
+        ...updated,
+        status: updated.status || 'PAID',
+        payslips: mergedPayslips,
+      };
+
+      setActivePayrun(newActive);
+      onUpdatePayrun(newActive);
+    } catch (err: any) {
+      console.error('[Payruns] Payment failed:', err);
+      const msg = err instanceof ApiError ? err.message : (err?.message || 'Failed to process payment. Please try again.');
+      setError(msg);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Local calculation of draft payslips
+  const handleComputePayslips = () => {
+    setError(null);
     const updated: Payrun = {
       ...activePayrun,
-      status: targetState,
-      payslips: activePayrun.payslips.map((p) => ({ ...p, status: targetState })),
+      status: 'COMPUTED',
+      payslips: activePayrun.payslips.map((p) => ({ ...p, status: 'COMPUTED' })),
     };
     setActivePayrun(updated);
     onUpdatePayrun(updated);
@@ -95,6 +197,44 @@ export const Payruns: React.FC<PayrunsProps> = ({ payruns, employees, onUpdatePa
         </button>
       </div>
 
+      {/* Error Alert Banner */}
+      {error && (
+        <div
+          style={{
+            marginBottom: '16px',
+            padding: '12px 16px',
+            borderRadius: '8px',
+            backgroundColor: '#fef2f2',
+            border: '1px solid #fecaca',
+            color: '#991b1b',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            fontSize: '13px',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <AlertCircle size={16} />
+            <span>{error}</span>
+          </div>
+          <button
+            style={{
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              color: '#991b1b',
+              padding: '2px',
+              display: 'flex',
+              alignItems: 'center',
+            }}
+            onClick={() => setError(null)}
+            aria-label="Dismiss error"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
+
       {/* 4-Stage Stepper Bar */}
       <div className="stepper-bar">
         <div className={`step-node ${activePayrun.status !== 'DRAFT' ? 'completed' : 'active'}`}>
@@ -127,7 +267,9 @@ export const Payruns: React.FC<PayrunsProps> = ({ payruns, employees, onUpdatePa
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <h2 style={{ fontSize: '18px', fontWeight: 700 }}>{activePayrun.name}</h2>
-              <span className="badge badge-success">{activePayrun.status}</span>
+              <span className={`badge ${activePayrun.status === 'PAID' ? 'badge-success' : activePayrun.status === 'VALIDATED' ? 'badge-info' : 'badge-warning'}`}>
+                {activePayrun.status}
+              </span>
             </div>
             <div style={{ fontSize: '13px', color: 'var(--slate-500)', marginTop: '3px' }}>
               Cycle: {activePayrun.period} • Structure: {activePayrun.salaryStructure}
@@ -137,22 +279,48 @@ export const Payruns: React.FC<PayrunsProps> = ({ payruns, employees, onUpdatePa
           {/* Workflow Action Buttons */}
           <div style={{ display: 'flex', gap: '10px' }}>
             {activePayrun.status === 'DRAFT' && (
-              <button className="btn btn-primary" onClick={() => handleAdvanceWorkflow('COMPUTED')}>
+              <button
+                className="btn btn-secondary"
+                disabled={actionLoading}
+                onClick={handleComputePayslips}
+              >
                 ⚡ Compute All Payslips
               </button>
             )}
-            {activePayrun.status === 'COMPUTED' && (
-              <button className="btn btn-primary" onClick={() => handleAdvanceWorkflow('VALIDATED')}>
-                <Check size={14} /> Validate & Confirm Payrun
+            {(activePayrun.status === 'DRAFT' || activePayrun.status === 'COMPUTED') && (
+              <button
+                className="btn btn-primary"
+                disabled={actionLoading}
+                onClick={handleValidate}
+              >
+                {actionLoading ? (
+                  <Loader2 size={14} className="spin" style={{ animation: 'spin 1s linear infinite' }} />
+                ) : (
+                  <Check size={14} />
+                )}
+                <span>{actionLoading ? 'Validating...' : 'Validate & Confirm Payrun'}</span>
               </button>
             )}
             {activePayrun.status === 'VALIDATED' && (
-              <button className="btn btn-primary" style={{ backgroundColor: '#059669' }} onClick={() => handleAdvanceWorkflow('PAID')}>
-                <DollarSign size={14} /> Mark Paid & Disburse
+              <button
+                className="btn btn-primary"
+                style={{ backgroundColor: '#059669' }}
+                disabled={actionLoading}
+                onClick={handlePay}
+              >
+                {actionLoading ? (
+                  <Loader2 size={14} className="spin" style={{ animation: 'spin 1s linear infinite' }} />
+                ) : (
+                  <DollarSign size={14} />
+                )}
+                <span>{actionLoading ? 'Processing Payment...' : 'Mark Paid & Disburse'}</span>
               </button>
             )}
             {activePayrun.status === 'PAID' && (
-              <button className="btn btn-secondary" onClick={() => alert('Dispatched payslip vouchers to 6 verified employee emails.')}>
+              <button
+                className="btn btn-secondary"
+                onClick={() => alert('Dispatched payslip vouchers to 6 verified employee emails.')}
+              >
                 <Download size={14} /> Export Payslips (ZIP)
               </button>
             )}
@@ -214,7 +382,7 @@ export const Payruns: React.FC<PayrunsProps> = ({ payruns, employees, onUpdatePa
                 <td style={{ color: '#be123c' }}>-${(slip.tax + slip.otherDeductions).toLocaleString()}.00</td>
                 <td style={{ fontWeight: 700, color: 'var(--primary)' }}>${slip.net.toLocaleString()}.00</td>
                 <td>
-                  <span className={`badge ${slip.status === 'PAID' ? 'badge-success' : 'badge-info'}`}>
+                  <span className={`badge ${slip.status === 'PAID' ? 'badge-success' : slip.status === 'VALIDATED' ? 'badge-info' : 'badge-warning'}`}>
                     {slip.status}
                   </span>
                 </td>

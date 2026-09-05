@@ -86,6 +86,15 @@ router.get('/:id', async (req: Request, res: Response): Promise<void> => {
 // ── POST /api/employees ───────────────────────────────────────────────────────
 
 router.post('/', async (req: Request, res: Response): Promise<void> => {
+  // Authorization check: Non-admin employees cannot create employee records
+  if (req.user && req.user.role === 'Employee') {
+    res.status(403).json({
+      success: false,
+      message: 'Forbidden: Insufficient permission to create employee records.',
+    });
+    return;
+  }
+
   const body = req.body as Partial<CreateEmployeeInput>;
 
   // ── Required field validation ──
@@ -154,6 +163,15 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
 // ── PATCH /api/employees/:id ──────────────────────────────────────────────────
 
 router.patch('/:id', async (req: Request, res: Response): Promise<void> => {
+  // Authorization check: Non-admin employees cannot modify or deactivate employee records
+  if (req.user && req.user.role === 'Employee') {
+    res.status(403).json({
+      success: false,
+      message: 'Forbidden: Insufficient permission to update or deactivate employee records.',
+    });
+    return;
+  }
+
   const { id } = req.params;
 
   // ── ID validation ──

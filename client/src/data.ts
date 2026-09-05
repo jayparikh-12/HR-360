@@ -1,4 +1,4 @@
-import type { Employee, Contract, Payrun } from './types';
+import type { Employee, Payrun } from './types';
 
 export const initialEmployees: Employee[] = [
   {
@@ -99,12 +99,6 @@ export const initialEmployees: Employee[] = [
   },
 ];
 
-export const initialContracts: Contract[] = [
-  { id: 'CON-001', employeeId: 'EMP-001', employeeName: 'John Doe', startDate: '2023-03-15', wage: 6500, salaryStructure: 'Standard Full-Time', workingSchedule: 'Standard 40h', status: 'ACTIVE' },
-  { id: 'CON-002', employeeId: 'EMP-002', employeeName: 'Maya Lin', startDate: '2022-08-01', wage: 7200, salaryStructure: 'Executive Full-Time', workingSchedule: 'Standard 40h', status: 'ACTIVE' },
-  { id: 'CON-003', employeeId: 'EMP-003', employeeName: 'Alex Rivera', startDate: '2024-01-10', wage: 5200, salaryStructure: 'Standard Full-Time', workingSchedule: 'Standard 40h', status: 'ACTIVE' },
-];
-
 export const initialPayruns: Payrun[] = [
   {
     id: 'PR-2026-09',
@@ -114,14 +108,14 @@ export const initialPayruns: Payrun[] = [
     totalGross: 40000,
     totalNet: 33450,
     employeeCount: 6,
-    status: 'COMPUTED',
+    status: 'DRAFT',
     payslips: [
-      { id: 'PS-001', employeeId: 'EMP-001', employeeName: 'John Doe', department: 'Engineering', basic: 4000, hra: 1600, allowance: 900, gross: 6500, tax: 650, otherDeductions: 450, net: 5400, status: 'COMPUTED' },
-      { id: 'PS-002', employeeId: 'EMP-002', employeeName: 'Maya Lin', department: 'Product', basic: 4500, hra: 1800, allowance: 900, gross: 7200, tax: 720, otherDeductions: 500, net: 5980, status: 'COMPUTED' },
-      { id: 'PS-003', employeeId: 'EMP-003', employeeName: 'Alex Rivera', department: 'Finance', basic: 3200, hra: 1280, allowance: 720, gross: 5200, tax: 520, otherDeductions: 360, net: 4320, status: 'COMPUTED' },
-      { id: 'PS-004', employeeId: 'EMP-004', employeeName: 'Elena Rostova', department: 'HR', basic: 5000, hra: 2000, allowance: 1000, gross: 8000, tax: 800, otherDeductions: 560, net: 6640, status: 'COMPUTED' },
-      { id: 'PS-005', employeeId: 'EMP-005', employeeName: 'David Kim', department: 'Engineering', basic: 4200, hra: 1680, allowance: 920, gross: 6800, tax: 680, otherDeductions: 470, net: 5650, status: 'COMPUTED' },
-      { id: 'PS-006', employeeId: 'EMP-006', employeeName: 'Sarah Connor', department: 'Operations', basic: 3900, hra: 1560, allowance: 840, gross: 6300, tax: 630, otherDeductions: 440, net: 5230, status: 'COMPUTED', warning: '1 Unpaid Absence day deducted' },
+      { id: 'PS-001', employeeId: 'EMP-001', employeeName: 'John Doe', department: 'Engineering', basic: 4000, hra: 1600, allowance: 900, gross: 6500, tax: 650, otherDeductions: 450, net: 5400, status: 'DRAFT' },
+      { id: 'PS-002', employeeId: 'EMP-002', employeeName: 'Maya Lin', department: 'Product', basic: 4500, hra: 1800, allowance: 900, gross: 7200, tax: 720, otherDeductions: 500, net: 5980, status: 'DRAFT' },
+      { id: 'PS-003', employeeId: 'EMP-003', employeeName: 'Alex Rivera', department: 'Finance', basic: 3200, hra: 1280, allowance: 720, gross: 5200, tax: 520, otherDeductions: 360, net: 4320, status: 'DRAFT' },
+      { id: 'PS-004', employeeId: 'EMP-004', employeeName: 'Elena Rostova', department: 'HR', basic: 5000, hra: 2000, allowance: 1000, gross: 8000, tax: 800, otherDeductions: 560, net: 6640, status: 'DRAFT' },
+      { id: 'PS-005', employeeId: 'EMP-005', employeeName: 'David Kim', department: 'Engineering', basic: 4200, hra: 1680, allowance: 920, gross: 6800, tax: 680, otherDeductions: 470, net: 5650, status: 'DRAFT' },
+      { id: 'PS-006', employeeId: 'EMP-006', employeeName: 'Sarah Connor', department: 'Operations', basic: 3900, hra: 1560, allowance: 840, gross: 6300, tax: 630, otherDeductions: 440, net: 5230, status: 'DRAFT', warning: '1 Unpaid Absence day deducted' },
     ],
   },
 ];

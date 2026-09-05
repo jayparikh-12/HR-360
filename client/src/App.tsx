@@ -12,6 +12,7 @@ import { Contracts } from './pages/Contracts';
 import { Schedules } from './pages/Schedules';
 import { SalaryStructures } from './pages/SalaryStructures';
 import { employeesApi } from './api/employees';
+import { payrollApi } from './api/payroll';
 import { initialEmployees, initialPayruns } from './data';
 import type { Employee, Payrun } from './types';
 import './App.css';
@@ -54,18 +55,40 @@ const AppContent: React.FC = () => {
     }
   }, []);
 
-  // Fetch employees when the user authenticates
+  // ── Payruns state (MySQL-backed) ───────────────────────────────────────────
+  const [payruns, setPayruns] = useState<Payrun[]>(initialPayruns);
+
+  const fetchPayruns = useCallback(async () => {
+    try {
+      const apiPayruns = await payrollApi.getAll();
+      if (apiPayruns && apiPayruns.length > 0) {
+        setPayruns((prev) => {
+          return apiPayruns.map((pr) => {
+            const existing = prev.find((p) => p.id === pr.id);
+            return {
+              ...existing,
+              ...pr,
+              status: pr.status,
+              payslips: (pr.payslips && pr.payslips.length > 0) ? pr.payslips : (existing?.payslips || []),
+            };
+          });
+        });
+      }
+    } catch (err) {
+      console.warn('[App] Failed to load payruns from API:', err);
+    }
+  }, []);
+
+  // Fetch employees and payruns when the user authenticates
   useEffect(() => {
     if (isAuthenticated) {
       fetchEmployees();
+      fetchPayruns();
     }
-  }, [isAuthenticated, fetchEmployees]);
-
-  // ── Other module state (still local — Phase 2.3+) ──────────────────────────
-  const [payruns, setPayruns] = useState<Payrun[]>(initialPayruns);
+  }, [isAuthenticated, fetchEmployees, fetchPayruns]);
 
   const handleUpdatePayrun = (updated: Payrun) => {
-    setPayruns(payruns.map((p) => (p.id === updated.id ? updated : p)));
+    setPayruns((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
   };
 
   // 1. Initial loading: Render subtle splash screen to eliminate UI flicker
