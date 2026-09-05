@@ -17,12 +17,21 @@ import {
   getDepartmentWages,
   getDistinctDepartments,
   getDistinctPeriods,
+  getPayrollTrendAggregation,
+  getPayrunStatusBreakdown,
+  getDepartmentBreakdownAggregation,
+  getEmployeeTypeBreakdownAggregation,
   type DashboardFilterParams,
   type DateRange,
   type EmployeeAggregationResult,
   type PayrollAggregationResult,
   type AttendanceAggregationResult,
   type TimeOffAggregationResult,
+  type PayrollTrendItem,
+  type PayrunStatusCounts,
+  type StatusBreakdownItem,
+  type DepartmentPayrollBreakdownItem,
+  type EmployeeTypeBreakdownItem,
 } from '../repositories/dashboard.repository.js';
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -32,6 +41,25 @@ export interface DashboardAlert {
   type: 'warning' | 'info' | 'success';
   title: string;
   message: string;
+}
+
+export interface DashboardAnalyticsResponse {
+  payrollTrend: PayrollTrendItem[];
+  trends: PayrollTrendItem[];
+  statusBreakdown: StatusBreakdownItem[];
+  statusCounts: PayrunStatusCounts;
+  departmentBreakdown: DepartmentPayrollBreakdownItem[];
+  employeeTypeBreakdown: EmployeeTypeBreakdownItem[];
+  summary: {
+    grossPayroll: number;
+    netPayroll: number;
+    totalDeductions: number;
+    activeHeadcount: number;
+    totalPayruns: number;
+    selectedPeriod: string | null;
+    selectedDepartment: string | null;
+    selectedEmployeeType: string | null;
+  };
 }
 
 export interface DashboardSummaryResponse {
@@ -58,6 +86,14 @@ export interface DashboardSummaryResponse {
   pendingTimeOffCount: number;
   approvedTimeOffCount: number;
   isPendingBackendAggregation: false;
+
+  // Visual analytics aggregations (Phase 6.3)
+  payrollTrend: PayrollTrendItem[];
+  trends: PayrollTrendItem[];
+  statusBreakdown: StatusBreakdownItem[];
+  statusCounts: PayrunStatusCounts;
+  departmentBreakdown: DepartmentPayrollBreakdownItem[];
+  employeeTypeBreakdown: EmployeeTypeBreakdownItem[];
 }
 
 // ── Date & Period Parsing ────────────────────────────────────────────────────
@@ -178,13 +214,31 @@ export async function getDashboardSummary(
   const dateRange = parsePeriodFilter(filters.period);
 
   // Execute database queries in parallel
-  const [employees, payroll, attendance, timeOff, baseDeptWages] = await Promise.all([
+  const [
+    employees,
+    payroll,
+    attendance,
+    timeOff,
+    baseDeptWages,
+    payrollTrend,
+    statusResult,
+    employeeTypeBreakdown,
+  ] = await Promise.all([
     getEmployeeMetrics(filters, dateRange),
     getPayrollMetrics(filters, dateRange),
     getAttendanceMetrics(filters, dateRange),
     getTimeOffMetrics(filters, dateRange),
     getDepartmentWages(filters, dateRange),
+    getPayrollTrendAggregation(filters, dateRange),
+    getPayrunStatusBreakdown(filters, dateRange),
+    getEmployeeTypeBreakdownAggregation(filters),
   ]);
+
+  const departmentBreakdown = await getDepartmentBreakdownAggregation(
+    filters,
+    dateRange,
+    payroll.latestPayrun?.id
+  );
 
   // Combine department costs: prefer payslip gross costs; fallback to base contract wages
   const departmentCosts: Record<string, number> = {};
@@ -223,6 +277,59 @@ export async function getDashboardSummary(
     pendingTimeOffCount: timeOff.pending,
     approvedTimeOffCount: timeOff.approved,
     isPendingBackendAggregation: false,
+
+    // Visual analytics aggregations (Phase 6.3)
+    payrollTrend,
+    trends: payrollTrend,
+    statusBreakdown: statusResult.items,
+    statusCounts: statusResult.counts,
+    departmentBreakdown,
+    employeeTypeBreakdown,
+  };
+}
+
+/**
+ * Dedicated visual analytics coordinator for /api/dashboard/analytics.
+ */
+export async function getDashboardAnalytics(
+  filters: DashboardFilterParams = {}
+): Promise<DashboardAnalyticsResponse> {
+  const dateRange = parsePeriodFilter(filters.period);
+
+  const [
+    payrollTrend,
+    statusResult,
+    employees,
+    payroll,
+  ] = await Promise.all([
+    getPayrollTrendAggregation(filters, dateRange),
+    getPayrunStatusBreakdown(filters, dateRange),
+    getEmployeeMetrics(filters, dateRange),
+    getPayrollMetrics(filters, dateRange),
+  ]);
+
+  const [departmentBreakdown, employeeTypeBreakdown] = await Promise.all([
+    getDepartmentBreakdownAggregation(filters, dateRange, payroll.latestPayrun?.id),
+    getEmployeeTypeBreakdownAggregation(filters),
+  ]);
+
+  return {
+    payrollTrend,
+    trends: payrollTrend,
+    statusBreakdown: statusResult.items,
+    statusCounts: statusResult.counts,
+    departmentBreakdown,
+    employeeTypeBreakdown,
+    summary: {
+      grossPayroll: payroll.gross,
+      netPayroll: payroll.net,
+      totalDeductions: payroll.deductions,
+      activeHeadcount: employees.active,
+      totalPayruns: statusResult.counts.total,
+      selectedPeriod: filters.period || null,
+      selectedDepartment: filters.department || null,
+      selectedEmployeeType: filters.employeeType || null,
+    },
   };
 }
 

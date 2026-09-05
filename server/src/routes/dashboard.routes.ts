@@ -18,6 +18,7 @@ import { PERMISSIONS } from '../types/rbac.js';
 import {
   getDashboardSummary,
   getDashboardFilterOptions,
+  getDashboardAnalytics,
 } from '../services/dashboard.service.js';
 import type { DashboardFilterParams } from '../repositories/dashboard.repository.js';
 
@@ -79,6 +80,33 @@ router.get('/filters', async (_req: Request, res: Response): Promise<void> => {
     res.status(500).json({
       success: false,
       message: 'Unable to load filter options.',
+    });
+  }
+});
+
+// ── GET /api/dashboard/analytics ─────────────────────────────────────────────
+router.get('/analytics', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const period = typeof req.query.period === 'string' ? req.query.period : undefined;
+    const department = typeof req.query.department === 'string' ? req.query.department : undefined;
+    const employeeType = typeof req.query.employeeType === 'string' ? req.query.employeeType : undefined;
+
+    const filters: DashboardFilterParams = {
+      period,
+      department,
+      employeeType,
+    };
+
+    const analytics = await getDashboardAnalytics(filters);
+    res.json({
+      success: true,
+      data: analytics,
+    });
+  } catch (err) {
+    console.error('[Dashboard API] Analytics error:', err instanceof Error ? err.message : err);
+    res.status(500).json({
+      success: false,
+      message: 'Unable to aggregate payroll visual analytics. Please try again.',
     });
   }
 });

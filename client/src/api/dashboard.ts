@@ -32,6 +32,24 @@ export interface DashboardAlert {
   message: string;
 }
 
+export interface PayrollTrendPoint {
+  period: string;
+  name: string;
+  gross: number;
+  net: number;
+  deductions: number;
+  employeeCount: number;
+  status: string;
+}
+
+export interface PayrunStatusCounts {
+  draft: number;
+  computed: number;
+  validated: number;
+  paid: number;
+  total?: number;
+}
+
 export interface DashboardMetrics {
   totalEmployees: number;
   activeEmployees: number;
@@ -50,6 +68,8 @@ export interface DashboardMetrics {
     totalNet: number;
   } | null;
   departmentCosts: Record<string, number>;
+  statusCounts: PayrunStatusCounts;
+  trends: PayrollTrendPoint[];
   attendanceRate: number | null; // e.g. 95.5 or null if no attendance records logged
   attendancePresentCount: number;
   attendanceTotalRecords: number;
@@ -109,6 +129,8 @@ function aggregateLiveMetrics(
       totalDeductions: 0,
       latestPayrun: null,
       departmentCosts: {},
+      statusCounts: { draft: 0, computed: 0, validated: 0, paid: 0 },
+      trends: [],
       attendanceRate: null,
       attendancePresentCount: 0,
       attendanceTotalRecords: 0,
@@ -303,6 +325,8 @@ function aggregateLiveMetrics(
     totalDeductions,
     latestPayrun,
     departmentCosts,
+    statusCounts: calculateStatusCounts(payruns),
+    trends: calculateTrends(payruns, filters),
     attendanceRate,
     attendancePresentCount,
     attendanceTotalRecords,
@@ -310,6 +334,59 @@ function aggregateLiveMetrics(
     approvedTimeOffCount,
     alerts,
     isPendingBackendAggregation: false,
+  };
+}
+
+export function calculateTrends(payruns: Payrun[], filters?: DashboardFilters): PayrollTrendPoint[] {
+  if (!payruns || payruns.length === 0) return [];
+
+  // Sort payruns chronologically (oldest to newest)
+  const sorted = payruns.slice().reverse();
+
+  return sorted.map((p) => {
+    const allPayslips = p.payslips || [];
+    let relevantPayslips = allPayslips;
+
+    if (filters?.department && filters.department !== 'ALL') {
+      const deptLower = filters.department.trim().toLowerCase();
+      relevantPayslips = allPayslips.filter(
+        (s) => (s.department || '').trim().toLowerCase() === deptLower
+      );
+    }
+
+    let gross = 0;
+    let net = 0;
+    let count = relevantPayslips.length;
+
+    if (filters?.department && filters.department !== 'ALL') {
+      gross = relevantPayslips.reduce((sum, s) => sum + (Number(s.gross) || 0), 0);
+      net = relevantPayslips.reduce((sum, s) => sum + (Number(s.net) || 0), 0);
+    } else {
+      gross = Number(p.totalGross) || relevantPayslips.reduce((sum, s) => sum + (Number(s.gross) || 0), 0);
+      net = Number(p.totalNet) || relevantPayslips.reduce((sum, s) => sum + (Number(s.net) || 0), 0);
+      count = p.employeeCount || count;
+    }
+
+    const deductions = Math.max(0, gross - net);
+
+    return {
+      period: p.period,
+      name: p.name,
+      gross,
+      net,
+      deductions,
+      employeeCount: count,
+      status: p.status,
+    };
+  });
+}
+
+export function calculateStatusCounts(payruns: Payrun[]): PayrunStatusCounts {
+  return {
+    draft: payruns.filter((p) => p.status === 'DRAFT').length,
+    computed: payruns.filter((p) => p.status === 'COMPUTED').length,
+    validated: payruns.filter((p) => p.status === 'VALIDATED').length,
+    paid: payruns.filter((p) => p.status === 'PAID').length,
   };
 }
 
@@ -327,11 +404,27 @@ export const dashboardApi = {
 
     const queryString = params.toString() ? `?${params.toString()}` : '';
 
-    // 1. Try dedicated dashboard endpoint (Phase 6 backend when mounted)
+    // 1. Try dedicated dashboard endpoint (Phase 6 backend)
     try {
-      const response = await apiFetch<DashboardApiResponse>(`/api/dashboard${queryString}`);
-      if (response && response.success && response.data) {
-        return response.data;
+      const [dashResponse, payruns] = await Promise.all([
+        apiFetch<any>(`/api/dashboard${queryString}`),
+        payrollApi.getAll().catch(() => []),
+      ]);
+
+      if (dashResponse && dashResponse.success && dashResponse.data) {
+        const backendData = dashResponse.data;
+        const trends = calculateTrends(payruns, filters);
+        const statusCounts: PayrunStatusCounts =
+          backendData.payroll?.statusCounts ||
+          backendData.statusCounts ||
+          calculateStatusCounts(payruns);
+
+        return {
+          ...backendData,
+          statusCounts,
+          trends,
+          departmentCosts: backendData.departmentCosts || backendData.payroll?.departmentCosts || {},
+        };
       }
     } catch (err) {
       // If 404 or backend route not yet added, proceed to live aggregation

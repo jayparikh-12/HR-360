@@ -4,8 +4,7 @@ import {
   CheckCircle2, 
   TrendingUp, 
   AlertTriangle, 
-  ArrowRight, 
-  Play, 
+  Play,
   RefreshCw,
   Filter,
   CreditCard,
@@ -20,6 +19,11 @@ import type { Employee, Payrun } from '../types';
 import { dashboardApi, type DashboardMetrics, type DashboardFilters } from '../api/dashboard';
 import { employeesApi } from '../api/employees';
 import { formatCurrency } from '../utils/formatters';
+import { 
+  PayrollTrendChart, 
+  PayrollStatusChart, 
+  PayrollBreakdownChart 
+} from '../components/dashboard';
 
 interface DashboardProps {
   employees?: Employee[];
@@ -303,15 +307,21 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
 
       {/* Loading Skeleton View (Maintains Grid Layout) */}
       {loading && (
-        <div className="grid-4">
-          {[1, 2, 3, 4, 5, 6].map((i) => (
-            <div className="card" key={i} style={{ minHeight: '120px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-              <div style={{ width: '45%', height: '13px', background: 'var(--slate-200)', borderRadius: '4px', marginBottom: '12px' }} />
-              <div style={{ width: '75%', height: '24px', background: 'var(--slate-200)', borderRadius: '4px', marginBottom: '8px' }} />
-              <div style={{ width: '55%', height: '11px', background: 'var(--slate-100)', borderRadius: '4px' }} />
-            </div>
-          ))}
-        </div>
+        <>
+          <div className="grid-4">
+            {[1, 2, 3, 4, 5, 6].map((i) => (
+              <div className="card" key={i} style={{ minHeight: '120px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                <div style={{ width: '45%', height: '13px', background: 'var(--slate-200)', borderRadius: '4px', marginBottom: '12px' }} />
+                <div style={{ width: '75%', height: '24px', background: 'var(--slate-200)', borderRadius: '4px', marginBottom: '8px' }} />
+                <div style={{ width: '55%', height: '11px', background: 'var(--slate-100)', borderRadius: '4px' }} />
+              </div>
+            ))}
+          </div>
+          <div className="card" style={{ minHeight: '260px', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '24px', gap: '16px' }}>
+            <div style={{ width: '220px', height: '16px', background: 'var(--slate-200)', borderRadius: '4px' }} />
+            <div style={{ width: '100%', height: '180px', background: 'var(--slate-100)', borderRadius: '6px' }} />
+          </div>
+        </>
       )}
 
       {/* Fully Dynamic 6-Card KPI Grid (Live Backend Values) */}
@@ -466,54 +476,41 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
         </div>
       )}
 
-      {/* Operational Sections Grid */}
+      {/* Visual Analytics & Operational Sections (Phase 6.3) */}
       {!loading && metrics && (metrics.totalEmployees > 0 || metrics.latestPayrun) && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '20px' }}>
-          {/* Department Salary Breakdown */}
-          <div className="card">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <h3 style={{ fontSize: '14px', fontWeight: 700, color: 'var(--slate-900)' }}>
-                Salary Cost by Department
-              </h3>
-              <button className="btn btn-secondary btn-sm" onClick={() => onNavigate('employees')}>
-                View Staff <ArrowRight size={12} />
-              </button>
-            </div>
+        <>
+          {/* Requirement 1: Payroll Trend Analytics Chart */}
+          <PayrollTrendChart
+            trends={metrics.trends || []}
+            selectedPeriod={filters.period}
+            selectedDepartment={filters.department}
+            loading={loading}
+          />
 
-            {Object.keys(metrics.departmentCosts).length === 0 ? (
-              <div style={{ fontSize: '13px', color: 'var(--slate-400)', fontStyle: 'italic', padding: '24px 0', textAlign: 'center' }}>
-                No department cost allocation recorded for current filters.
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                {Object.entries(metrics.departmentCosts).map(([dept, cost]) => {
-                  const percent = metrics.totalPayrollCost > 0 
-                    ? Math.round((cost / metrics.totalPayrollCost) * 100) 
-                    : 0;
-                  return (
-                    <div key={dept}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', marginBottom: '4px' }}>
-                        <span style={{ fontWeight: 600, color: 'var(--text-main)' }}>{dept}</span>
-                        <span style={{ color: 'var(--slate-500)' }}>
-                          {formatCurrency(cost)} ({percent}%)
-                        </span>
-                      </div>
-                      <div style={{ width: '100%', height: '6px', background: 'var(--slate-100)', borderRadius: '999px', overflow: 'hidden' }}>
-                        <div 
-                          style={{ 
-                            width: `${Math.min(100, Math.max(0, percent))}%`, 
-                            height: '100%', 
-                            background: 'var(--primary)', 
-                            borderRadius: '999px',
-                            transition: 'width 0.4s ease'
-                          }} 
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+          {/* Requirements 2 & 3: Payrun Status Lifecycle & Department Allocation Breakdown */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '20px' }}>
+            <PayrollStatusChart
+              statusCounts={metrics.statusCounts || { draft: 0, computed: 0, validated: 0, paid: 0 }}
+              totalPayruns={
+                metrics.statusCounts?.total ??
+                (metrics.statusCounts
+                  ? metrics.statusCounts.draft +
+                    metrics.statusCounts.computed +
+                    metrics.statusCounts.validated +
+                    metrics.statusCounts.paid
+                  : 0)
+              }
+              loading={loading}
+            />
+
+            <PayrollBreakdownChart
+              departmentCosts={metrics.departmentCosts || {}}
+              totalPayrollCost={metrics.totalPayrollCost || 0}
+              selectedDepartment={filters.department}
+              onSelectDepartment={(dept) => handleFilterChange('department', dept)}
+              onViewStaff={() => onNavigate('employees')}
+              loading={loading}
+            />
           </div>
 
           {/* Live Payroll Alerts & Action Items Feed */}
@@ -543,7 +540,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                 <div>All payroll cycles and time-off requests are up to date.</div>
               </div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '10px' }}>
                 {metrics.alerts.map((alert) => (
                   <div 
                     key={alert.id}
@@ -579,7 +576,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
               </div>
             )}
           </div>
-        </div>
+        </>
       )}
     </div>
   );

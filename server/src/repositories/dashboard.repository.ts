@@ -60,6 +60,52 @@ export interface PayrollAggregationResult {
   departmentCosts: Record<string, number>;
 }
 
+export interface PayrollTrendItem {
+  period: string;
+  payrollPeriod: string;
+  name: string;
+  gross: number;
+  grossPayroll: number;
+  net: number;
+  netPayroll: number;
+  deductions: number;
+  totalDeductions: number;
+  employeeCount: number;
+  status: string;
+  payrunId: string;
+}
+
+export interface PayrunStatusCounts {
+  draft: number;
+  computed: number;
+  validated: number;
+  paid: number;
+  total: number;
+}
+
+export interface StatusBreakdownItem {
+  status: string;
+  count: number;
+  percentage: number;
+}
+
+export interface DepartmentPayrollBreakdownItem {
+  department: string;
+  gross: number;
+  totalPayroll: number;
+  net: number;
+  deductions: number;
+  employeeCount: number;
+  percentage: number;
+}
+
+export interface EmployeeTypeBreakdownItem {
+  employeeType: string;
+  count: number;
+  percentage: number;
+  totalWage: number;
+}
+
 export interface AttendanceAggregationResult {
   totalRecords: number;
   present: number;
@@ -95,7 +141,7 @@ export async function getEmployeeMetrics(
 
   // Active/employment period semantics: employee must have joined on or before period end date
   if (dateRange && dateRange.endDate) {
-    whereClauses.push('e.join_date <= ?');
+    whereClauses.push('DATE(e.createdAt) <= ?');
     params.push(dateRange.endDate);
   }
 
@@ -165,7 +211,7 @@ export async function getDepartmentWages(
   }
 
   if (dateRange && dateRange.endDate) {
-    whereClauses.push('e.join_date <= ?');
+    whereClauses.push('DATE(e.createdAt) <= ?');
     params.push(dateRange.endDate);
   }
 
@@ -362,7 +408,7 @@ export async function getAttendanceMetrics(
       SUM(CASE WHEN a.status = 'OVERTIME' THEN 1 ELSE 0 END) AS overtime_count,
       SUM(CASE WHEN a.status = 'MISSING_CHECKOUT' OR (a.check_in IS NOT NULL AND a.check_out IS NULL) THEN 1 ELSE 0 END) AS missing_checkout_count
     FROM attendance_records a
-    JOIN employees e ON e.id = a.employee_id
+    LEFT JOIN employees e ON e.id = a.employee_id
     WHERE ${whereSql}
   `;
 
@@ -425,7 +471,7 @@ export async function getTimeOffMetrics(
       COALESCE(SUM(t.duration_days), 0) AS total_days,
       COALESCE(SUM(CASE WHEN t.status = 'APPROVED' THEN t.duration_days ELSE 0 END), 0) AS approved_days
     FROM time_off_requests t
-    JOIN employees e ON e.id = t.employee_id
+    LEFT JOIN employees e ON e.id = t.employee_id
     WHERE ${whereSql}
   `;
 
@@ -471,4 +517,350 @@ export async function getDistinctPeriods(): Promise<string[]> {
   `;
   const rows = await executeQuery<RowDataPacket[]>(sql, []);
   return rows.map((r) => String(r.period));
+}
+
+// ── Visual Analytics Aggregations (Phase 6.3) ─────────────────────────────────
+
+/**
+ * Aggregates multi-period payroll trend data for visual charts.
+ * Scopes to department or employeeType when filtered, or returns historical payrun trajectories.
+ */
+export async function getPayrollTrendAggregation(
+  filters: DashboardFilterParams,
+  dateRange?: DateRange
+): Promise<PayrollTrendItem[]> {
+  const hasDept = filters.department && filters.department.trim().toUpperCase() !== 'ALL';
+  const hasEmpType = filters.employeeType && filters.employeeType.trim().toUpperCase() !== 'ALL';
+  const hasPeriod = dateRange?.periodLabel && dateRange.periodLabel.trim().toUpperCase() !== 'ALL';
+
+  if (hasDept || hasEmpType) {
+    const whereClauses: string[] = ['1=1'];
+    const params: unknown[] = [];
+
+    if (hasDept) {
+      whereClauses.push('LOWER(e.department) = LOWER(?)');
+      params.push(filters.department!.trim());
+    }
+
+    if (hasEmpType) {
+      whereClauses.push('e.employeeType = ?');
+      params.push(filters.employeeType!.trim());
+    }
+
+    if (hasPeriod) {
+      whereClauses.push('(pr.period = ? OR pr.period LIKE ?)');
+      params.push(dateRange!.periodLabel!, `%${dateRange!.periodLabel!}%`);
+    }
+
+    const whereSql = whereClauses.join(' AND ');
+
+    const sql = `
+      SELECT
+        pr.id,
+        pr.name,
+        pr.period,
+        pr.status,
+        pr.created_at,
+        COALESCE(SUM(p.gross), 0) AS gross,
+        COALESCE(SUM(p.net), 0) AS net,
+        COALESCE(SUM(COALESCE(p.tax, 0) + COALESCE(p.other_deductions, 0)), 0) AS deductions,
+        COUNT(DISTINCT p.employee_id) AS employee_count
+      FROM payruns pr
+      JOIN payslips p ON p.payrun_id = pr.id
+      JOIN employees e ON e.id = p.employee_id
+      WHERE ${whereSql}
+      GROUP BY pr.id, pr.name, pr.period, pr.status, pr.created_at
+      ORDER BY pr.id ASC
+    `;
+
+    const rows = await executeQuery<RowDataPacket[]>(sql, params);
+    return rows.map((r) => {
+      const g = Number(r.gross) || 0;
+      const n = Number(r.net) || 0;
+      const d = Number(r.deductions) || (g - n);
+      const periodStr = String(r.period);
+      const nameStr = String(r.name);
+      return {
+        period: periodStr,
+        payrollPeriod: periodStr,
+        name: nameStr,
+        gross: g,
+        grossPayroll: g,
+        net: n,
+        netPayroll: n,
+        deductions: Math.max(0, d),
+        totalDeductions: Math.max(0, d),
+        employeeCount: Number(r.employee_count) || 0,
+        status: String(r.status),
+        payrunId: String(r.id),
+      };
+    });
+  } else {
+    const whereClauses: string[] = ['1=1'];
+    const params: unknown[] = [];
+
+    if (hasPeriod) {
+      whereClauses.push('(pr.period = ? OR pr.period LIKE ?)');
+      params.push(dateRange!.periodLabel!, `%${dateRange!.periodLabel!}%`);
+    }
+
+    const whereSql = whereClauses.join(' AND ');
+
+    const sql = `
+      SELECT
+        pr.id,
+        pr.name,
+        pr.period,
+        pr.status,
+        pr.created_at,
+        COALESCE(ps.sum_gross, pr.total_gross, 0) AS gross,
+        COALESCE(ps.sum_net, pr.total_net, 0) AS net,
+        COALESCE(ps.sum_deductions, GREATEST(0, COALESCE(ps.sum_gross, pr.total_gross, 0) - COALESCE(ps.sum_net, pr.total_net, 0)), 0) AS deductions,
+        COALESCE(ps.cnt_employees, pr.employee_count, 0) AS employee_count
+      FROM payruns pr
+      LEFT JOIN (
+        SELECT
+          p.payrun_id,
+          SUM(p.gross) AS sum_gross,
+          SUM(p.net) AS sum_net,
+          SUM(COALESCE(p.tax, 0) + COALESCE(p.other_deductions, 0)) AS sum_deductions,
+          COUNT(DISTINCT p.employee_id) AS cnt_employees
+        FROM payslips p
+        GROUP BY p.payrun_id
+      ) ps ON ps.payrun_id = pr.id
+      WHERE ${whereSql}
+      ORDER BY pr.id ASC
+    `;
+
+    const rows = await executeQuery<RowDataPacket[]>(sql, params);
+    return rows.map((r) => {
+      const g = Number(r.gross) || 0;
+      const n = Number(r.net) || 0;
+      const d = Number(r.deductions) || (g - n);
+      const periodStr = String(r.period);
+      const nameStr = String(r.name);
+      return {
+        period: periodStr,
+        payrollPeriod: periodStr,
+        name: nameStr,
+        gross: g,
+        grossPayroll: g,
+        net: n,
+        netPayroll: n,
+        deductions: Math.max(0, d),
+        totalDeductions: Math.max(0, d),
+        employeeCount: Number(r.employee_count) || 0,
+        status: String(r.status),
+        payrunId: String(r.id),
+      };
+    });
+  }
+}
+
+/**
+ * Aggregates payrun lifecycle distribution across DRAFT, COMPUTED, VALIDATED, and PAID.
+ */
+export async function getPayrunStatusBreakdown(
+  _filters: DashboardFilterParams,
+  dateRange?: DateRange
+): Promise<{ counts: PayrunStatusCounts; items: StatusBreakdownItem[] }> {
+  const whereClauses: string[] = ['1=1'];
+  const params: unknown[] = [];
+
+  if (dateRange?.periodLabel && dateRange.periodLabel.trim().toUpperCase() !== 'ALL') {
+    whereClauses.push('(period = ? OR period LIKE ?)');
+    params.push(dateRange.periodLabel, `%${dateRange.periodLabel}%`);
+  }
+
+  const whereSql = whereClauses.join(' AND ');
+
+  const sql = `
+    SELECT
+      COUNT(id) AS total_payruns,
+      SUM(CASE WHEN status = 'DRAFT' THEN 1 ELSE 0 END) AS draft_count,
+      SUM(CASE WHEN status = 'COMPUTED' THEN 1 ELSE 0 END) AS computed_count,
+      SUM(CASE WHEN status = 'VALIDATED' THEN 1 ELSE 0 END) AS validated_count,
+      SUM(CASE WHEN status = 'PAID' THEN 1 ELSE 0 END) AS paid_count
+    FROM payruns
+    WHERE ${whereSql}
+  `;
+
+  const rows = await executeQuery<RowDataPacket[]>(sql, params);
+  const r = rows[0] || {};
+
+  const total = Number(r.total_payruns) || 0;
+  const draft = Number(r.draft_count) || 0;
+  const computed = Number(r.computed_count) || 0;
+  const validated = Number(r.validated_count) || 0;
+  const paid = Number(r.paid_count) || 0;
+
+  const counts: PayrunStatusCounts = {
+    draft,
+    computed,
+    validated,
+    paid,
+    total,
+  };
+
+  const items: StatusBreakdownItem[] = [
+    { status: 'DRAFT', count: draft, percentage: total > 0 ? Math.round((draft / total) * 1000) / 10 : 0 },
+    { status: 'COMPUTED', count: computed, percentage: total > 0 ? Math.round((computed / total) * 1000) / 10 : 0 },
+    { status: 'VALIDATED', count: validated, percentage: total > 0 ? Math.round((validated / total) * 1000) / 10 : 0 },
+    { status: 'PAID', count: paid, percentage: total > 0 ? Math.round((paid / total) * 1000) / 10 : 0 },
+  ];
+
+  return { counts, items };
+}
+
+/**
+ * Aggregates department payroll expenditure breakdown with percentage share.
+ */
+export async function getDepartmentBreakdownAggregation(
+  filters: DashboardFilterParams,
+  dateRange?: DateRange,
+  targetPayrunId?: string | null
+): Promise<DepartmentPayrollBreakdownItem[]> {
+  const whereClauses: string[] = ['1=1'];
+  const params: unknown[] = [];
+
+  if (targetPayrunId) {
+    whereClauses.push('p.payrun_id = ?');
+    params.push(targetPayrunId);
+  } else if (dateRange?.periodLabel && dateRange.periodLabel.trim().toUpperCase() !== 'ALL') {
+    whereClauses.push('1=0');
+  }
+
+  if (filters.department && filters.department.trim().toUpperCase() !== 'ALL') {
+    whereClauses.push('LOWER(e.department) = LOWER(?)');
+    params.push(filters.department.trim());
+  }
+
+  if (filters.employeeType && filters.employeeType.trim().toUpperCase() !== 'ALL') {
+    whereClauses.push('e.employeeType = ?');
+    params.push(filters.employeeType.trim());
+  }
+
+  const whereSql = whereClauses.join(' AND ');
+
+  const sql = `
+    SELECT
+      COALESCE(e.department, 'Unassigned') AS department,
+      COALESCE(SUM(p.gross), 0) AS gross,
+      COALESCE(SUM(p.net), 0) AS net,
+      COALESCE(SUM(COALESCE(p.tax, 0) + COALESCE(p.other_deductions, 0)), 0) AS deductions,
+      COUNT(DISTINCT p.employee_id) AS employee_count
+    FROM payslips p
+    JOIN employees e ON e.id = p.employee_id
+    WHERE ${whereSql}
+    GROUP BY e.department
+    ORDER BY gross DESC
+  `;
+
+  const rows = await executeQuery<RowDataPacket[]>(sql, params);
+  const totalGross = rows.reduce((s, r) => s + (Number(r.gross) || 0), 0);
+
+  if (rows.length > 0 && totalGross > 0) {
+    return rows.map((r) => {
+      const g = Number(r.gross) || 0;
+      const n = Number(r.net) || 0;
+      const d = Number(r.deductions) || (g - n);
+      return {
+        department: String(r.department),
+        gross: g,
+        totalPayroll: g,
+        net: n,
+        deductions: Math.max(0, d),
+        employeeCount: Number(r.employee_count) || 0,
+        percentage: totalGross > 0 ? Math.round((g / totalGross) * 1000) / 10 : 0,
+      };
+    });
+  }
+
+  // Fallback: active contracts per department when no payslips exist yet
+  const fallbackWhere: string[] = ['1=1'];
+  const fallbackParams: unknown[] = [];
+
+  if (filters.department && filters.department.trim().toUpperCase() !== 'ALL') {
+    fallbackWhere.push('LOWER(e.department) = LOWER(?)');
+    fallbackParams.push(filters.department.trim());
+  }
+  if (filters.employeeType && filters.employeeType.trim().toUpperCase() !== 'ALL') {
+    fallbackWhere.push('e.employeeType = ?');
+    fallbackParams.push(filters.employeeType.trim());
+  }
+
+  const fallbackSql = `
+    SELECT
+      COALESCE(e.department, 'Unassigned') AS department,
+      COALESCE(SUM(c.wage), 0) AS gross,
+      COUNT(DISTINCT e.id) AS employee_count
+    FROM employees e
+    LEFT JOIN contracts c ON c.employee_id = e.id AND c.status = 'ACTIVE'
+    WHERE ${fallbackWhere.join(' AND ')}
+    GROUP BY e.department
+    ORDER BY gross DESC
+  `;
+
+  const fallbackRows = await executeQuery<RowDataPacket[]>(fallbackSql, fallbackParams);
+  const fallbackTotal = fallbackRows.reduce((s, r) => s + (Number(r.gross) || 0), 0);
+
+  return fallbackRows.map((r) => {
+    const g = Number(r.gross) || 0;
+    return {
+      department: String(r.department),
+      gross: g,
+      totalPayroll: g,
+      net: g,
+      deductions: 0,
+      employeeCount: Number(r.employee_count) || 0,
+      percentage: fallbackTotal > 0 ? Math.round((g / fallbackTotal) * 1000) / 10 : 0,
+    };
+  });
+}
+
+/**
+ * Aggregates payroll breakdown by employee type (FULL_TIME, PART_TIME, CONTRACT).
+ */
+export async function getEmployeeTypeBreakdownAggregation(
+  filters: DashboardFilterParams
+): Promise<EmployeeTypeBreakdownItem[]> {
+  const whereClauses: string[] = ['1=1'];
+  const params: unknown[] = [];
+
+  if (filters.department && filters.department.trim().toUpperCase() !== 'ALL') {
+    whereClauses.push('LOWER(e.department) = LOWER(?)');
+    params.push(filters.department.trim());
+  }
+
+  if (filters.employeeType && filters.employeeType.trim().toUpperCase() !== 'ALL') {
+    whereClauses.push('e.employeeType = ?');
+    params.push(filters.employeeType.trim());
+  }
+
+  const whereSql = whereClauses.join(' AND ');
+
+  const sql = `
+    SELECT
+      COALESCE(e.employeeType, 'FULL_TIME') AS employee_type,
+      COUNT(DISTINCT e.id) AS employee_count,
+      COALESCE(SUM(c.wage), 0) AS total_wage
+    FROM employees e
+    LEFT JOIN contracts c ON c.employee_id = e.id AND c.status = 'ACTIVE'
+    WHERE ${whereSql}
+    GROUP BY e.employeeType
+    ORDER BY employee_count DESC
+  `;
+
+  const rows = await executeQuery<RowDataPacket[]>(sql, params);
+  const totalCount = rows.reduce((s, r) => s + (Number(r.employee_count) || 0), 0);
+
+  return rows.map((r) => {
+    const count = Number(r.employee_count) || 0;
+    return {
+      employeeType: String(r.employee_type),
+      count,
+      percentage: totalCount > 0 ? Math.round((count / totalCount) * 1000) / 10 : 0,
+      totalWage: Number(r.total_wage) || 0,
+    };
+  });
 }
