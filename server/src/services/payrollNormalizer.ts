@@ -39,6 +39,7 @@ import {
   type AttendanceStatus,
   type TimeOffRequestStatus,
 } from '../types/payroll.types.js';
+import { summarizeTimeOff, calculateCalendarDaysInclusive } from './payrollEngine.js';
 
 // ── Date & Period Helpers ────────────────────────────────────────────────────
 
@@ -529,6 +530,8 @@ export function normalizeSalaryRules(
 
 // ── Attendance Normalizer ────────────────────────────────────────────────────
 
+// ── Attendance Normalizer ────────────────────────────────────────────────────
+
 export function normalizeAttendance(
   rawRecords: RawPayrollDomainData['attendanceRecords'],
   employeeId: string,
@@ -546,6 +549,14 @@ export function normalizeAttendance(
   if (Array.isArray(rawRecords)) {
     for (const rec of rawRecords) {
       if (!rec || typeof rec !== 'object') continue;
+
+      // Employee isolation: exclude records belonging to other employees
+      if (employeeId) {
+        const recEmpId = String(rec.employeeId ?? rec.employee_id ?? '').trim();
+        if (recEmpId && recEmpId !== employeeId) {
+          continue;
+        }
+      }
 
       const date = normalizeDateString(rec.date);
       if (!date || date < periodStart || date > periodEnd) {
@@ -578,14 +589,30 @@ export function normalizeAttendance(
       });
 
       totalWorkedHours += safeWorkedHours;
-      if (status === 'PRESENT') presentDays++;
-      else if (status === 'ABSENT') absentDays++;
-      else if (status === 'LATE') lateDays++;
-      else if (status === 'OVERTIME') {
+      if (status === 'PRESENT' || status === 'LATE' || status === 'OVERTIME') {
+        presentDays++;
+      }
+      if (status === 'ABSENT') {
+        absentDays++;
+      }
+      if (status === 'LATE') {
+        lateDays++;
+      }
+      if (status === 'OVERTIME') {
         overtimeDays++;
-        if (safeWorkedHours > 8.0) {
-          overtimeHours += safeWorkedHours - 8.0;
+      }
+
+      // Overtime hours extraction
+      const rawOt = rec.overtimeHours ?? rec.overtime_hours;
+      if (rawOt !== undefined && rawOt !== null) {
+        const numOt = typeof rawOt === 'number' ? rawOt : parseFloat(String(rawOt));
+        if (!isNaN(numOt) && isFinite(numOt) && numOt > 0) {
+          overtimeHours += numOt;
         }
+      } else if (status === 'OVERTIME' && safeWorkedHours > 8.0) {
+        overtimeHours += (safeWorkedHours - 8.0);
+      } else if (safeWorkedHours > 8.0) {
+        overtimeHours += (safeWorkedHours - 8.0);
       }
     }
   }
@@ -618,15 +645,20 @@ export function normalizeTimeOff(
   periodEnd: string
 ): NormalizedTimeOffInput {
   const requests: NormalizedTimeOffRequest[] = [];
-  let totalApprovedDays = 0;
-  let approvedPaidDays = 0;
-  let approvedUnpaidDays = 0;
   let pendingDays = 0;
   let refusedDays = 0;
 
   if (Array.isArray(rawRequests)) {
     for (const req of rawRequests) {
       if (!req || typeof req !== 'object') continue;
+
+      // Employee isolation: exclude requests belonging to other employees
+      if (employeeId) {
+        const reqEmpId = String(req.employeeId ?? req.employee_id ?? '').trim();
+        if (reqEmpId && reqEmpId !== employeeId) {
+          continue;
+        }
+      }
 
       const startDate = normalizeDateString(req.startDate || req.start_date);
       const endDate = normalizeDateString(req.endDate || req.end_date);
@@ -636,14 +668,35 @@ export function normalizeTimeOff(
         continue;
       }
 
+      const effStart = startDate < periodStart ? periodStart : startDate;
+      const effEnd = endDate > periodEnd ? periodEnd : endDate;
+      if (effStart > effEnd) continue;
+
       const rawDuration = req.durationDays ?? req.duration_days;
-      const durationNum = typeof rawDuration === 'number'
-        ? rawDuration
-        : parseInt(String(rawDuration || '1'), 10);
-      const durationDays = isNaN(durationNum) || durationNum <= 0 ? 1 : durationNum;
+      let durationDays = 0;
+      if (rawDuration !== undefined && rawDuration !== null) {
+        const parsed = typeof rawDuration === 'number' ? rawDuration : parseInt(String(rawDuration), 10);
+        if (!isNaN(parsed) && parsed > 0) {
+          durationDays = parsed;
+        }
+      }
+      if (durationDays <= 0) {
+        durationDays = calculateCalendarDaysInclusive(effStart, effEnd);
+      }
 
       const leaveType = String(req.leaveType || req.leave_type || 'Paid Annual Leave').trim();
-      const isUnpaid = /unpaid|without\s*pay|loss\s*of\s*pay|lop/i.test(leaveType);
+      const isUnpaidFlag = req.isUnpaid ?? req.is_unpaid;
+      const isPaidFlag = req.isPaid ?? req.is_paid;
+      let isUnpaid = false;
+      if (isUnpaidFlag === true) {
+        isUnpaid = true;
+      } else if (isPaidFlag === false) {
+        isUnpaid = true;
+      } else if (isPaidFlag === true) {
+        isUnpaid = false;
+      } else {
+        isUnpaid = /unpaid|without\s*pay|loss\s*of\s*pay|lop|lwop/i.test(leaveType);
+      }
 
       const rawStatus = String(req.status || 'PENDING').trim().toUpperCase();
       let status: TimeOffRequestStatus = 'PENDING';
@@ -660,14 +713,7 @@ export function normalizeTimeOff(
         isUnpaid,
       });
 
-      if (status === 'APPROVED') {
-        totalApprovedDays += durationDays;
-        if (isUnpaid) {
-          approvedUnpaidDays += durationDays;
-        } else {
-          approvedPaidDays += durationDays;
-        }
-      } else if (status === 'PENDING') {
+      if (status === 'PENDING') {
         pendingDays += durationDays;
       } else if (status === 'REFUSED') {
         refusedDays += durationDays;
@@ -681,10 +727,17 @@ export function normalizeTimeOff(
     return a.id.localeCompare(b.id);
   });
 
+  // Calculate approved leave summaries deterministically preventing double counting
+  const approvedSummary = summarizeTimeOff(
+    rawRequests ? rawRequests.filter((r: any) => String(r?.status ?? '').toUpperCase() === 'APPROVED') : [],
+    employeeId,
+    { startDate: periodStart, endDate: periodEnd }
+  );
+
   const summary: NormalizedTimeOffSummary = {
-    totalApprovedDays,
-    approvedPaidDays,
-    approvedUnpaidDays,
+    totalApprovedDays: approvedSummary.approvedLeaveDays,
+    approvedPaidDays: approvedSummary.paidLeaveDays,
+    approvedUnpaidDays: approvedSummary.unpaidLeaveDays,
     pendingDays,
     refusedDays,
   };

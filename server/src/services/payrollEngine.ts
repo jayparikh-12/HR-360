@@ -134,6 +134,7 @@ export type CalculateFixedRulesOptions = CalculateRulesOptions;
 export interface CalculateGrossSalaryOptions extends CalculateRulesOptions {
   salaryStructureId?: string | null;
   baseWage?: number;
+  additionalEarnings?: number;
 }
 
 export interface CalculateTotalDeductionsOptions extends CalculateRulesOptions {
@@ -490,8 +491,11 @@ export function calculateGrossSalary(
   const wage = Number(baseWage);
   const normalizedWage = isNaN(wage) || !isFinite(wage) || wage < 0 ? 0 : roundMoney(wage);
 
+  const additional = options?.additionalEarnings !== undefined ? Number(options.additionalEarnings) : 0;
+  const safeAdditional = isNaN(additional) || !isFinite(additional) || additional < 0 ? 0 : additional;
+
   if (!rulesOrResult) {
-    return normalizedWage;
+    return roundMoney(normalizedWage + safeAdditional);
   }
 
   let earnings = 0;
@@ -509,7 +513,7 @@ export function calculateGrossSalary(
     earnings = rulesOrResult.earnings;
   }
 
-  return roundMoney(normalizedWage + earnings);
+  return roundMoney(normalizedWage + earnings + safeAdditional);
 }
 
 /**
@@ -658,6 +662,7 @@ export interface AttendanceSummary {
   lateDays: number;
   overtimeDays: number;
   totalWorkedHours: number;
+  overtimeHours: number;
 }
 
 export interface TimeOffRecordInput {
@@ -666,10 +671,10 @@ export interface TimeOffRecordInput {
   employee_id?: string | null;
   leaveType?: string | null;
   leave_type?: string | null;
-  startDate: string | Date;
-  start_date?: string | Date;
-  endDate: string | Date;
-  end_date?: string | Date;
+  startDate?: string | Date | null;
+  start_date?: string | Date | null;
+  endDate?: string | Date | null;
+  end_date?: string | Date | null;
   durationDays?: number | string | null;
   duration_days?: number | string | null;
   status?: string | null;
@@ -789,7 +794,7 @@ export function isUnpaidLeaveType(leaveType?: string | null, isPaid?: boolean | 
   if (isPaid === true) return false;
   if (!leaveType || typeof leaveType !== 'string') return false;
   const lower = leaveType.trim().toLowerCase();
-  return /unpaid|without\s*pay|lwop|un-paid/.test(lower);
+  return /unpaid|without\s*pay|lwop|un-paid|loss\s*of\s*pay|\blop\b/.test(lower);
 }
 
 // ── PHASE 4.11: Pure Attendance Summarization ─────────────────────────────────
@@ -826,6 +831,7 @@ export function summarizeAttendance(
       lateDays: 0,
       overtimeDays: 0,
       totalWorkedHours: 0,
+      overtimeHours: 0,
     };
   }
 
@@ -835,6 +841,7 @@ export function summarizeAttendance(
   // Deduplicate by record ID if present, preserving first occurrence deterministically
   const seenIds = new Set<string>();
   let totalWorked = 0;
+  let totalOvertimeHours = 0;
   let presentDays = 0;
   let absentDays = 0;
   let lateDays = 0;
@@ -845,7 +852,7 @@ export function summarizeAttendance(
     if (!rec || typeof rec !== 'object') continue;
 
     const empId = String(rec.employeeId ?? rec.employee_id ?? '').trim();
-    if (empId !== employeeId) continue;
+    if (empId && empId !== employeeId) continue;
 
     const dateStr = normalizeDateString(rec.date);
     if (!dateStr) continue;
@@ -878,12 +885,27 @@ export function summarizeAttendance(
     }
 
     // Worked hours handling
+    let numHours = 0;
     const rawHours = rec.workedHours ?? rec.worked_hours;
     if (rawHours !== undefined && rawHours !== null) {
-      const numHours = typeof rawHours === 'number' ? rawHours : parseFloat(String(rawHours));
-      if (!isNaN(numHours) && isFinite(numHours) && numHours > 0) {
+      const parsed = typeof rawHours === 'number' ? rawHours : parseFloat(String(rawHours));
+      if (!isNaN(parsed) && isFinite(parsed) && parsed > 0) {
+        numHours = parsed;
         totalWorked += numHours;
       }
+    }
+
+    // Overtime hours extraction
+    const rawOt = (rec as any).overtimeHours ?? (rec as any).overtime_hours;
+    if (rawOt !== undefined && rawOt !== null) {
+      const numOt = typeof rawOt === 'number' ? rawOt : parseFloat(String(rawOt));
+      if (!isNaN(numOt) && isFinite(numOt) && numOt > 0) {
+        totalOvertimeHours += numOt;
+      }
+    } else if (statusUpper === 'OVERTIME' && numHours > 8.0) {
+      totalOvertimeHours += (numHours - 8.0);
+    } else if (numHours > 8.0) {
+      totalOvertimeHours += (numHours - 8.0);
     }
   }
 
@@ -894,6 +916,7 @@ export function summarizeAttendance(
     lateDays,
     overtimeDays,
     totalWorkedHours: roundMoney(totalWorked),
+    overtimeHours: roundMoney(totalOvertimeHours),
   };
 }
 
@@ -1294,6 +1317,10 @@ export class PayrollEngine {
       ? input.unpaidDays
       : ((timeOffSummary as any)?.approvedUnpaidDays ?? (timeOffSummary as any)?.unpaidLeaveDays ?? 0);
 
+    const overtimeHours = input.overtimeHours !== undefined
+      ? input.overtimeHours
+      : ((attendanceSummary as any)?.overtimeHours ?? 0);
+
     // 5. Order & Calculate Salary Rules
     const rawRules = (input.salaryRules && Array.isArray(input.salaryRules))
       ? (input.salaryRules as PayrollSalaryRule[])
@@ -1406,6 +1433,8 @@ export class PayrollEngine {
       totalDeductions,
       net,
       warning,
+      unpaidDays,
+      overtimeHours,
 
       // Rule breakdown
       totalEarnings: rulesResult ? rulesResult.earnings : 0,

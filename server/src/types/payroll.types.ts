@@ -244,6 +244,8 @@ export interface CalculatedPayslip {
   totalDeductions: number;
   net: number;
   warning?: string;
+  unpaidDays?: number;
+  overtimeHours?: number;
 
   // Rule breakdown
   totalEarnings?: number;
@@ -343,27 +345,35 @@ export interface RawPayrollDomainData {
   }>;
   attendanceRecords?: Array<{
     id?: string;
+    employeeId?: string | null;
+    employee_id?: string | null;
     date: string | Date;
-    checkIn?: string;
-    check_in?: string;
-    checkOut?: string;
-    check_out?: string;
-    workedHours?: number | string;
-    worked_hours?: number | string;
-    status?: string;
+    checkIn?: string | null;
+    check_in?: string | null;
+    checkOut?: string | null;
+    check_out?: string | null;
+    workedHours?: number | string | null;
+    worked_hours?: number | string | null;
+    status?: string | null;
+    overtimeHours?: number | string | null;
+    overtime_hours?: number | string | null;
     [key: string]: any;
   }>;
   timeOffRequests?: Array<{
-    id: string;
-    leaveType?: string;
-    leave_type?: string;
-    startDate?: string | Date;
-    start_date?: string | Date;
-    endDate?: string | Date;
-    end_date?: string | Date;
-    durationDays?: number | string;
-    duration_days?: number | string;
-    status?: string;
+    id?: string;
+    employeeId?: string | null;
+    employee_id?: string | null;
+    leaveType?: string | null;
+    leave_type?: string | null;
+    startDate?: string | Date | null;
+    start_date?: string | Date | null;
+    endDate?: string | Date | null;
+    end_date?: string | Date | null;
+    durationDays?: number | string | null;
+    duration_days?: number | string | null;
+    status?: string | null;
+    isPaid?: boolean | null;
+    is_paid?: boolean | null;
     [key: string]: any;
   }>;
   payrollPeriod?: {
