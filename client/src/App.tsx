@@ -142,6 +142,7 @@ const AppContent: React.FC = () => {
               <Employees
                 employees={employees}
                 onNavigateTab={(tab) => setCurrentTab(tab)}
+                onRefresh={fetchEmployees}
               />
             )}
           </>

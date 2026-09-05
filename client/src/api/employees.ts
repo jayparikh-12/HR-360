@@ -4,8 +4,6 @@
  * Centralized typed wrappers for /api/employees endpoints.
  * Uses the shared apiFetch abstraction which automatically attaches
  * the Authorization: Bearer <token> header from localStorage.
- *
- * Only GET operations are exposed — Phase 2.2 scope.
  */
 
 import { apiFetch } from './client';
@@ -23,6 +21,24 @@ export interface EmployeeDetailResponse {
   message?: string;
 }
 
+/** Fields accepted by POST /api/employees */
+export interface CreateEmployeePayload {
+  firstName: string;
+  lastName: string;
+  email: string;
+  department: string;
+  jobPosition: string;
+  employeeType?: 'FULL_TIME' | 'PART_TIME' | 'CONTRACT';
+  status?: 'ACTIVE' | 'INACTIVE';
+  phone?: string;
+  workingSchedule?: string;
+  bankName?: string;
+  bankAccountNo?: string;
+}
+
+/** Fields accepted by PATCH /api/employees/:id — all optional */
+export type UpdateEmployeePayload = Partial<CreateEmployeePayload>;
+
 export const employeesApi = {
   /**
    * Fetch all employees from MySQL-backed API.
@@ -39,6 +55,35 @@ export const employeesApi = {
    */
   async getById(id: string): Promise<Employee> {
     const response = await apiFetch<EmployeeDetailResponse>(`/api/employees/${encodeURIComponent(id)}`);
+    return response.data;
+  },
+
+  /**
+   * Create a new employee.
+   * Throws ApiError with statusCode 409 for duplicate email.
+   * Throws ApiError with statusCode 400 for validation errors.
+   */
+  async create(payload: CreateEmployeePayload): Promise<Employee> {
+    const response = await apiFetch<EmployeeDetailResponse>('/api/employees', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    return response.data;
+  },
+
+  /**
+   * Update allowed fields on an existing employee.
+   * Throws ApiError with statusCode 404 if not found.
+   * Throws ApiError with statusCode 409 for duplicate email.
+   */
+  async update(id: string, payload: UpdateEmployeePayload): Promise<Employee> {
+    const response = await apiFetch<EmployeeDetailResponse>(
+      `/api/employees/${encodeURIComponent(id)}`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      }
+    );
     return response.data;
   },
 };

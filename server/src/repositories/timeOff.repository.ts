@@ -3,19 +3,18 @@
  *
  * Responsibilities:
  * - All SQL for Time Off / Leave Management operations lives here, not in route handlers.
- * - Uses parameterized queries exclusively (no string interpolation with user values).
- * - Uses the centralized database pool via executeQuery — never opens a secondary connection.
- * - Joins employees to resolve employee name using COLLATE to bridge the
- *   utf8mb4_unicode_ci (employees.id) vs utf8mb4_unicode_ci / utf8mb4_0900_ai_ci collation mismatch.
- * - Gracefully handles missing employee relationships (LEFT JOIN + fallback name).
+ * - Uses parameterized queries exclusively via the centralized database pool (executeQuery).
+ * - Collation compatibility between employees (utf8mb4_unicode_ci) and time_off_requests.
+ * - Safe mapping from raw database rows to TimeOffRecord domain objects.
  * - Provides robust date validation and safe inclusive calendar duration calculation.
  * - Enforces strict state machine workflow: PENDING -> APPROVED or PENDING -> REFUSED.
  * - Rejects invalid transitions (APPROVED->APPROVED, REFUSED->APPROVED, etc.) with typed workflow errors.
- * - Never leaks SQL statements, stack traces, or credentials to callers.
+ * - Never leaks raw SQL statements, stack traces, or credentials to callers.
  */
 
 import { RowDataPacket, ResultSetHeader } from 'mysql2/promise';
 import { executeQuery } from '../config/database.js';
+import { randomUUID } from 'node:crypto';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -24,20 +23,22 @@ import { executeQuery } from '../config/database.js';
  */
 export interface TimeOffRow extends RowDataPacket {
   id: string;
-  employee_id: string;
+  employee_id: string | null;
   leave_type: string;
   start_date: Date | string;
   end_date: Date | string;
   duration_days: number | string;
   reason: string | null;
-  status: string;
-  approved_by: string | null;
-  refused_by: string | null;
-  createdAt: Date | string | null;
-  updatedAt: Date | string | null;
-  // From employees LEFT JOIN (may be null if employee record is missing)
-  firstName: string | null;
-  lastName: string | null;
+  status: string | null;
+  approved_by?: string | null;
+  refused_by?: string | null;
+  createdAt?: Date | string | null;
+  updatedAt?: Date | string | null;
+  // Joined from employees
+  empCode?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
+  department?: string | null;
 }
 
 /**
@@ -48,22 +49,21 @@ export interface TimeOffRecord {
   id: string;
   employeeId: string;
   employeeName: string;
+  empCode?: string;
+  department?: string;
   leaveType: string;
   startDate: string;
   endDate: string;
   durationDays: number;
-  numberOfDays: number; // Convenient alias for frontend consumers
+  numberOfDays?: number; // Alias for backward compatibility
   reason: string;
   status: 'PENDING' | 'APPROVED' | 'REFUSED';
-  approvedBy: string | null;
-  refusedBy: string | null;
-  createdAt: string;
+  approvedBy?: string | null;
+  refusedBy?: string | null;
+  createdAt?: string;
   updatedAt?: string;
 }
 
-/**
- * Input shape for creating a new Time Off request.
- */
 export interface CreateTimeOffInput {
   id?: string;
   employeeId: string;
@@ -71,19 +71,24 @@ export interface CreateTimeOffInput {
   startDate: string;
   endDate: string;
   durationDays?: number;
-  reason?: string;
-  status?: 'PENDING' | 'APPROVED' | 'REFUSED';
+  reason?: string | null;
+  status?: string;
 }
 
-/**
- * Filter options for querying time off requests.
- */
 export interface TimeOffFilterOptions {
   employeeId?: string;
   status?: string;
 }
 
-// ── Custom Errors ────────────────────────────────────────────────────────────
+export interface EmployeeLookupResult {
+  id: string;
+  empCode: string;
+  firstName: string;
+  lastName: string;
+  department: string;
+}
+
+// ── Custom Error Classes ─────────────────────────────────────────────────────
 
 export class TimeOffWorkflowError extends Error {
   public readonly code: 'NOT_FOUND' | 'INVALID_TRANSITION';
@@ -107,134 +112,100 @@ export class TimeOffValidationError extends Error {
   }
 }
 
-// ── Date & Duration Helpers ──────────────────────────────────────────────────
+// ── Helpers ──────────────────────────────────────────────────────────────────
 
 /**
- * Parses a YYYY-MM-DD string into year, month (1-12), and day components.
- * Validates calendar validity (leap years, days per month).
+ * Formats a Date object or date string into a standard YYYY-MM-DD string.
  */
-export function parseYMD(dateStr: string): { year: number; month: number; day: number } | null {
-  if (!dateStr || typeof dateStr !== 'string') return null;
-  const match = dateStr.trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (!match) return null;
-
-  const year = parseInt(match[1], 10);
-  const month = parseInt(match[2], 10);
-  const day = parseInt(match[3], 10);
-
-  if (month < 1 || month > 12) return null;
-  if (day < 1 || day > 31) return null;
-
-  const d = new Date(Date.UTC(year, month - 1, day));
-  if (d.getUTCFullYear() !== year || d.getUTCMonth() !== month - 1 || d.getUTCDate() !== day) {
-    return null;
+export function formatDate(val: Date | string | null | undefined): string {
+  if (!val) return '';
+  if (val instanceof Date) {
+    const y = val.getFullYear();
+    const m = String(val.getMonth() + 1).padStart(2, '0');
+    const d = String(val.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
   }
-
-  return { year, month, day };
+  const str = String(val).trim();
+  if (str.includes('T')) {
+    return str.split('T')[0];
+  }
+  return str;
 }
 
 /**
- * Calculates the inclusive calendar days between two YYYY-MM-DD dates.
- * Returns:
- *   > 0: valid duration (e.g. 2026-09-02 to 2026-09-02 = 1 day)
- *   -1: invalid range (endDate is before startDate)
- *    0: invalid date format
+ * Parses a YYYY-MM-DD string into a valid Date object, or null if invalid.
+ */
+export function parseYMD(val: string): Date | null {
+  if (!val || typeof val !== 'string') return null;
+  const parts = val.trim().split('-');
+  if (parts.length !== 3) return null;
+  const [y, m, d] = parts.map(Number);
+  if (!y || !m || !d || isNaN(y) || isNaN(m) || isNaN(d)) return null;
+  if (m < 1 || m > 12 || d < 1 || d > 31) return null;
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  if (isNaN(dt.getTime())) return null;
+  return dt;
+}
+
+/**
+ * Calculates calendar duration in whole days (inclusive of start and end date).
  */
 export function calculateLeaveDays(startDateStr: string, endDateStr: string): number {
   const start = parseYMD(startDateStr);
   const end = parseYMD(endDateStr);
   if (!start || !end) return 0;
-
-  const startUtc = Date.UTC(start.year, start.month - 1, start.day);
-  const endUtc = Date.UTC(end.year, end.month - 1, end.day);
-
-  if (endUtc < startUtc) return -1;
-  return Math.round((endUtc - startUtc) / (24 * 60 * 60 * 1000)) + 1;
+  const diffMs = end.getTime() - start.getTime();
+  if (diffMs < 0) return 0; // endDate is before startDate
+  return Math.round(diffMs / (1000 * 60 * 60 * 24)) + 1;
 }
 
 /**
- * Normalizes a Date object or string from MySQL to a consistent YYYY-MM-DD string.
- * Uses local calendar components to prevent timezone offsets from shifting dates.
+ * Normalizes status strings to strict PENDING, APPROVED, or REFUSED values.
  */
-function normalizeDate(value: Date | string | null | undefined): string {
-  if (!value) return '';
-  if (typeof value === 'string') {
-    return value.split('T')[0].split(' ')[0];
-  }
-  if (value instanceof Date) {
-    const year = value.getFullYear();
-    const month = String(value.getMonth() + 1).padStart(2, '0');
-    const day = String(value.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  }
-  return String(value).split('T')[0];
+export function normalizeTimeOffStatus(rawStatus?: string | null): 'PENDING' | 'APPROVED' | 'REFUSED' {
+  if (!rawStatus) return 'PENDING';
+  const upper = rawStatus.trim().toUpperCase();
+  if (upper === 'APPROVED') return 'APPROVED';
+  if (upper === 'REFUSED') return 'REFUSED';
+  return 'PENDING';
 }
 
 /**
- * Normalizes timestamps to a standard ISO string or formatted date string.
+ * Maps a raw MySQL database row to a clean, strongly typed TimeOffRecord.
  */
-function normalizeTimestamp(value: Date | string | null | undefined): string {
-  if (!value) return new Date().toISOString();
-  if (value instanceof Date) {
-    return value.toISOString();
-  }
-  return String(value);
-}
+export function mapRowToRecord(row: TimeOffRow): TimeOffRecord {
+  const firstName = row.firstName ? String(row.firstName).trim() : '';
+  const lastName = row.lastName ? String(row.lastName).trim() : '';
+  const fullName = `${firstName} ${lastName}`.trim();
+  const employeeName = fullName.length > 0 ? fullName : (row.empCode || row.employee_id || 'Unknown Employee');
 
-/**
- * Normalizes time off status strings to the expected union type.
- */
-function normalizeTimeOffStatus(raw: string | null | undefined): TimeOffRecord['status'] {
-  switch ((raw || '').toUpperCase()) {
-    case 'APPROVED':
-      return 'APPROVED';
-    case 'REFUSED':
-    case 'REJECTED':
-      return 'REFUSED';
-    case 'PENDING':
-    default:
-      return 'PENDING';
-  }
-}
-
-/**
- * Maps a raw MySQL row to the safe TimeOffRecord API shape.
- * Robust against null employee records, null dates, or decimal duration strings.
- */
-function mapRowToRecord(row: TimeOffRow): TimeOffRecord {
-  const fullName = [row.firstName, row.lastName].filter(Boolean).join(' ').trim();
-  const startDateStr = normalizeDate(row.start_date);
-  const endDateStr = normalizeDate(row.end_date);
-  const duration = typeof row.duration_days === 'number'
+  const durationNum = typeof row.duration_days === 'number'
     ? row.duration_days
-    : parseInt(String(row.duration_days), 10) || 1;
+    : parseInt(String(row.duration_days || 1), 10);
+  const safeDuration = isNaN(durationNum) || durationNum <= 0 ? 1 : durationNum;
 
   return {
     id: row.id,
-    employeeId: row.employee_id,
-    employeeName: fullName || 'Unknown Employee',
-    leaveType: row.leave_type,
-    startDate: startDateStr,
-    endDate: endDateStr,
-    durationDays: duration,
-    numberOfDays: duration,
+    employeeId: row.employee_id || '',
+    employeeName,
+    empCode: row.empCode || undefined,
+    department: row.department || undefined,
+    leaveType: row.leave_type || 'Paid Annual Leave',
+    startDate: formatDate(row.start_date),
+    endDate: formatDate(row.end_date),
+    durationDays: safeDuration,
+    numberOfDays: safeDuration,
     reason: row.reason || '',
     status: normalizeTimeOffStatus(row.status),
-    approvedBy: row.approved_by ?? null,
-    refusedBy: row.refused_by ?? null,
-    createdAt: normalizeTimestamp(row.createdAt),
-    updatedAt: row.updatedAt ? normalizeTimestamp(row.updatedAt) : undefined,
+    approvedBy: row.approved_by || null,
+    refusedBy: row.refused_by || null,
+    createdAt: formatDate(row.createdAt),
+    updatedAt: formatDate(row.updatedAt),
   };
 }
 
-// ── SQL Queries ──────────────────────────────────────────────────────────────
+// ── SQL ──────────────────────────────────────────────────────────────────────
 
-/**
- * Base query: SELECT time_off_requests with LEFT JOIN to employees.
- *
- * COLLATE utf8mb4_unicode_ci bridges collation variations between
- * time_off_requests.employee_id and employees.id.
- */
 const TIME_OFF_SELECT = `
   SELECT
     tor.id,
@@ -249,11 +220,13 @@ const TIME_OFF_SELECT = `
     tor.refused_by,
     tor.createdAt,
     tor.updatedAt,
+    e.empCode,
     e.firstName,
-    e.lastName
+    e.lastName,
+    e.department
   FROM time_off_requests tor
   LEFT JOIN employees e
-    ON tor.employee_id COLLATE utf8mb4_unicode_ci = e.id
+    ON (e.id = tor.employee_id COLLATE utf8mb4_unicode_ci OR e.empCode = tor.employee_id COLLATE utf8mb4_unicode_ci)
 `;
 
 // ── Repository Functions ─────────────────────────────────────────────────────
@@ -282,8 +255,8 @@ export async function getTimeOffRequestById(id: string): Promise<TimeOffRecord |
  * Returns all time off requests for a specific employee ID.
  */
 export async function getTimeOffRequestsByEmployeeId(employeeId: string): Promise<TimeOffRecord[]> {
-  const sql = `${TIME_OFF_SELECT} WHERE tor.employee_id = ? ORDER BY tor.start_date DESC, tor.createdAt DESC`;
-  const rows = await executeQuery<TimeOffRow[]>(sql, [employeeId]);
+  const sql = `${TIME_OFF_SELECT} WHERE (tor.employee_id = ? OR e.empCode = ?) ORDER BY tor.start_date DESC, tor.createdAt DESC`;
+  const rows = await executeQuery<TimeOffRow[]>(sql, [employeeId, employeeId]);
   return rows.map(mapRowToRecord);
 }
 
@@ -305,8 +278,9 @@ export async function getTimeOffRequests(options: TimeOffFilterOptions = {}): Pr
   const params: unknown[] = [];
 
   if (options.employeeId && typeof options.employeeId === 'string' && options.employeeId.trim().length > 0) {
-    conditions.push('tor.employee_id = ?');
-    params.push(options.employeeId.trim());
+    const empId = options.employeeId.trim();
+    conditions.push('(tor.employee_id = ? OR e.empCode = ?)');
+    params.push(empId, empId);
   }
 
   if (options.status && typeof options.status === 'string' && options.status.trim().length > 0) {
@@ -322,12 +296,64 @@ export async function getTimeOffRequests(options: TimeOffFilterOptions = {}): Pr
 }
 
 /**
+ * Checks whether an employee exists in MySQL by UUID, empCode, or dashed empCode.
+ */
+export async function findEmployeeByIdOrCode(identifier: string): Promise<EmployeeLookupResult | null> {
+  const trimmed = identifier.trim();
+  const stripped = trimmed.replace(/-/g, '');
+
+  const sql = `
+    SELECT id, empCode, firstName, lastName, department
+    FROM employees
+    WHERE id = ? OR empCode = ? OR empCode = ?
+    LIMIT 1
+  `;
+  interface SimpleEmpRow extends RowDataPacket {
+    id: string;
+    empCode: string;
+    firstName: string;
+    lastName: string;
+    department: string;
+  }
+  const rows = await executeQuery<SimpleEmpRow[]>(sql, [trimmed, trimmed, stripped]);
+  if (!rows || rows.length === 0) return null;
+  return {
+    id: rows[0].id,
+    empCode: rows[0].empCode,
+    firstName: rows[0].firstName,
+    lastName: rows[0].lastName,
+    department: rows[0].department,
+  };
+}
+
+/**
+ * Checks whether a time-off request ID already exists.
+ */
+export async function timeOffIdExists(id: string): Promise<boolean> {
+  const sql = 'SELECT id FROM time_off_requests WHERE id = ? LIMIT 1';
+  const rows = await executeQuery<RowDataPacket[]>(sql, [id]);
+  return Boolean(rows && rows.length > 0);
+}
+
+/**
+ * Generates a unique, collision-resistant time-off request ID.
+ */
+export async function generateTimeOffId(): Promise<string> {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const candidate = `TO-${randomUUID().slice(0, 8).toUpperCase()}`;
+    const exists = await timeOffIdExists(candidate);
+    if (!exists) return candidate;
+  }
+  return `TO-${Date.now().toString().slice(-4)}`;
+}
+
+/**
  * Creates a new Time Off request in MySQL with calculated duration and validation.
  */
 export async function createTimeOffRequest(input: CreateTimeOffInput): Promise<TimeOffRecord> {
   const id = input.id && input.id.trim().length > 0
     ? input.id.trim()
-    : `TO-${Date.now().toString().slice(-4)}`;
+    : await generateTimeOffId();
 
   const calculatedDays = calculateLeaveDays(input.startDate, input.endDate);
   if (calculatedDays <= 0) {

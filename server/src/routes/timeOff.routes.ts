@@ -25,15 +25,14 @@ import {
   getAllTimeOffRequests,
   getTimeOffRequestById,
   getTimeOffRequests,
+  findEmployeeByIdOrCode,
   createTimeOffRequest,
   approveTimeOffRequest,
   refuseTimeOffRequest,
-  calculateLeaveDays,
-  parseYMD,
   TimeOffWorkflowError,
   TimeOffValidationError,
+  type CreateTimeOffInput,
 } from '../repositories/timeOff.repository.js';
-import { getEmployeeById } from '../repositories/employee.repository.js';
 
 const router = Router();
 
@@ -41,6 +40,19 @@ const router = Router();
 router.use(authenticateToken);
 
 const VALID_STATUSES = ['PENDING', 'APPROVED', 'REFUSED'] as const;
+const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+
+function isValidDateString(val: unknown): val is string {
+  if (typeof val !== 'string') return false;
+  const trimmed = val.trim();
+  if (!DATE_REGEX.test(trimmed)) return false;
+  const parsed = new Date(trimmed);
+  return !isNaN(parsed.getTime());
+}
+
+function isNonEmptyString(val: unknown): val is string {
+  return typeof val === 'string' && val.trim().length > 0;
+}
 
 // ─── GET /api/time-off ────────────────────────────────────────────────────────
 // Returns database-backed time off requests, with optional ?employeeId= and ?status= filters.
@@ -81,11 +93,11 @@ router.get('/', async (req: Request, res: Response): Promise<void> => {
 });
 
 // ─── GET /api/time-off/:id ────────────────────────────────────────────────────
-// Returns a single time off request by ID from MySQL, or 404 if not found.
+// Returns a single leave request by unique ID.
 router.get('/:id', async (req: Request, res: Response): Promise<void> => {
   const { id } = req.params;
 
-  if (!id || typeof id !== 'string' || id.trim().length === 0) {
+  if (!isNonEmptyString(id)) {
     res.status(400).json({ success: false, message: 'Invalid time off request ID.' });
     return;
   }
@@ -94,6 +106,7 @@ router.get('/:id', async (req: Request, res: Response): Promise<void> => {
 
   try {
     const record = await getTimeOffRequestById(sanitizedId);
+
     if (!record) {
       res.status(404).json({ success: false, message: 'Time off request not found.' });
       return;
@@ -101,7 +114,7 @@ router.get('/:id', async (req: Request, res: Response): Promise<void> => {
 
     res.json({ success: true, data: record });
   } catch (err) {
-    console.error('[TimeOff API] Failed to fetch time off request:', err instanceof Error ? err.message : err);
+    console.error('[TimeOff API] Failed to retrieve time off request:', err instanceof Error ? err.message : err);
     res.status(500).json({
       success: false,
       message: 'Unable to retrieve time off record. Please try again.',
@@ -110,86 +123,94 @@ router.get('/:id', async (req: Request, res: Response): Promise<void> => {
 });
 
 // ─── POST /api/time-off ───────────────────────────────────────────────────────
-// Creates a new leave request in MySQL after comprehensive validation.
+// Creates a new leave request in MySQL backed by state machine validation.
 router.post('/', async (req: Request, res: Response): Promise<void> => {
-  // 1. Validate empty body
-  if (!req.body || typeof req.body !== 'object' || Object.keys(req.body).length === 0) {
-    res.status(400).json({ success: false, message: 'Request body cannot be empty.' });
+  const body = req.body || {};
+
+  const employeeIdInput = body.employeeId || body.employee_id || req.user?.employeeId;
+  const leaveTypeInput = body.leaveType || body.leave_type;
+  const startDateInput = body.startDate || body.start_date;
+  const endDateInput = body.endDate || body.end_date;
+  const durationInput = body.durationDays || body.duration_days;
+  const reasonInput = body.reason;
+
+  // 1. Validate employeeId
+  if (!isNonEmptyString(employeeIdInput)) {
+    res.status(400).json({ success: false, message: 'employeeId is required.' });
     return;
   }
 
-  const { employeeId, leaveType, startDate, endDate, reason, durationDays } = req.body;
+  // 2. Validate leaveType
+  if (!isNonEmptyString(leaveTypeInput)) {
+    res.status(400).json({ success: false, message: 'leaveType is required.' });
+    return;
+  }
 
-  // 2. Validate required fields
-  if (!employeeId || !leaveType || !startDate || !endDate) {
+  // 3. Validate startDate
+  if (!isNonEmptyString(startDateInput) || !isValidDateString(startDateInput)) {
     res.status(400).json({
       success: false,
-      message: 'Missing required fields: employeeId, leaveType, startDate, and endDate are required.',
+      message: 'startDate must be a valid date in YYYY-MM-DD format.',
     });
     return;
   }
 
-  if (typeof employeeId !== 'string' || employeeId.trim().length === 0) {
-    res.status(400).json({ success: false, message: 'Invalid employeeId provided.' });
-    return;
-  }
-
-  if (typeof leaveType !== 'string' || leaveType.trim().length === 0) {
-    res.status(400).json({ success: false, message: 'Invalid leaveType provided.' });
-    return;
-  }
-
-  // 3. Validate date format (YYYY-MM-DD)
-  const startParsed = parseYMD(startDate);
-  const endParsed = parseYMD(endDate);
-
-  if (!startParsed || !endParsed) {
+  // 4. Validate endDate
+  if (!isNonEmptyString(endDateInput) || !isValidDateString(endDateInput)) {
     res.status(400).json({
       success: false,
-      message: 'Invalid date format. Expected YYYY-MM-DD.',
+      message: 'endDate must be a valid date in YYYY-MM-DD format.',
     });
     return;
   }
 
-  // 4. Validate date ordering and calculate duration
-  const calculatedDuration = calculateLeaveDays(startDate, endDate);
-  if (calculatedDuration === -1) {
+  const startDateFormatted = startDateInput.trim();
+  const endDateFormatted = endDateInput.trim();
+
+  // 5. Date chronological check
+  if (new Date(endDateFormatted) < new Date(startDateFormatted)) {
     res.status(400).json({
       success: false,
-      message: 'End date cannot be before start date.',
+      message: 'endDate cannot be before startDate.',
     });
     return;
   }
 
-  if (calculatedDuration <= 0) {
-    res.status(400).json({
-      success: false,
-      message: 'Leave duration must be at least 1 day.',
-    });
-    return;
+  // 6. Validate durationDays if supplied
+  let parsedDuration: number | undefined = undefined;
+  if (durationInput !== undefined && durationInput !== null && durationInput !== '') {
+    const num = Number(durationInput);
+    if (isNaN(num) || !isFinite(num) || num <= 0 || !Number.isInteger(num)) {
+      res.status(400).json({ success: false, message: 'durationDays must be a positive integer.' });
+      return;
+    }
+    parsedDuration = num;
   }
 
   try {
-    // 5. Verify employee exists in MySQL database
-    const employee = await getEmployeeById(employeeId.trim());
+    // 7. Verify referenced employee exists in MySQL
+    const employee = await findEmployeeByIdOrCode(employeeIdInput.trim());
     if (!employee) {
-      res.status(404).json({ success: false, message: 'Employee not found.' });
+      res.status(404).json({
+        success: false,
+        message: `Employee '${employeeIdInput}' does not exist.`,
+      });
       return;
     }
 
-    // 6. Create record in MySQL
-    const newRecord = await createTimeOffRequest({
-      employeeId: employeeId.trim(),
-      leaveType: leaveType.trim(),
-      startDate: startDate.trim(),
-      endDate: endDate.trim(),
-      durationDays: typeof durationDays === 'number' && durationDays > 0 && durationDays <= calculatedDuration
-        ? durationDays
-        : calculatedDuration,
-      reason: typeof reason === 'string' ? reason.trim() : undefined,
+    // 8. Create time-off request in MySQL
+    const input: CreateTimeOffInput = {
+      id: body.id ? String(body.id).trim().slice(0, 50) : undefined,
+      employeeId: employee.id, // canonical DB UUID
+      leaveType: leaveTypeInput.trim(),
+      startDate: startDateFormatted,
+      endDate: endDateFormatted,
+      durationDays: parsedDuration,
+      reason: isNonEmptyString(reasonInput) ? reasonInput.trim() : null,
       status: 'PENDING',
-    });
+    };
 
+    const newRecord = await createTimeOffRequest(input);
     res.status(201).json({ success: true, data: newRecord });
   } catch (err) {
     if (err instanceof TimeOffValidationError) {
@@ -218,7 +239,7 @@ router.patch('/:id/approve', async (req: Request, res: Response): Promise<void> 
   }
 
   const { id } = req.params;
-  if (!id || typeof id !== 'string' || id.trim().length === 0) {
+  if (!isNonEmptyString(id)) {
     res.status(400).json({ success: false, message: 'Invalid time off request ID.' });
     return;
   }
@@ -262,7 +283,7 @@ router.patch('/:id/refuse', async (req: Request, res: Response): Promise<void> =
   }
 
   const { id } = req.params;
-  if (!id || typeof id !== 'string' || id.trim().length === 0) {
+  if (!isNonEmptyString(id)) {
     res.status(400).json({ success: false, message: 'Invalid time off request ID.' });
     return;
   }
