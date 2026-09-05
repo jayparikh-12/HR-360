@@ -10,7 +10,7 @@ import { getPermissionsForRole } from '../config/permissions.js';
 
 const router = Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'peoplepay360-hackathon-jwt-secret-2026';
-const TOKEN_EXPIRY = '8h';
+const TOKEN_EXPIRY: jwt.SignOptions['expiresIn'] = (process.env.JWT_EXPIRES_IN as jwt.SignOptions['expiresIn']) || '20m';
 
 /**
  * POST /api/auth/login

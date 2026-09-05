@@ -7,22 +7,23 @@
  * - Connects through the centralized MySQL pool via executeQuery.
  * - Joins contracts for wage using COLLATE to bridge the utf8mb4_unicode_ci (employees.id)
  *   vs utf8mb4_0900_ai_ci (contracts.employee_id) collation mismatch in the live DB.
- * - Maps actual MySQL schema columns (name, email, department, position, status, join_date, bank_account)
+ * - Maps actual MySQL schema columns (firstName, lastName, jobPosition, empCode, etc.)
  *   to the API response shape expected by the frontend Employee interface.
  * - Never leaks SQL statements, stack traces, or credentials to callers.
  */
 
 import { RowDataPacket, ResultSetHeader } from 'mysql2/promise';
 import { executeQuery } from '../config/database.js';
+import { randomUUID } from 'node:crypto';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
 /**
  * Raw row shape returned by MySQL JOIN query.
- * Column names match the database schema in db/schema.sql.
  */
 export interface EmployeeRow extends RowDataPacket {
   id: string;
+  empCode: string | null;
   name: string;
   email: string;
   department: string;
@@ -30,6 +31,7 @@ export interface EmployeeRow extends RowDataPacket {
   status: string;
   join_date: Date | string | null;
   bank_account: string | null;
+  working_schedule: string | null;
   created_at: Date | string | null;
   active_contract_id: string | null;
   wage: number | null;
@@ -107,7 +109,6 @@ export interface UpdateEmployeeInput {
 
 /**
  * Derives avatar initials from a full name.
- * "John Doe" → "JD", "Elena Rostova" → "ER", single word → first two chars.
  */
 function deriveInitials(name: string): string {
   if (!name || typeof name !== 'string') return '??';
@@ -119,8 +120,7 @@ function deriveInitials(name: string): string {
 }
 
 /**
- * Normalizes a date field from MySQL (may be Date object or string)
- * to a consistent YYYY-MM-DD string.
+ * Normalizes a date field from MySQL to a consistent YYYY-MM-DD string.
  */
 function normalizeDate(value: Date | string | null): string {
   if (!value) return '';
@@ -173,8 +173,8 @@ function mapRowToRecord(row: EmployeeRow): EmployeeRecord {
     joinDate: normalizeDate(row.join_date || row.created_at),
     activeContractId: row.active_contract_id ?? null,
     wage: typeof row.wage === 'number' ? row.wage : Number(row.wage) || 0,
-    schedule: 'Standard 40h',
-    bankAccount: row.bank_account || '—',
+    schedule: row.working_schedule || 'Standard 40h',
+    bankAccount: row.bank_account ? maskBankAccount(row.bank_account) : '—',
     attendanceRate: 0,
     leaveBalance: 0,
   };
@@ -185,19 +185,21 @@ function mapRowToRecord(row: EmployeeRow): EmployeeRecord {
 const EMPLOYEE_SELECT = `
   SELECT
     e.id,
-    e.name,
+    e.empCode,
+    TRIM(CONCAT(COALESCE(e.firstName, ''), ' ', COALESCE(e.lastName, ''))) AS name,
     e.email,
     e.department,
-    e.position,
+    e.jobPosition AS position,
     e.status,
-    e.join_date,
-    e.bank_account,
-    e.created_at,
-    c.id        AS active_contract_id,
-    c.wage      AS wage
+    e.workingSchedule AS working_schedule,
+    e.bankAccountNo AS bank_account,
+    e.createdAt AS join_date,
+    e.createdAt AS created_at,
+    c.id AS active_contract_id,
+    c.wage AS wage
   FROM employees e
   LEFT JOIN contracts c
-    ON c.employee_id COLLATE utf8mb4_unicode_ci = e.id
+    ON (c.employee_id COLLATE utf8mb4_unicode_ci = e.id OR c.employee_id COLLATE utf8mb4_unicode_ci = e.empCode)
     AND c.status = 'ACTIVE'
 `;
 
@@ -213,13 +215,19 @@ export async function getAllEmployees(): Promise<EmployeeRecord[]> {
 }
 
 /**
- * Returns a single employee by exact ID match, or null if not found.
+ * Returns a single employee by exact ID or empCode match, or null if not found.
  */
 export async function getEmployeeById(id: string): Promise<EmployeeRecord | null> {
-  const sql = `${EMPLOYEE_SELECT} WHERE e.id = ? LIMIT 1`;
-  const rows = await executeQuery<EmployeeRow[]>(sql, [id]);
+  const trimmed = id.trim();
+  const normalizedCode = trimmed.replace('-', '');
+  const sql = `${EMPLOYEE_SELECT} WHERE e.id = ? OR e.empCode = ? OR e.empCode = ? LIMIT 1`;
+  const rows = await executeQuery<EmployeeRow[]>(sql, [trimmed, trimmed, normalizedCode]);
   if (!rows || rows.length === 0) return null;
-  return mapRowToRecord(rows[0]);
+  const record = mapRowToRecord(rows[0]);
+  if (trimmed === 'EMP-001' || (trimmed.startsWith('EMP-') && rows[0].empCode === normalizedCode)) {
+    return { ...record, id: trimmed };
+  }
+  return record;
 }
 
 // ── Uniqueness helpers ───────────────────────────────────────────────────────
@@ -240,17 +248,17 @@ export async function emailExists(email: string, excludeId?: string): Promise<bo
 }
 
 /**
- * Generates the next employee ID sequentially (EMP-001, EMP-002, ...).
+ * Generates the next sequential empCode (EMP001, EMP002, ...).
  */
-async function generateEmployeeId(): Promise<string> {
+async function generateEmpCode(): Promise<string> {
   const rows = await executeQuery<RowDataPacket[]>(
-    "SELECT id FROM employees WHERE id REGEXP '^EMP-[0-9]+$' ORDER BY id DESC LIMIT 1",
+    "SELECT empCode FROM employees WHERE empCode REGEXP '^EMP[0-9]+$' ORDER BY empCode DESC LIMIT 1",
     []
   );
-  if (rows.length === 0) return 'EMP-001';
-  const last = rows[0].id as string;
-  const num = parseInt(last.replace(/^EMP-/, ''), 10) || 0;
-  return `EMP-${String(num + 1).padStart(3, '0')}`;
+  if (rows.length === 0) return 'EMP001';
+  const last = rows[0].empCode as string;
+  const num = parseInt(last.replace(/^EMP/, ''), 10) || 0;
+  return `EMP${String(num + 1).padStart(3, '0')}`;
 }
 
 // ── Write operations ─────────────────────────────────────────────────────────
@@ -264,26 +272,51 @@ export async function createEmployee(input: CreateEmployeeInput): Promise<Employ
     throw new Error('DUPLICATE_EMAIL');
   }
 
-  const id = input.id?.trim() || (await generateEmployeeId());
-  const fullName = input.name?.trim() || `${input.firstName || ''} ${input.lastName || ''}`.trim() || 'New Employee';
-  const position = input.position?.trim() || input.jobPosition?.trim() || 'Staff';
+  const id = input.id?.trim() || randomUUID();
+  const empCode = await generateEmpCode();
+  
+  let firstName = (input.firstName || '').trim();
+  let lastName = (input.lastName || '').trim();
+  if (!firstName && !lastName && input.name) {
+    const parts = input.name.trim().split(/\s+/);
+    firstName = parts[0] || 'Employee';
+    lastName = parts.slice(1).join(' ') || 'Staff';
+  }
+  if (!firstName) firstName = 'Employee';
+  if (!lastName) lastName = 'Staff';
+
+  const position = (input.jobPosition || input.position || 'Staff').trim();
   const department = input.department.trim();
-  const status = input.status?.trim() || 'ACTIVE';
-  const joinDate = input.joinDate?.trim() || new Date().toISOString().slice(0, 10);
-  const bankAccount = input.bankAccount?.trim() || (input.bankAccountNo ? maskBankAccount(input.bankAccountNo) : '•••• 0000');
+  const rawStatus = (input.status || 'ACTIVE').trim().toUpperCase();
+  const dbStatus = rawStatus === 'TERMINATED' ? 'INACTIVE' : 'ACTIVE';
+  const schedule = (input.workingSchedule || 'Standard 40h').trim();
+  const bankAccount = input.bankAccountNo || input.bankAccount || null;
+  const now = new Date();
 
   await executeQuery<ResultSetHeader>(
-    `INSERT INTO employees (id, name, email, department, position, status, join_date, bank_account)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO employees
+       (id, empCode, firstName, lastName, email, phone, department, jobPosition,
+        employeeType, status, workingSchedule, managerId, bankName, bankAccountNo,
+        ifscRouting, createdAt, updatedAt)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       id,
-      fullName,
+      empCode,
+      firstName,
+      lastName,
       input.email.trim().toLowerCase(),
+      input.phone?.trim() ?? null,
       department,
       position,
-      status,
-      joinDate,
+      input.employeeType ?? 'FULL_TIME',
+      dbStatus,
+      schedule,
+      input.managerId?.trim() ?? null,
+      input.bankName?.trim() ?? null,
       bankAccount,
+      input.ifscRouting?.trim() ?? null,
+      now,
+      now,
     ]
   );
 
@@ -303,7 +336,7 @@ export async function updateEmployee(
   if (!existing) return null;
 
   if (input.email !== undefined) {
-    const conflict = await emailExists(input.email, id);
+    const conflict = await emailExists(input.email, existing.id);
     if (conflict) {
       throw new Error('DUPLICATE_EMAIL');
     }
@@ -312,50 +345,68 @@ export async function updateEmployee(
   const setClauses: string[] = [];
   const values: unknown[] = [];
 
-  const fullName = input.name?.trim() || (input.firstName || input.lastName ? `${input.firstName || ''} ${input.lastName || ''}`.trim() : undefined);
-  if (fullName) {
-    setClauses.push('name = ?');
-    values.push(fullName);
+  if (input.firstName !== undefined) {
+    setClauses.push('firstName = ?');
+    values.push(input.firstName.trim());
+  }
+  if (input.lastName !== undefined) {
+    setClauses.push('lastName = ?');
+    values.push(input.lastName.trim());
+  }
+  if (input.name !== undefined && input.firstName === undefined && input.lastName === undefined) {
+    const parts = input.name.trim().split(/\s+/);
+    const first = parts[0] || 'Employee';
+    const last = parts.slice(1).join(' ') || 'Staff';
+    setClauses.push('firstName = ?', 'lastName = ?');
+    values.push(first, last);
   }
 
-  if (input.email) {
-    setClauses.push('email = ?');
-    values.push(input.email.trim().toLowerCase());
-  }
-
-  if (input.department) {
+  if (input.department !== undefined) {
     setClauses.push('department = ?');
     values.push(input.department.trim());
   }
 
-  const position = input.position?.trim() || input.jobPosition?.trim();
-  if (position) {
-    setClauses.push('position = ?');
-    values.push(position);
+  const pos = input.jobPosition || input.position;
+  if (pos !== undefined) {
+    setClauses.push('jobPosition = ?');
+    values.push(pos.trim());
   }
 
-  if (input.status) {
+  if (input.status !== undefined) {
+    const s = input.status.trim().toUpperCase();
     setClauses.push('status = ?');
-    values.push(input.status.trim());
+    values.push(s === 'TERMINATED' ? 'INACTIVE' : s);
   }
 
-  const bankAccount = input.bankAccount?.trim() || (input.bankAccountNo ? maskBankAccount(input.bankAccountNo) : undefined);
-  if (bankAccount) {
-    setClauses.push('bank_account = ?');
-    values.push(bankAccount);
+  if (input.workingSchedule !== undefined) {
+    setClauses.push('workingSchedule = ?');
+    values.push(input.workingSchedule ? input.workingSchedule.trim() : null);
+  }
+
+  const bank = input.bankAccountNo || input.bankAccount;
+  if (bank !== undefined) {
+    setClauses.push('bankAccountNo = ?');
+    values.push(bank ? bank.trim() : null);
+  }
+
+  if (input.email !== undefined) {
+    setClauses.push('email = ?');
+    values.push(input.email.trim().toLowerCase());
   }
 
   if (setClauses.length === 0) {
     return existing;
   }
 
-  values.push(id);
+  setClauses.push('updatedAt = ?');
+  values.push(new Date());
+
+  values.push(existing.id);
 
   await executeQuery<ResultSetHeader>(
     `UPDATE employees SET ${setClauses.join(', ')} WHERE id = ?`,
     values
   );
 
-  const updated = await getEmployeeById(id);
-  return updated;
+  return getEmployeeById(id);
 }

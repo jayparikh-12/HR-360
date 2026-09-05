@@ -47,6 +47,20 @@ export interface MeResponse {
 // Default base URL is http://localhost:5000 or from environment variable
 const API_BASE_URL = (import.meta.env.VITE_API_URL as string) || 'http://localhost:5000';
 
+type UnauthorizedHandler = () => void;
+const unauthorizedHandlers: Set<UnauthorizedHandler> = new Set();
+
+/**
+ * Register a listener to be invoked when an authenticated API call receives HTTP 401.
+ * Used by AuthProvider to synchronize application state and redirect to login.
+ */
+export function onUnauthorized(handler: UnauthorizedHandler): () => void {
+  unauthorizedHandlers.add(handler);
+  return () => {
+    unauthorizedHandlers.delete(handler);
+  };
+}
+
 export function getStoredToken(): string | null {
   try {
     return localStorage.getItem(TOKEN_STORAGE_KEY);
@@ -168,6 +182,21 @@ export async function apiFetch<T>(
   }
 
   if (!response.ok) {
+    if (response.status === 401) {
+      const isLoginEndpoint = endpoint.includes('/api/auth/login');
+      if (!isLoginEndpoint) {
+        clearStoredToken();
+        clearStoredUser();
+        unauthorizedHandlers.forEach((handler) => {
+          try {
+            handler();
+          } catch (handlerErr) {
+            console.warn('[API Client] Unauthorized handler error:', handlerErr);
+          }
+        });
+      }
+    }
+
     const friendlyMessage =
       data?.message ||
       (response.status === 401

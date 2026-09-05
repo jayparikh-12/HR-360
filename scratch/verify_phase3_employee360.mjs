@@ -36,9 +36,9 @@ async function main() {
   assert(empsRes.status === 200 && Array.isArray(empsData.data), 'GET /api/employees returns array of employees');
   
   const johnDoe = empsData.data.find(e => e.name === 'John Doe');
-  const mayaLin = empsData.data.find(e => e.name === 'Maya Lin');
+  const empB = empsData.data.find(e => e.name === 'Jane Smith' || e.name === 'Maya Lin');
   assert(Boolean(johnDoe), 'Found Employee A (John Doe) in database');
-  assert(Boolean(mayaLin), 'Found Employee B (Maya Lin) in database');
+  assert(Boolean(empB), `Found Employee B (${empB?.name || 'Jane Smith'}) in database`);
 
   // 3. Employee Profile Fetch (GET /api/employees/:id)
   console.log('\n3. Testing Employee Profile fetch (GET /api/employees/:id)...');
@@ -79,18 +79,18 @@ async function main() {
   const johnAtt = attData.data.filter(
     a => a.employeeId === johnDoe.id || a.employeeName === johnDoe.name
   );
-  const mayaAtt = attData.data.filter(
-    a => a.employeeId === mayaLin.id || a.employeeName === mayaLin.name
+  const empBAtt = attData.data.filter(
+    a => a.employeeId === empB.id || a.employeeName === empB.name
   );
   assert(johnAtt.length > 0, `Found ${johnAtt.length} attendance record(s) for John Doe`);
-  assert(mayaAtt.length > 0, `Found ${mayaAtt.length} attendance record(s) for Maya Lin`);
+  assert(empBAtt.length > 0, `Found ${empBAtt.length} attendance record(s) for ${empB.name}`);
   assert(
-    !johnAtt.some(a => a.employeeName === 'Maya Lin'),
-    'Isolation check: John Doe attendance does NOT contain Maya Lin records'
+    !johnAtt.some(a => a.employeeName === empB.name),
+    `Isolation check: John Doe attendance does NOT contain ${empB.name} records`
   );
   assert(
-    !mayaAtt.some(a => a.employeeName === 'John Doe'),
-    'Isolation check: Maya Lin attendance does NOT contain John Doe records'
+    !empBAtt.some(a => a.employeeName === 'John Doe'),
+    `Isolation check: ${empB.name} attendance does NOT contain John Doe records`
   );
 
   // 7. Time Off Filtering & Isolation
@@ -102,18 +102,18 @@ async function main() {
   const johnTo = toData.data.filter(
     t => t.employeeId === johnDoe.id || t.employeeName === johnDoe.name
   );
-  const mayaTo = toData.data.filter(
-    t => t.employeeId === mayaLin.id || t.employeeName === mayaLin.name
+  const empBTo = toData.data.filter(
+    t => t.employeeId === empB.id || t.employeeName === empB.name
   );
   assert(johnTo.length > 0, `Found ${johnTo.length} time off request(s) for John Doe`);
-  assert(mayaTo.length > 0, `Found ${mayaTo.length} time off request(s) for Maya Lin`);
+  assert(empBTo.length > 0, `Found ${empBTo.length} time off request(s) for ${empB.name}`);
   assert(
-    !johnTo.some(t => t.employeeName === 'Maya Lin'),
-    'Isolation check: John Doe time-off does NOT contain Maya Lin records'
+    !johnTo.some(t => t.employeeName === empB.name),
+    `Isolation check: John Doe time-off does NOT contain ${empB.name} records`
   );
   assert(
-    !mayaTo.some(t => t.employeeName === 'John Doe'),
-    'Isolation check: Maya Lin time-off does NOT contain John Doe records'
+    !empBTo.some(t => t.employeeName === 'John Doe'),
+    `Isolation check: ${empB.name} time-off does NOT contain John Doe records`
   );
 
   // 8. Salary Structure & Rules Association
@@ -152,16 +152,16 @@ async function main() {
 
   // 12. Employee Switching Integrity
   console.log('\n11. Testing Employee Switching Data Integrity...');
-  const mayaProfileRes = await fetch(`${BASE_URL}/employees/${mayaLin.id}`, { headers: authHeaders });
-  const mayaProfile = (await mayaProfileRes.json()).data;
-  assert(mayaProfile.id !== johnProfile.id, 'Employee A and B have distinct IDs');
-  assert(mayaProfile.name !== johnProfile.name, 'Employee A and B have distinct names');
+  const empBProfileRes = await fetch(`${BASE_URL}/employees/${empB.id}`, { headers: authHeaders });
+  const empBProfile = (await empBProfileRes.json()).data;
+  assert(empBProfile.id !== johnProfile.id, 'Employee A and B have distinct IDs');
+  assert(empBProfile.name !== johnProfile.name, 'Employee A and B have distinct names');
 
-  const mayaContracts = contractsData.data.filter(
-    c => c.employeeId === mayaLin.id || (mayaLin.activeContractId && c.id === mayaLin.activeContractId) || c.employeeName === mayaLin.name
+  const empBContracts = contractsData.data.filter(
+    c => c.employeeId === empB.id || (empB.activeContractId && c.id === empB.activeContractId) || c.employeeName === empB.name
   );
-  assert(mayaContracts.length > 0 && mayaContracts[0].id === 'CON-002', 'Maya Lin contract is distinct (CON-002)');
-  assert(mayaContracts[0].id !== johnContracts[0].id, 'Contracts do NOT overlap between employees');
+  assert(empBContracts.length > 0 && empBContracts[0].id === 'CON-002', `${empB.name} contract is distinct (CON-002)`);
+  assert(empBContracts[0].id !== johnContracts[0].id, 'Contracts do NOT overlap between employees');
 
   console.log(`\n=== Verification Complete: ${passed} passed, ${failed} failed ===`);
   if (failed > 0) {
