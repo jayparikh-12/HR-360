@@ -103,7 +103,25 @@ function mapPayslipRow(row: PayslipRow) {
 
 async function getPayslipsForPayrun(payrunId: string) {
   const rows = await executeQuery<PayslipRow[]>(
-    'SELECT * FROM payslips WHERE payrun_id = ? ORDER BY employee_name ASC',
+    `SELECT
+      p.id,
+      p.payrun_id,
+      p.employee_id,
+      COALESCE(e.name, '') AS employee_name,
+      COALESCE(e.department, '') AS department,
+      p.basic,
+      p.hra,
+      p.allowance,
+      p.gross,
+      p.tax,
+      p.other_deductions,
+      p.net,
+      p.status,
+      p.warning
+    FROM payslips p
+    LEFT JOIN employees e ON e.id = p.employee_id
+    WHERE p.payrun_id = ?
+    ORDER BY employee_name ASC`,
     [payrunId]
   );
   return rows.map(mapPayslipRow);
@@ -117,14 +135,12 @@ async function insertPayslips(payrunId: string, payslips: ReturnType<typeof Payr
       : null;
     await executeQuery(
       `INSERT INTO payslips
-        (id, payrun_id, employee_id, employee_name, department, basic, hra, allowance, gross, tax, other_deductions, net, status, warning)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        (id, payrun_id, employee_id, basic, hra, allowance, gross, tax, other_deductions, net, status, warning)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         slipId,
         payrunId,
         slip.employeeId,
-        slip.employeeName,
-        slip.department,
         slip.basic,
         slip.hra,
         slip.allowance,

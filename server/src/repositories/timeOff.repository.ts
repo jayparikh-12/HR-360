@@ -274,6 +274,46 @@ export async function getTimeOffRequests(options: TimeOffFilterOptions = {}): Pr
 }
 
 /**
+ * Retrieves approved time-off records for a specific employee that overlap with a date range.
+ * Parameterized query; ordered deterministically by start_date ASC, id ASC.
+ */
+export async function getTimeOffByEmployeeAndPeriod(
+  employeeId: string,
+  startDate?: string,
+  endDate?: string,
+  status: string = 'APPROVED'
+): Promise<TimeOffRecord[]> {
+  if (!employeeId || typeof employeeId !== 'string') return [];
+  const conditions: string[] = ['tor.employee_id = ?'];
+  const params: unknown[] = [employeeId.trim()];
+
+  if (status) {
+    conditions.push('tor.status = ?');
+    params.push(normalizeTimeOffStatus(status));
+  }
+
+  // Range overlap: request starts before period ends AND ends after period starts
+  if (startDate) {
+    conditions.push('tor.end_date >= ?');
+    params.push(startDate.trim());
+  }
+
+  if (endDate) {
+    conditions.push('tor.start_date <= ?');
+    params.push(endDate.trim());
+  }
+
+  const sql = `
+    ${TIME_OFF_SELECT}
+    WHERE ${conditions.join(' AND ')}
+    ORDER BY tor.start_date ASC, tor.id ASC
+  `;
+
+  const rows = await executeQuery<TimeOffRow[]>(sql, params);
+  return rows.map(mapRowToRecord);
+}
+
+/**
  * Checks whether an employee exists in MySQL by ID.
  */
 export async function findEmployeeByIdOrCode(identifier: string): Promise<EmployeeLookupResult | null> {

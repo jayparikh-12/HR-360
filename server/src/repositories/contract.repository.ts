@@ -270,16 +270,23 @@ export async function createContract(input: CreateContractInput): Promise<Contra
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `;
 
-  await executeQuery(insertSql, [
-    id,
-    input.employeeId,
-    salaryStructureId,
-    workingScheduleId,
-    input.wage,
-    input.startDate,
-    input.endDate || null,
-    status,
-  ]);
+  try {
+    await executeQuery(insertSql, [
+      id,
+      input.employeeId,
+      salaryStructureId,
+      workingScheduleId,
+      input.wage,
+      input.startDate,
+      input.endDate || null,
+      status,
+    ]);
+  } catch (err: unknown) {
+    if (err && typeof err === 'object' && 'code' in err && (err as { code: string }).code === 'ER_NO_REFERENCED_ROW_2') {
+      throw new Error('Referenced employee, salary structure, or working schedule does not exist.');
+    }
+    throw err;
+  }
 
   const created = await getContractById(id);
   if (!created) {

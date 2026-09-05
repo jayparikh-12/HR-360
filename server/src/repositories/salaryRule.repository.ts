@@ -248,18 +248,31 @@ export async function createSalaryRule(input: CreateSalaryRuleInput): Promise<Sa
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `;
 
-  await executeQuery(insertSql, [
-    id,
-    structureId,
-    name,
-    code,
-    sequence,
-    category,
-    calculationType,
-    amount,
-    percentage,
-    formula,
-  ]);
+  try {
+    await executeQuery(insertSql, [
+      id,
+      structureId,
+      name,
+      code,
+      sequence,
+      category,
+      calculationType,
+      amount,
+      percentage,
+      formula,
+    ]);
+  } catch (err: unknown) {
+    if (err && typeof err === 'object' && 'code' in err) {
+      const codeErr = (err as { code: string }).code;
+      if (codeErr === 'ER_DUP_ENTRY') {
+        throw new Error(`Salary rule with code '${code}' already exists in structure '${structureId}'.`);
+      }
+      if (codeErr === 'ER_NO_REFERENCED_ROW_2') {
+        throw new Error(`Referenced salary structure '${structureId}' does not exist.`);
+      }
+    }
+    throw err;
+  }
 
   const created = await getSalaryRuleById(id);
   if (!created) {

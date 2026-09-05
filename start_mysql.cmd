@@ -1,0 +1,3 @@
+@echo off
+echo Starting MySQL daemon with PeoplePay360 data directory...
+"C:\Program Files\MySQL\MySQL Server 8.4\bin\mysqld.exe" --datadir="%~dp0data_mysql" --console

@@ -93,16 +93,19 @@ The server is built with Express.js + TypeScript at `d:\Odoo\server`:
 
 ## 6. Database Architecture (`d:\Odoo\db/`)
 
-- **[schema.sql](file:///d:/Odoo/db/schema.sql):** Relational schema covering:
-  - `employees`
-  - `contracts`
-  - `working_schedules`
-  - `attendance_records`
-  - `time_off_requests`
-  - `salary_structures`
-  - `salary_rules`
-  - `payruns`
-  - `payslips`
+- **[schema.sql](file:///d:/Odoo/db/schema.sql):** Relational schema normalized to **Boyce-Codd Normal Form (BCNF minimum)** with explicit **InnoDB `FOREIGN KEY` constraints** (`ON DELETE`, `ON UPDATE` cascades and restrictions):
+  - `employees`: Candidate keys `{id}`, `{email}`.
+  - `working_schedules`: Candidate keys `{id}`, `{name}` (unique).
+  - `salary_structures`: Candidate keys `{id}`, `{code}` (unique).
+  - `salary_rules`: Candidate keys `{id}`, `{structure_id, code}` (unique); `FOREIGN KEY (structure_id) REFERENCES salary_structures(id) ON DELETE CASCADE ON UPDATE CASCADE`.
+  - `contracts`: Candidate key `{id}`; `FOREIGN KEY`s to `employees`, `salary_structures`, and `working_schedules`.
+  - `attendance_records`: Candidate key `{id}`; `FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE ON UPDATE CASCADE`.
+  - `time_off_requests`: Candidate key `{id}`; `FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE ON UPDATE CASCADE`.
+  - `payruns`: Candidate key `{id}`; `FOREIGN KEY (salary_structure_id) REFERENCES salary_structures(id) ON DELETE SET NULL ON UPDATE CASCADE`.
+  - `payslips`: Normalized to BCNF (redundant transitive attributes `employee_name` and `department` removed; employee metadata dynamically joined); Candidate keys `{id}`, `{payrun_id, employee_id}` (unique); `FOREIGN KEY`s to `payruns(id)` and `employees(id)`.
+- **Migrations (`d:\Odoo\db\migrations/`):**
+  - `001_add_gender_to_employees.sql`: Added `gender` enum to `employees`.
+  - `002_normalize_bcnf_and_foreign_keys.sql`: Normalized `payslips` to BCNF, added candidate keys, and replaced inline `REFERENCES` with active InnoDB `FOREIGN KEY` constraints.
 - **[seeds.sql](file:///d:/Odoo/db/seeds.sql):** Pre-populated with 6 multi-department employees, active contracts, working schedules, and September 2026 salary structures.
 
 ---
