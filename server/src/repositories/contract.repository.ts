@@ -33,6 +33,8 @@ export interface ContractRow extends RowDataPacket {
   name?: string | null;
   department?: string | null;
   position?: string | null;
+  emp_code?: string | null;
+  employee_db_id?: string | null;
 }
 
 /**
@@ -51,8 +53,10 @@ export interface ContractRecord {
   wage: number;
   structure: string;
   salaryStructure: string;
+  salaryStructureId?: string | null;
   schedule: string;
   workingSchedule: string;
+  workingScheduleId?: string | null;
   status: 'ACTIVE' | 'FUTURE' | 'HISTORICAL';
 }
 
@@ -119,6 +123,7 @@ function mapRowToRecord(row: ContractRow): ContractRecord {
     id: row.id,
     employeeId: row.employee_id || '',
     employeeName,
+    empCode: row.emp_code ? String(row.emp_code).trim() : undefined,
     department: row.department || undefined,
     position: row.position || undefined,
     startDate,
@@ -126,8 +131,10 @@ function mapRowToRecord(row: ContractRow): ContractRecord {
     wage: isNaN(wageNum) ? 0 : wageNum,
     structure,
     salaryStructure: structure,
+    salaryStructureId: row.salary_structure_id || null,
     schedule,
     workingSchedule: schedule,
+    workingScheduleId: row.working_schedule_id || null,
     status: validStatus,
   };
 }
@@ -144,12 +151,14 @@ const CONTRACT_SELECT = `
     c.start_date,
     c.end_date,
     c.status,
-    COALESCE(e.name, c.employee_id) AS name,
+    TRIM(CONCAT(COALESCE(e.firstName, ''), ' ', COALESCE(e.lastName, ''))) AS name,
     e.department,
-    e.position AS position
+    e.jobPosition AS position,
+    e.empCode AS emp_code,
+    e.id AS employee_db_id
   FROM contracts c
   LEFT JOIN employees e
-    ON e.id = c.employee_id
+    ON (e.id = c.employee_id COLLATE utf8mb4_unicode_ci OR e.empCode = c.employee_id COLLATE utf8mb4_unicode_ci)
 `;
 
 // ── Repository Functions ─────────────────────────────────────────────────────
@@ -178,12 +187,17 @@ export async function getContractById(id: string): Promise<ContractRecord | null
  * Returns all contracts for a specific employee ID or empCode.
  */
 export async function getContractsByEmployeeId(employeeId: string): Promise<ContractRecord[]> {
+  const trimmed = employeeId.trim();
+  const normalizedCode = trimmed.replace('-', '');
   const sql = `
     ${CONTRACT_SELECT}
     WHERE c.employee_id = ?
+       OR e.id = ?
+       OR e.empCode = ?
+       OR e.empCode = ?
     ORDER BY c.id ASC
   `;
-  const rows = await executeQuery<ContractRow[]>(sql, [employeeId]);
+  const rows = await executeQuery<ContractRow[]>(sql, [trimmed, trimmed, trimmed, normalizedCode]);
   return rows.map(mapRowToRecord);
 }
 
@@ -191,13 +205,15 @@ export async function getContractsByEmployeeId(employeeId: string): Promise<Cont
  * Returns the currently ACTIVE contract for an employee if one exists.
  */
 export async function getActiveContractByEmployeeId(employeeId: string): Promise<ContractRecord | null> {
+  const trimmed = employeeId.trim();
+  const normalizedCode = trimmed.replace('-', '');
   const sql = `
     ${CONTRACT_SELECT}
-    WHERE c.employee_id = ?
+    WHERE (c.employee_id = ? OR e.id = ? OR e.empCode = ? OR e.empCode = ?)
       AND c.status = 'ACTIVE'
     LIMIT 1
   `;
-  const rows = await executeQuery<ContractRow[]>(sql, [employeeId]);
+  const rows = await executeQuery<ContractRow[]>(sql, [trimmed, trimmed, trimmed, normalizedCode]);
   if (!rows || rows.length === 0) return null;
   return mapRowToRecord(rows[0]);
 }
@@ -209,16 +225,16 @@ export async function getActiveContractByEmployeeId(employeeId: string): Promise
 export async function findEmployeeByIdOrCode(identifier: string): Promise<EmployeeLookupResult | null> {
   const trimmed = identifier.trim();
   const sql = `
-    SELECT id, name
+    SELECT id, TRIM(CONCAT(COALESCE(firstName, ''), ' ', COALESCE(lastName, ''))) AS name
     FROM employees
-    WHERE id = ?
+    WHERE id = ? OR empCode = ? OR empCode = REPLACE(?, '-', '')
     LIMIT 1
   `;
   interface SimpleEmpRow extends RowDataPacket {
     id: string;
     name: string;
   }
-  const rows = await executeQuery<SimpleEmpRow[]>(sql, [trimmed]);
+  const rows = await executeQuery<SimpleEmpRow[]>(sql, [trimmed, trimmed, trimmed]);
   if (!rows || rows.length === 0) return null;
   return {
     id: rows[0].id,

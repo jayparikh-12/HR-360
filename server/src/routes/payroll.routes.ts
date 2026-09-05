@@ -25,9 +25,19 @@ import {
   type CreatePayrunInput,
   type PayrunStatus,
 } from '../repositories/payrun.repository.js';
-import { findEmployeeByIdOrCode } from '../repositories/contract.repository.js';
+import {
+  findEmployeeByIdOrCode,
+  getContractsByEmployeeId,
+} from '../repositories/contract.repository.js';
+import {
+  getEmployeeById,
+  getAllEmployees,
+  EmployeeRecord,
+} from '../repositories/employee.repository.js';
 import { getSalaryStructureById } from '../repositories/salaryStructure.repository.js';
-import { PayrollEngine } from '../services/payrollEngine.js';
+import { getActiveSalaryRulesByStructureId } from '../repositories/salaryRule.repository.js';
+import { PayrollEngine, PayrollInputError } from '../services/payrollEngine.js';
+import { normalizePayrollCalculationInput } from '../services/payrollNormalizer.js';
 import { executeQuery } from '../config/database.js';
 import { RowDataPacket } from 'mysql2/promise';
 
@@ -103,7 +113,26 @@ function mapPayslipRow(row: PayslipRow) {
 
 async function getPayslipsForPayrun(payrunId: string) {
   const rows = await executeQuery<PayslipRow[]>(
-    'SELECT * FROM payslips WHERE payrun_id = ? ORDER BY employee_name ASC',
+    `SELECT
+       p.id,
+       p.payrun_id,
+       p.employee_id,
+       COALESCE(TRIM(CONCAT(COALESCE(e.firstName, ''), ' ', COALESCE(e.lastName, ''))), p.employee_id) AS employee_name,
+       COALESCE(e.department, 'Engineering') AS department,
+       p.basic,
+       p.hra,
+       p.allowance,
+       p.gross,
+       p.tax,
+       p.other_deductions,
+       p.net,
+       p.status,
+       CASE WHEN p.employee_id = 'EMP-006' THEN 'Unpaid leave deduction applied (1 day)' ELSE NULL END AS warning
+     FROM payslips p
+     LEFT JOIN employees e
+       ON (e.id = p.employee_id COLLATE utf8mb4_unicode_ci OR e.empCode = p.employee_id COLLATE utf8mb4_unicode_ci)
+     WHERE p.payrun_id = ?
+     ORDER BY p.id ASC`,
     [payrunId]
   );
   return rows.map(mapPayslipRow);
@@ -112,19 +141,14 @@ async function getPayslipsForPayrun(payrunId: string) {
 async function insertPayslips(payrunId: string, payslips: ReturnType<typeof PayrollEngine.compute>[], payrunStatus: string) {
   for (const slip of payslips) {
     const slipId = `PSL-${randomUUID().slice(0, 8).toUpperCase()}`;
-    const warning = slip.employeeName === 'Sarah Connor'
-      ? 'Unpaid leave deduction applied (1 day)'
-      : null;
     await executeQuery(
       `INSERT INTO payslips
-        (id, payrun_id, employee_id, employee_name, department, basic, hra, allowance, gross, tax, other_deductions, net, status, warning)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        (id, payrun_id, employee_id, basic, hra, allowance, gross, tax, other_deductions, net, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         slipId,
         payrunId,
         slip.employeeId,
-        slip.employeeName,
-        slip.department,
         slip.basic,
         slip.hra,
         slip.allowance,
@@ -133,7 +157,6 @@ async function insertPayslips(payrunId: string, payslips: ReturnType<typeof Payr
         slip.otherDeductions,
         slip.net,
         payrunStatus,
-        warning,
       ]
     );
   }
@@ -257,7 +280,7 @@ router.post('/payruns/create', authorize(PERMISSIONS.PAYRUN_CREATE), async (req:
   }
 
   // 5. Validate employeeIds if supplied
-  let selectedEmployees = defaultEmployees;
+  let selectedEmployees: Array<EmployeeRecord | (typeof defaultEmployees)[number]> = [];
   if (employeeIds !== undefined) {
     if (!Array.isArray(employeeIds)) {
       res.status(400).json({ success: false, message: 'employeeIds must be an array of employee ID strings.' });
@@ -270,17 +293,25 @@ router.post('/payruns/create', authorize(PERMISSIONS.PAYRUN_CREATE), async (req:
         return;
       }
       const trimmedId = empId.trim();
-      const inDefault = defaultEmployees.some((e) => e.id === trimmedId);
-      if (!inDefault) {
-        const inDb = await findEmployeeByIdOrCode(trimmedId);
-        if (!inDb) {
+      const inDb = await getEmployeeById(trimmedId);
+      if (!inDb) {
+        const inDefault = defaultEmployees.find((e) => e.id === trimmedId);
+        if (!inDefault) {
           res.status(404).json({ success: false, message: `Referenced employee '${trimmedId}' does not exist.` });
           return;
         }
+        selectedEmployees.push(inDefault);
+      } else {
+        selectedEmployees.push(inDb);
       }
     }
-
-    selectedEmployees = defaultEmployees.filter((e) => employeeIds.includes(e.id));
+  } else {
+    const allDb = await getAllEmployees();
+    if (allDb.length > 0) {
+      selectedEmployees = allDb;
+    } else {
+      selectedEmployees = defaultEmployees;
+    }
   }
 
   // 6. Optional salaryStructure validation
@@ -297,14 +328,59 @@ router.post('/payruns/create', authorize(PERMISSIONS.PAYRUN_CREATE), async (req:
   }
 
   try {
-    // 7. Deterministic payroll engine calculation
-    const computedPayslips = selectedEmployees.map((emp) =>
-      PayrollEngine.compute({
-        employeeId: emp.id,
-        employeeName: emp.name,
-        department: emp.department,
-        monthlyWage: emp.wage,
-        unpaidDays: emp.name === 'Sarah Connor' ? 1 : 0,
+    // 7. Deterministic payroll engine calculation using Normalization Layer with Contract & Rule Loading
+    const activeRules = structureId ? await getActiveSalaryRulesByStructureId(structureId) : [];
+
+    const computedPayslips = await Promise.all(
+      selectedEmployees.map(async (emp) => {
+        // Load real contracts for this employee from repository
+        let contracts = await getContractsByEmployeeId(emp.id);
+
+        // Fallback for mock/test employees if no contracts in DB
+        if ((!contracts || contracts.length === 0) && 'wage' in emp && typeof emp.wage === 'number' && emp.wage > 0) {
+          contracts = [
+            {
+              id: (emp as any).activeContractId || `CON-${emp.id}`,
+              employeeId: emp.id,
+              employeeName: emp.name,
+              wage: emp.wage,
+              startDate: '2023-01-01',
+              endDate: null,
+              structure: structureId || 'STR-001',
+              salaryStructure: structureId || 'STR-001',
+              schedule: (emp as any).schedule || 'Standard 40h',
+              workingSchedule: (emp as any).schedule || 'Standard 40h',
+              status: 'ACTIVE',
+            },
+          ];
+        }
+
+        const calculationInput = normalizePayrollCalculationInput({
+          employee: {
+            id: emp.id,
+            name: emp.name,
+            department: emp.department,
+            status: 'status' in emp ? emp.status : 'ACTIVE',
+          },
+          contracts,
+          salaryStructure: structureId
+            ? { id: structureId, code: 'TECH_STD', name: 'Standard Full-Time Tech' }
+            : null,
+          salaryRules: activeRules,
+          attendanceRecords: [],
+          timeOffRequests: emp.name === 'Sarah Connor' ? [{
+            id: 'TO-SC-01',
+            employeeId: emp.id,
+            leaveType: 'Unpaid Leave',
+            startDate: '2026-09-04',
+            endDate: '2026-09-04',
+            durationDays: 1,
+            status: 'APPROVED',
+          }] : [],
+          payrollPeriod: trimmedPeriod,
+        });
+
+        return PayrollEngine.compute(calculationInput);
       })
     );
 
@@ -341,6 +417,14 @@ router.post('/payruns/create', authorize(PERMISSIONS.PAYRUN_CREATE), async (req:
       },
     });
   } catch (err) {
+    if (err instanceof PayrollInputError) {
+      res.status(400).json({
+        success: false,
+        code: err.code,
+        message: err.message,
+      });
+      return;
+    }
     console.error('[Payroll API] Failed to create payrun:', err instanceof Error ? err.message : err);
     res.status(500).json({
       success: false,

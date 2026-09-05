@@ -237,6 +237,9 @@ router.patch('/:id', authorize(PERMISSIONS.EMPLOYEE_WRITE), async (req: Request,
     bankAccount: isNonEmptyString(body.bankAccount) ? body.bankAccount.trim()
                    : isNonEmptyString(rawBody.bankAccountNo as string) ? (rawBody.bankAccountNo as string).trim()
                    : undefined,
+    workingSchedule: isNonEmptyString(rawBody.workingSchedule as string) ? (rawBody.workingSchedule as string).trim()
+                   : isNonEmptyString(rawBody.schedule as string) ? (rawBody.schedule as string).trim()
+                   : undefined,
   };
   // Remove undefined keys so the repository only updates what was actually supplied
   (Object.keys(input) as (keyof UpdateEmployeeInput)[]).forEach((k) => {

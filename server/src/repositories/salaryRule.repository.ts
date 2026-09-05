@@ -171,6 +171,19 @@ export async function getSalaryRulesByStructureId(structureId: string): Promise<
 }
 
 /**
+ * Returns all active/applicable salary rules belonging to a specific structure ID.
+ * Excludes any rules with explicit active: false or status: 'INACTIVE'.
+ * Ordered deterministically by sequence ASC, id ASC.
+ */
+export async function getActiveSalaryRulesByStructureId(structureId: string): Promise<SalaryRuleRecord[]> {
+  if (!structureId || !structureId.trim()) return [];
+  const rules = await getAllSalaryRules(structureId.trim());
+  return rules.filter(
+    (r) => (r as any).active !== false && String((r as any).status || '').toUpperCase() !== 'INACTIVE'
+  );
+}
+
+/**
  * Checks whether a salary rule ID already exists.
  */
 export async function salaryRuleIdExists(id: string): Promise<boolean> {

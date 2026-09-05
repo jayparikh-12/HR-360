@@ -1,19 +1,34 @@
-# PeoplePay360 Database Setup
+# PeoplePay360 Database
 
-This folder contains the complete relational schema and initial seed data for the hackathon.
+MySQL schema and seed data for the PeoplePay360 HR and payroll platform.
 
 ## Files
-- `schema.sql`: Full SQL schema for employees, contracts, working schedules, attendance, time-off, salary rules, payruns, and payslips.
-- `seeds.sql`: Pre-populated initial seed data matching the demo workflow.
 
-## Quick Setup with SQLite
+- `schema.sql` - core tables and relationships
+- `seeds.sql` - sample employee, contract, attendance, leave, and payroll data
+
+## Import into MySQL
+
 ```bash
-sqlite3 peoplepay360.db < schema.sql
-sqlite3 peoplepay360.db < seeds.sql
+mysql -u root -p peoplepay360 < schema.sql
+mysql -u root -p peoplepay360 < seeds.sql
 ```
 
-## Quick Setup with PostgreSQL
-```bash
-psql -U postgres -d peoplepay360 -f schema.sql
-psql -U postgres -d peoplepay360 -f seeds.sql
-```
+## Core Tables
+
+- `employees`
+- `working_schedules`
+- `salary_structures`
+- `salary_rules`
+- `contracts`
+- `attendance_records`
+- `time_off_requests`
+- `payruns`
+- `payslips`
+
+## Notes
+
+- The backend expects a MySQL database named `peoplepay360` by default.
+- The schema is designed for the Express API in `server/`.
+- Payruns and payslips are persisted in MySQL, so they survive server restarts.
+
