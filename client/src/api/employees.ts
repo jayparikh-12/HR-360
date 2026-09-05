@@ -7,7 +7,7 @@
  */
 
 import { apiFetch } from './client';
-import type { Employee } from '../types';
+import type { Employee, Gender } from '../types';
 
 export interface EmployeeListResponse {
   success: boolean;
@@ -28,6 +28,7 @@ export interface CreateEmployeePayload {
   email: string;
   department: string;
   jobPosition: string;
+  gender?: Gender | null;
   employeeType?: 'FULL_TIME' | 'PART_TIME' | 'CONTRACT';
   status?: 'ACTIVE' | 'INACTIVE';
   phone?: string;

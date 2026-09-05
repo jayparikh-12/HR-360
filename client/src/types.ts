@@ -10,12 +10,15 @@ export interface AuthUser {
   employeeId?: string;
 }
 
+export type Gender = 'MALE' | 'FEMALE' | 'NON_BINARY' | 'OTHER' | 'PREFER_NOT_TO_SAY';
+
 export interface Employee {
   id: string;
   name: string;
   email: string;
   department: string;
   position: string;
+  gender?: Gender | null;
   status: 'ACTIVE' | 'PROBATION' | 'TERMINATED';
   avatarInitials: string;
   joinDate: string;

@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS employees (
     email VARCHAR(150) UNIQUE NOT NULL,
     department VARCHAR(100) NOT NULL,
     position VARCHAR(100) NOT NULL,
+    gender VARCHAR(20) DEFAULT NULL,
     status VARCHAR(20) DEFAULT 'ACTIVE', -- ACTIVE, PROBATION, TERMINATED
     join_date DATE NOT NULL,
     bank_account VARCHAR(50),

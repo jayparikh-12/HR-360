@@ -15,7 +15,7 @@ import {
   RefreshCw,
   AlertCircle,
 } from 'lucide-react';
-import type { Employee, Contract, AttendanceRecord, TimeOffRequest, Payrun } from '../types';
+import type { Employee, Contract, AttendanceRecord, TimeOffRequest, Payrun, Gender } from '../types';
 import { employeesApi, type CreateEmployeePayload, type UpdateEmployeePayload } from '../api/employees';
 import { contractsApi } from '../api/contracts';
 import { schedulesApi, type ScheduleRecord } from '../api/schedules';
@@ -26,6 +26,24 @@ import { salaryRulesApi, type SalaryRule } from '../api/salaryRules';
 import { payrollApi } from '../api/payroll';
 import { ApiError } from '../api/client';
 import { useAuth } from '../context/AuthContext';
+
+export function formatGender(gender?: string | null): string {
+  if (!gender) return '—';
+  switch (gender.toUpperCase()) {
+    case 'MALE':
+      return 'Male';
+    case 'FEMALE':
+      return 'Female';
+    case 'NON_BINARY':
+      return 'Non-Binary';
+    case 'OTHER':
+      return 'Other';
+    case 'PREFER_NOT_TO_SAY':
+      return 'Prefer not to say';
+    default:
+      return gender;
+  }
+}
 
 interface EmployeesProps {
   employees: Employee[];
@@ -43,6 +61,7 @@ const EMPTY_FORM: CreateEmployeePayload = {
   email: '',
   department: '',
   jobPosition: '',
+  gender: null,
   employeeType: 'FULL_TIME',
   status: 'ACTIVE',
   workingSchedule: 'Standard 40h Full-Time',
@@ -100,6 +119,7 @@ const AddEmployeeForm: React.FC<AddEmployeeFormProps> = ({ onClose, onCreated })
         email: form.email.trim().toLowerCase(),
         department: form.department.trim(),
         jobPosition: form.jobPosition.trim(),
+        ...(form.gender ? { gender: form.gender } : {}),
         employeeType: form.employeeType || 'FULL_TIME',
         status: form.status || 'ACTIVE',
         ...(form.workingSchedule?.trim() ? { workingSchedule: form.workingSchedule.trim() } : {}),
@@ -205,6 +225,23 @@ const AddEmployeeForm: React.FC<AddEmployeeFormProps> = ({ onClose, onCreated })
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
             <div style={fieldStyle}>
+              <label style={labelStyle}>Gender</label>
+              <select
+                className="role-select"
+                style={{ fontSize: '13px', padding: '7px 10px' }}
+                value={form.gender || ''}
+                onChange={(e) => set('gender', (e.target.value as Gender) || null)}
+                disabled={submitting}
+              >
+                <option value="">Select Gender</option>
+                <option value="MALE">Male</option>
+                <option value="FEMALE">Female</option>
+                <option value="NON_BINARY">Non-Binary</option>
+                <option value="OTHER">Other</option>
+                <option value="PREFER_NOT_TO_SAY">Prefer not to say</option>
+              </select>
+            </div>
+            <div style={fieldStyle}>
               <label style={labelStyle}>Employee Type</label>
               <select className="role-select" style={{ fontSize: '13px', padding: '7px 10px' }} value={form.employeeType} onChange={(e) => set('employeeType', e.target.value as CreateEmployeePayload['employeeType'])} disabled={submitting}>
                 <option value="FULL_TIME">Full Time</option>
@@ -212,6 +249,9 @@ const AddEmployeeForm: React.FC<AddEmployeeFormProps> = ({ onClose, onCreated })
                 <option value="CONTRACT">Contract</option>
               </select>
             </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
             <div style={fieldStyle}>
               <label style={labelStyle}>Status</label>
               <select className="role-select" style={{ fontSize: '13px', padding: '7px 10px' }} value={form.status} onChange={(e) => set('status', e.target.value as CreateEmployeePayload['status'])} disabled={submitting}>
@@ -219,11 +259,10 @@ const AddEmployeeForm: React.FC<AddEmployeeFormProps> = ({ onClose, onCreated })
                 <option value="INACTIVE">Inactive</option>
               </select>
             </div>
-          </div>
-
-          <div style={fieldStyle}>
-            <label style={labelStyle}>Working Schedule</label>
-            <input style={inputStyle} value={form.workingSchedule ?? ''} onChange={(e) => set('workingSchedule', e.target.value)} placeholder="Standard 40h Full-Time" disabled={submitting} />
+            <div style={fieldStyle}>
+              <label style={labelStyle}>Working Schedule</label>
+              <input style={inputStyle} value={form.workingSchedule ?? ''} onChange={(e) => set('workingSchedule', e.target.value)} placeholder="Standard 40h Full-Time" disabled={submitting} />
+            </div>
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
@@ -266,6 +305,7 @@ const EditEmployeeModal: React.FC<EditEmployeeModalProps> = ({ employee, onClose
   );
   const [department, setDepartment] = useState(employee.department || '');
   const [jobPosition, setJobPosition] = useState(employee.position || '');
+  const [gender, setGender] = useState<Gender | ''>((employee.gender as Gender) || '');
   const [workingSchedule, setWorkingSchedule] = useState(employee.schedule || '');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -289,6 +329,7 @@ const EditEmployeeModal: React.FC<EditEmployeeModalProps> = ({ employee, onClose
         status,
         department: department.trim(),
         jobPosition: jobPosition.trim(),
+        gender: gender || null,
         ...(workingSchedule.trim() ? { workingSchedule: workingSchedule.trim() } : {}),
       };
       const updated = await employeesApi.update(employee.id, payload);
@@ -391,6 +432,24 @@ const EditEmployeeModal: React.FC<EditEmployeeModalProps> = ({ employee, onClose
               required
               disabled={submitting}
             />
+          </div>
+
+          <div style={fieldStyle}>
+            <label style={labelStyle}>Gender</label>
+            <select
+              className="role-select"
+              style={{ width: '100%', fontSize: '13px', padding: '7px 10px' }}
+              value={gender}
+              onChange={(e) => setGender((e.target.value as Gender) || '')}
+              disabled={submitting}
+            >
+              <option value="">Select Gender</option>
+              <option value="MALE">Male</option>
+              <option value="FEMALE">Female</option>
+              <option value="NON_BINARY">Non-Binary</option>
+              <option value="OTHER">Other</option>
+              <option value="PREFER_NOT_TO_SAY">Prefer not to say</option>
+            </select>
           </div>
 
           <div style={fieldStyle}>
@@ -827,6 +886,10 @@ const Employee360Hub: React.FC<Employee360HubProps> = ({
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span style={{ color: 'var(--slate-500)' }}>Department</span>
                 <span style={{ fontWeight: 600 }}>{employee.department}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: 'var(--slate-500)' }}>Gender</span>
+                <span style={{ fontWeight: 600 }}>{formatGender(employee.gender)}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span style={{ color: 'var(--slate-500)' }}>Work Email</span>
@@ -1398,7 +1461,9 @@ export const Employees: React.FC<EmployeesProps> = ({
                             <div className="avatar">{emp.avatarInitials}</div>
                             <div>
                               <div style={{ fontWeight: 600, color: 'var(--slate-900)' }}>{emp.name}</div>
-                              <div style={{ fontSize: '11px', color: 'var(--slate-500)' }}>{emp.email}</div>
+                              <div style={{ fontSize: '11px', color: 'var(--slate-500)' }}>
+                                {emp.email} {emp.gender ? `• ${formatGender(emp.gender)}` : ''}
+                              </div>
                             </div>
                           </div>
                         </td>
