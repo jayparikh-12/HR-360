@@ -1,5 +1,6 @@
 import React from 'react';
-import { Search, Plus, LogOut } from 'lucide-react';
+import { Search, Plus, LogOut, Sun, Moon } from 'lucide-react';
+import { useTheme } from '../context/ThemeContext';
 import type { UserRole } from '../types';
 
 interface HeaderProps {
@@ -17,6 +18,8 @@ export const Header: React.FC<HeaderProps> = ({
   onQuickPayrun,
   onLogout
 }) => {
+  const { theme, toggleTheme } = useTheme();
+
   const getInitials = (role: UserRole) => {
     switch (role) {
       case 'Employee': return 'JD';
@@ -38,6 +41,18 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Actions */}
       <div className="header-actions">
+        {/* Theme Toggle (Light / Dark) */}
+        <button
+          className="btn btn-secondary btn-sm"
+          onClick={toggleTheme}
+          title={`Switch to ${theme === 'dark' ? 'Light' : 'Dark'} Mode`}
+          aria-label={`Switch to ${theme === 'dark' ? 'Light' : 'Dark'} Mode`}
+          style={{ padding: '6px 10px', display: 'flex', alignItems: 'center', gap: '6px' }}
+        >
+          {theme === 'dark' ? <Sun size={14} color="#f59e0b" /> : <Moon size={14} color="#6366f1" />}
+          <span style={{ fontSize: '12px' }}>{theme === 'dark' ? 'Light' : 'Dark'}</span>
+        </button>
+
         {/* Active Cycle */}
         <div className="cycle-pill">
           <span className="cycle-dot" />
