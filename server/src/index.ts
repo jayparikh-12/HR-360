@@ -19,6 +19,7 @@ import timeOffRoutes from './routes/timeOff.routes.js';
 import salaryStructureRoutes from './routes/salaryStructure.routes.js';
 import salaryRuleRoutes from './routes/salaryRule.routes.js';
 import payrollRoutes from './routes/payroll.routes.js';
+import dashboardRoutes from './routes/dashboard.routes.js';
 import { testDatabaseConnection } from './config/database.js';
 
 const app = express();
@@ -53,6 +54,7 @@ app.use('/api/time-off', timeOffRoutes);
 app.use('/api/salary-structures', salaryStructureRoutes);
 app.use('/api/salary-rules', salaryRuleRoutes);
 app.use('/api/payroll', payrollRoutes);
+app.use('/api/dashboard', dashboardRoutes);
 
 app.listen(PORT, async () => {
   console.log(`[PeoplePay360] Server running on http://localhost:${PORT}`);
