@@ -24,7 +24,7 @@ import { SalaryStructures } from './pages/SalaryStructures';
 import { employeesApi } from './api/employees';
 import { payrollApi } from './api/payroll';
 import { initialEmployees } from './data';
-import type { Employee, Payrun, UserRole } from './types';
+import type { Employee, Payrun } from './types';
 import './App.css';
 
 // Phase 2.3 shim: merge static attendance/leave stats onto API records

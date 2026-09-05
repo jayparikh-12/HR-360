@@ -154,13 +154,11 @@ const CONTRACT_SELECT = `
     COALESCE(e.name, '') AS name,
     e.department,
     e.position,
-    COALESCE(e.empCode, e.id) AS emp_code,
+    e.id AS emp_code,
     e.id AS employee_db_id
   FROM contracts c
   LEFT JOIN employees e
-    ON (e.id = c.employee_id COLLATE utf8mb4_unicode_ci
-        OR e.empCode = c.employee_id COLLATE utf8mb4_unicode_ci
-        OR REPLACE(e.empCode, '-', '') = REPLACE(c.employee_id, '-', '') COLLATE utf8mb4_unicode_ci)
+    ON e.id = c.employee_id COLLATE utf8mb4_unicode_ci
 `;
 
 // ── Repository Functions ─────────────────────────────────────────────────────
@@ -190,17 +188,12 @@ export async function getContractById(id: string): Promise<ContractRecord | null
  */
 export async function getContractsByEmployeeId(employeeId: string): Promise<ContractRecord[]> {
   const trimmed = employeeId.trim();
-  const normalizedCode = trimmed.replace(/-/g, '');
   const sql = `
     ${CONTRACT_SELECT}
-    WHERE c.employee_id = ?
-       OR REPLACE(c.employee_id, '-', '') = ?
-       OR e.id = ?
-       OR e.empCode = ?
-       OR REPLACE(e.empCode, '-', '') = ?
+    WHERE c.employee_id = ? OR e.id = ?
     ORDER BY c.id ASC
   `;
-  const rows = await executeQuery<ContractRow[]>(sql, [trimmed, normalizedCode, trimmed, trimmed, normalizedCode]);
+  const rows = await executeQuery<ContractRow[]>(sql, [trimmed, trimmed]);
   return rows.map(mapRowToRecord);
 }
 
@@ -209,14 +202,13 @@ export async function getContractsByEmployeeId(employeeId: string): Promise<Cont
  */
 export async function getActiveContractByEmployeeId(employeeId: string): Promise<ContractRecord | null> {
   const trimmed = employeeId.trim();
-  const normalizedCode = trimmed.replace(/-/g, '');
   const sql = `
     ${CONTRACT_SELECT}
-    WHERE (c.employee_id = ? OR REPLACE(c.employee_id, '-', '') = ? OR e.id = ? OR e.empCode = ? OR REPLACE(e.empCode, '-', '') = ?)
+    WHERE (c.employee_id = ? OR e.id = ?)
       AND c.status = 'ACTIVE'
     LIMIT 1
   `;
-  const rows = await executeQuery<ContractRow[]>(sql, [trimmed, normalizedCode, trimmed, trimmed, normalizedCode]);
+  const rows = await executeQuery<ContractRow[]>(sql, [trimmed, trimmed]);
   if (!rows || rows.length === 0) return null;
   return mapRowToRecord(rows[0]);
 }
@@ -227,28 +219,22 @@ export async function getActiveContractByEmployeeId(employeeId: string): Promise
  */
 export async function findEmployeeByIdOrCode(identifier: string): Promise<EmployeeLookupResult | null> {
   const trimmed = identifier.trim();
-  const normalizedCode = trimmed.replace(/-/g, '');
   const sql = `
-    SELECT id, name, empCode, firstName, lastName
+    SELECT id, name
     FROM employees
-    WHERE id = ? OR empCode = ? OR REPLACE(empCode, '-', '') = ?
+    WHERE id = ?
     LIMIT 1
   `;
   interface SimpleEmpRow extends RowDataPacket {
     id: string;
     name: string;
-    empCode?: string;
-    firstName?: string;
-    lastName?: string;
   }
-  const rows = await executeQuery<SimpleEmpRow[]>(sql, [trimmed, trimmed, normalizedCode]);
+  const rows = await executeQuery<SimpleEmpRow[]>(sql, [trimmed]);
   if (!rows || rows.length === 0) return null;
   return {
     id: rows[0].id,
     name: rows[0].name,
-    empCode: rows[0].empCode,
-    firstName: rows[0].firstName,
-    lastName: rows[0].lastName,
+    empCode: rows[0].id,
   };
 }
 

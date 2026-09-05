@@ -2,6 +2,7 @@
 -- PeoplePay360 Relational Database Schema
 -- Normalized to Boyce-Codd Normal Form (BCNF) minimum.
 -- Explicit FOREIGN KEY constraints replace inert inline REFERENCES clauses.
+-- Hardened for Referential Integrity, Domain Checks, and Historical Payroll Preservation.
 -- ============================================================================
 
 -- 1. Employees Table (In BCNF: Candidate keys are {id}, {email})
@@ -12,10 +13,11 @@ CREATE TABLE IF NOT EXISTS employees (
     department VARCHAR(100) NOT NULL,
     position VARCHAR(100) NOT NULL,
     gender VARCHAR(20) DEFAULT NULL,
-    status VARCHAR(20) DEFAULT 'ACTIVE', -- ACTIVE, PROBATION, TERMINATED
+    status VARCHAR(20) DEFAULT 'ACTIVE', -- ACTIVE, PROBATION, TERMINATED, INACTIVE
     join_date DATE NOT NULL,
     bank_account VARCHAR(50),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_employees_dept_status (department, status)
 );
 
 -- 2. Working Schedules Table (In BCNF: Candidate keys are {id}, {name})
@@ -75,7 +77,9 @@ CREATE TABLE IF NOT EXISTS contracts (
     CONSTRAINT fk_contracts_working_schedule FOREIGN KEY (working_schedule_id)
         REFERENCES working_schedules(id)
         ON DELETE RESTRICT
-        ON UPDATE CASCADE
+        ON UPDATE CASCADE,
+    CONSTRAINT chk_contracts_dates CHECK (end_date IS NULL OR end_date >= start_date),
+    CONSTRAINT chk_contracts_wage CHECK (wage >= 0)
 );
 
 -- 6. Attendance Table (In BCNF: Candidate key is {id})
@@ -90,7 +94,10 @@ CREATE TABLE IF NOT EXISTS attendance_records (
     CONSTRAINT fk_attendance_employee FOREIGN KEY (employee_id)
         REFERENCES employees(id)
         ON DELETE CASCADE
-        ON UPDATE CASCADE
+        ON UPDATE CASCADE,
+    CONSTRAINT chk_attendance_worked_hours CHECK (worked_hours >= 0),
+    INDEX idx_attendance_emp_date (employee_id, date),
+    INDEX idx_attendance_date (date)
 );
 
 -- 7. Time Off Requests Table (In BCNF: Candidate key is {id})
@@ -106,7 +113,10 @@ CREATE TABLE IF NOT EXISTS time_off_requests (
     CONSTRAINT fk_time_off_employee FOREIGN KEY (employee_id)
         REFERENCES employees(id)
         ON DELETE CASCADE
-        ON UPDATE CASCADE
+        ON UPDATE CASCADE,
+    CONSTRAINT chk_time_off_dates CHECK (end_date >= start_date),
+    INDEX idx_time_off_emp_status (employee_id, status),
+    INDEX idx_time_off_dates (start_date, end_date)
 );
 
 -- 8. Payruns Table (In BCNF: Candidate key is {id})
@@ -128,13 +138,15 @@ CREATE TABLE IF NOT EXISTS payruns (
     CONSTRAINT fk_payruns_salary_structure FOREIGN KEY (salary_structure_id)
         REFERENCES salary_structures(id)
         ON DELETE SET NULL
-        ON UPDATE CASCADE
+        ON UPDATE CASCADE,
+    INDEX idx_payruns_period_status (period, status)
 );
 
 -- 9. Payslips Table (In BCNF: Candidate keys are {id}, {payrun_id, employee_id})
 -- Note: Redundant transitive columns employee_name and department are eliminated to satisfy BCNF.
 -- Employee details are joined from employees at query time.
 -- Historical calculation snapshots & structured breakdowns (Phase 5.1) are persisted for immutability.
+-- fk_payslips_employee enforces ON DELETE RESTRICT to guarantee historical payroll records are never accidentally destroyed.
 CREATE TABLE IF NOT EXISTS payslips (
     id VARCHAR(50) PRIMARY KEY,
     payrun_id VARCHAR(50) NOT NULL,
@@ -163,7 +175,7 @@ CREATE TABLE IF NOT EXISTS payslips (
         ON UPDATE CASCADE,
     CONSTRAINT fk_payslips_employee FOREIGN KEY (employee_id)
         REFERENCES employees(id)
-        ON DELETE CASCADE
+        ON DELETE RESTRICT
         ON UPDATE CASCADE,
     INDEX idx_payslips_employee_period (employee_id, period_start)
 );
