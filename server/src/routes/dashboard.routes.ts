@@ -20,6 +20,8 @@ import {
   getDashboardFilterOptions,
   getDashboardAnalytics,
   getDashboardAlerts,
+  getAttendanceAnalytics,
+  getTimeOffAnalytics,
 } from '../services/dashboard.service.js';
 import type { DashboardFilterParams } from '../repositories/dashboard.repository.js';
 
@@ -137,6 +139,60 @@ router.get('/alerts', async (req: Request, res: Response): Promise<void> => {
     res.status(500).json({
       success: false,
       message: 'Unable to aggregate operational alerts. Please try again.',
+    });
+  }
+});
+
+// ── GET /api/dashboard/attendance-analytics ───────────────────────────────────
+router.get('/attendance-analytics', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const period = typeof req.query.period === 'string' ? req.query.period : undefined;
+    const department = typeof req.query.department === 'string' ? req.query.department : undefined;
+    const employeeType = typeof req.query.employeeType === 'string' ? req.query.employeeType : undefined;
+
+    const filters: DashboardFilterParams = {
+      period,
+      department,
+      employeeType,
+    };
+
+    const analytics = await getAttendanceAnalytics(filters);
+    res.json({
+      success: true,
+      data: analytics,
+    });
+  } catch (err) {
+    console.error('[Dashboard API] Attendance analytics error:', err instanceof Error ? err.message : err);
+    res.status(500).json({
+      success: false,
+      message: 'Unable to aggregate attendance analytics. Please try again.',
+    });
+  }
+});
+
+// ── GET /api/dashboard/time-off-analytics ─────────────────────────────────────
+router.get('/time-off-analytics', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const period = typeof req.query.period === 'string' ? req.query.period : undefined;
+    const department = typeof req.query.department === 'string' ? req.query.department : undefined;
+    const employeeType = typeof req.query.employeeType === 'string' ? req.query.employeeType : undefined;
+
+    const filters: DashboardFilterParams = {
+      period,
+      department,
+      employeeType,
+    };
+
+    const analytics = await getTimeOffAnalytics(filters);
+    res.json({
+      success: true,
+      data: analytics,
+    });
+  } catch (err) {
+    console.error('[Dashboard API] Time-off analytics error:', err instanceof Error ? err.message : err);
+    res.status(500).json({
+      success: false,
+      message: 'Unable to aggregate time-off analytics. Please try again.',
     });
   }
 });

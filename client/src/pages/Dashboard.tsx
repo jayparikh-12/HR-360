@@ -23,6 +23,8 @@ import {
   PayrollStatusChart, 
   PayrollBreakdownChart,
   OperationalAlerts,
+  AttendanceAnalytics,
+  TimeOffAnalytics,
 } from '../components/dashboard';
 
 interface DashboardProps {
@@ -510,6 +512,27 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
               onSelectDepartment={(dept) => handleFilterChange('department', dept)}
               onViewStaff={() => onNavigate('employees')}
               loading={loading}
+            />
+          </div>
+
+          {/* Phase 6.5: Attendance & Time-Off Visual Analytics */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '20px' }}>
+            <AttendanceAnalytics
+              analytics={metrics.attendanceAnalytics}
+              loading={loading}
+              error={error}
+              selectedPeriod={filters.period}
+              selectedDepartment={filters.department}
+              onNavigate={onNavigate}
+            />
+
+            <TimeOffAnalytics
+              analytics={metrics.timeOffAnalytics}
+              loading={loading}
+              error={error}
+              selectedPeriod={filters.period}
+              selectedDepartment={filters.department}
+              onNavigate={onNavigate}
             />
           </div>
 

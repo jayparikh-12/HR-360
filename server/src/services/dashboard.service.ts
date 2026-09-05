@@ -22,6 +22,10 @@ import {
   getDepartmentBreakdownAggregation,
   getEmployeeTypeBreakdownAggregation,
   getPendingPayrunsForAlerts,
+  getAttendanceTrendAggregation,
+  getAttendanceDepartmentBreakdown,
+  getTimeOffTypeBreakdown,
+  getTimeOffDepartmentBreakdown,
   type DashboardFilterParams,
   type DateRange,
   type EmployeeAggregationResult,
@@ -34,6 +38,10 @@ import {
   type DepartmentPayrollBreakdownItem,
   type EmployeeTypeBreakdownItem,
   type PayrunAlertItem,
+  type AttendanceTrendItem,
+  type AttendanceDepartmentItem,
+  type TimeOffTypeItem,
+  type TimeOffDepartmentItem,
 } from '../repositories/dashboard.repository.js';
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -101,6 +109,55 @@ export interface DashboardSummaryResponse {
   statusCounts: PayrunStatusCounts;
   departmentBreakdown: DepartmentPayrollBreakdownItem[];
   employeeTypeBreakdown: EmployeeTypeBreakdownItem[];
+
+  // Attendance & Time-Off analytics (Phase 6.5)
+  attendanceAnalytics?: AttendanceAnalyticsResponse;
+  timeOffAnalytics?: TimeOffAnalyticsResponse;
+}
+
+// ── Attendance & Time-Off Analytics Types (Phase 6.5) ────────────────────────
+
+export interface AttendanceStatusCounts {
+  present: number;
+  absent: number;
+  late: number;
+  overtime: number;
+  missingCheckout: number;
+  total: number;
+  rate: number | null;
+}
+
+export interface AttendanceAnalyticsResponse {
+  statusCounts: AttendanceStatusCounts;
+  summary: AttendanceStatusCounts;
+  trends: AttendanceTrendItem[];
+  trend: AttendanceTrendItem[];
+  departmentBreakdown: AttendanceDepartmentItem[];
+  totalRecords: number;
+  attendanceRate: number | null;
+}
+
+export interface TimeOffStatusCounts {
+  approved: number;
+  pending: number;
+  refused: number;
+  rejected: number;
+  totalRequests: number;
+  totalDays: number;
+  approvedDays: number;
+}
+
+export interface TimeOffAnalyticsResponse {
+  statusCounts: TimeOffStatusCounts;
+  summary: TimeOffStatusCounts;
+  byType: TimeOffTypeItem[];
+  byDepartment: TimeOffDepartmentItem[];
+  breakdown: {
+    byType: TimeOffTypeItem[];
+    byDepartment: TimeOffDepartmentItem[];
+  };
+  totalRequests: number;
+  totalDays: number;
 }
 
 // ── Date & Period Parsing ────────────────────────────────────────────────────
@@ -367,6 +424,10 @@ export async function getDashboardSummary(
     statusResult,
     employeeTypeBreakdown,
     pendingPayruns,
+    attendanceTrends,
+    attendanceDeptBreakdown,
+    timeOffTypeBreakdown,
+    timeOffDeptBreakdown,
   ] = await Promise.all([
     getEmployeeMetrics(filters, dateRange),
     getPayrollMetrics(filters, dateRange),
@@ -377,6 +438,10 @@ export async function getDashboardSummary(
     getPayrunStatusBreakdown(filters, dateRange),
     getEmployeeTypeBreakdownAggregation(filters),
     getPendingPayrunsForAlerts(filters, dateRange),
+    getAttendanceTrendAggregation(filters, dateRange),
+    getAttendanceDepartmentBreakdown(filters, dateRange),
+    getTimeOffTypeBreakdown(filters, dateRange),
+    getTimeOffDepartmentBreakdown(filters, dateRange),
   ]);
 
   const departmentBreakdown = await getDepartmentBreakdownAggregation(
@@ -403,6 +468,49 @@ export async function getDashboardSummary(
     employees,
     payroll.latestPayrun
   );
+
+  const attStatusCounts: AttendanceStatusCounts = {
+    present: attendance.present,
+    absent: attendance.absent,
+    late: attendance.late,
+    overtime: attendance.overtime,
+    missingCheckout: attendance.missingCheckout,
+    total: attendance.totalRecords,
+    rate: attendance.rate,
+  };
+
+  const attendanceAnalytics: AttendanceAnalyticsResponse = {
+    statusCounts: attStatusCounts,
+    summary: attStatusCounts,
+    trends: attendanceTrends,
+    trend: attendanceTrends,
+    departmentBreakdown: attendanceDeptBreakdown,
+    totalRecords: attendance.totalRecords,
+    attendanceRate: attendance.rate,
+  };
+
+  const toStatusCounts: TimeOffStatusCounts = {
+    approved: timeOff.approved,
+    pending: timeOff.pending,
+    refused: timeOff.rejected,
+    rejected: timeOff.rejected,
+    totalRequests: timeOff.totalRequests,
+    totalDays: timeOff.totalDays,
+    approvedDays: timeOff.approvedDays,
+  };
+
+  const timeOffAnalytics: TimeOffAnalyticsResponse = {
+    statusCounts: toStatusCounts,
+    summary: toStatusCounts,
+    byType: timeOffTypeBreakdown,
+    byDepartment: timeOffDeptBreakdown,
+    breakdown: {
+      byType: timeOffTypeBreakdown,
+      byDepartment: timeOffDeptBreakdown,
+    },
+    totalRequests: timeOff.totalRequests,
+    totalDays: timeOff.totalDays,
+  };
 
   return {
     // Grouped module objects
@@ -436,6 +544,83 @@ export async function getDashboardSummary(
     statusCounts: statusResult.counts,
     departmentBreakdown,
     employeeTypeBreakdown,
+
+    // Attendance & Time-Off analytics (Phase 6.5)
+    attendanceAnalytics,
+    timeOffAnalytics,
+  };
+}
+
+/**
+ * Dedicated coordinator for /api/dashboard/attendance-analytics.
+ */
+export async function getAttendanceAnalytics(
+  filters: DashboardFilterParams = {}
+): Promise<AttendanceAnalyticsResponse> {
+  const dateRange = parsePeriodFilter(filters.period);
+
+  const [attendance, trends, departmentBreakdown] = await Promise.all([
+    getAttendanceMetrics(filters, dateRange),
+    getAttendanceTrendAggregation(filters, dateRange),
+    getAttendanceDepartmentBreakdown(filters, dateRange),
+  ]);
+
+  const statusCounts: AttendanceStatusCounts = {
+    present: attendance.present,
+    absent: attendance.absent,
+    late: attendance.late,
+    overtime: attendance.overtime,
+    missingCheckout: attendance.missingCheckout,
+    total: attendance.totalRecords,
+    rate: attendance.rate,
+  };
+
+  return {
+    statusCounts,
+    summary: statusCounts,
+    trends,
+    trend: trends,
+    departmentBreakdown,
+    totalRecords: attendance.totalRecords,
+    attendanceRate: attendance.rate,
+  };
+}
+
+/**
+ * Dedicated coordinator for /api/dashboard/time-off-analytics.
+ */
+export async function getTimeOffAnalytics(
+  filters: DashboardFilterParams = {}
+): Promise<TimeOffAnalyticsResponse> {
+  const dateRange = parsePeriodFilter(filters.period);
+
+  const [timeOff, byType, byDepartment] = await Promise.all([
+    getTimeOffMetrics(filters, dateRange),
+    getTimeOffTypeBreakdown(filters, dateRange),
+    getTimeOffDepartmentBreakdown(filters, dateRange),
+  ]);
+
+  const statusCounts: TimeOffStatusCounts = {
+    approved: timeOff.approved,
+    pending: timeOff.pending,
+    refused: timeOff.rejected,
+    rejected: timeOff.rejected,
+    totalRequests: timeOff.totalRequests,
+    totalDays: timeOff.totalDays,
+    approvedDays: timeOff.approvedDays,
+  };
+
+  return {
+    statusCounts,
+    summary: statusCounts,
+    byType,
+    byDepartment,
+    breakdown: {
+      byType,
+      byDepartment,
+    },
+    totalRequests: timeOff.totalRequests,
+    totalDays: timeOff.totalDays,
   };
 }
 

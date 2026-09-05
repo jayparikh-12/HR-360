@@ -110,6 +110,7 @@ export interface EmployeeTypeBreakdownItem {
 
 export interface AttendanceAggregationResult {
   totalRecords: number;
+  total?: number;
   present: number;
   absent: number;
   late: number;
@@ -123,8 +124,41 @@ export interface TimeOffAggregationResult {
   approved: number;
   pending: number;
   rejected: number;
+  refused?: number;
   totalDays: number;
   approvedDays: number;
+}
+
+export interface AttendanceTrendItem {
+  date: string;
+  displayDate: string;
+  present: number;
+  absent: number;
+  late: number;
+  overtime: number;
+  missingCheckout: number;
+  total: number;
+}
+
+export interface AttendanceDepartmentItem {
+  department: string;
+  total: number;
+  present: number;
+  rate: number;
+}
+
+export interface TimeOffTypeItem {
+  type: string;
+  count: number;
+  days: number;
+  percentage: number;
+}
+
+export interface TimeOffDepartmentItem {
+  department: string;
+  count: number;
+  days: number;
+  percentage: number;
 }
 
 // ── Employee Aggregation ─────────────────────────────────────────────────────
@@ -143,7 +177,7 @@ export async function getEmployeeMetrics(
 
   // Active/employment period semantics: employee must have joined on or before period end date
   if (dateRange && dateRange.endDate) {
-    whereClauses.push('DATE(e.createdAt) <= ?');
+    whereClauses.push('DATE(e.created_at) <= ?');
     params.push(dateRange.endDate);
   }
 
@@ -221,7 +255,7 @@ export async function getDepartmentWages(
   }
 
   if (dateRange && dateRange.endDate) {
-    whereClauses.push('DATE(e.createdAt) <= ?');
+    whereClauses.push('DATE(e.created_at) <= ?');
     params.push(dateRange.endDate);
   }
 
@@ -439,6 +473,7 @@ export async function getAttendanceMetrics(
 
   return {
     totalRecords,
+    total: totalRecords,
     present,
     absent,
     late,
@@ -500,9 +535,251 @@ export async function getTimeOffMetrics(
     approved,
     pending,
     rejected,
+    refused: rejected,
     totalDays,
     approvedDays,
   };
+}
+
+// ── Attendance Visual & Breakdown Aggregations (Phase 6.5) ───────────────────
+
+/**
+ * Aggregates daily attendance trends grouped chronologically by date.
+ */
+export async function getAttendanceTrendAggregation(
+  filters: DashboardFilterParams,
+  dateRange: DateRange
+): Promise<AttendanceTrendItem[]> {
+  const whereClauses: string[] = ['1=1'];
+  const params: unknown[] = [];
+
+  if (dateRange.startDate && dateRange.endDate) {
+    whereClauses.push('a.date >= ? AND a.date <= ?');
+    params.push(dateRange.startDate, dateRange.endDate);
+  }
+
+  if (filters.department && filters.department.trim().toUpperCase() !== 'ALL') {
+    whereClauses.push('LOWER(e.department) = LOWER(?)');
+    params.push(filters.department.trim());
+  }
+
+  if (filters.employeeType && filters.employeeType.trim().toUpperCase() !== 'ALL') {
+    whereClauses.push('(CASE WHEN ws.weekly_hours < 40 THEN "PART_TIME" ELSE "FULL_TIME" END = ?)');
+    params.push(filters.employeeType.trim().toUpperCase());
+  }
+
+  const whereSql = whereClauses.join(' AND ');
+
+  const sql = `
+    SELECT
+      DATE_FORMAT(a.date, '%Y-%m-%d') AS date_str,
+      COUNT(a.id) AS total,
+      COALESCE(SUM(CASE WHEN a.status = 'PRESENT' THEN 1 ELSE 0 END), 0) AS present,
+      COALESCE(SUM(CASE WHEN a.status = 'ABSENT' THEN 1 ELSE 0 END), 0) AS absent,
+      COALESCE(SUM(CASE WHEN a.status = 'LATE' THEN 1 ELSE 0 END), 0) AS late,
+      COALESCE(SUM(CASE WHEN a.status = 'OVERTIME' THEN 1 ELSE 0 END), 0) AS overtime,
+      COALESCE(SUM(CASE WHEN a.status = 'MISSING_CHECKOUT' OR (a.check_in IS NOT NULL AND a.check_out IS NULL) THEN 1 ELSE 0 END), 0) AS missing_checkout
+    FROM attendance_records a
+    LEFT JOIN employees e ON e.id = a.employee_id
+    LEFT JOIN contracts c ON c.employee_id = e.id AND c.status = 'ACTIVE'
+    LEFT JOIN working_schedules ws ON ws.id = c.working_schedule_id
+    WHERE ${whereSql}
+    GROUP BY DATE_FORMAT(a.date, '%Y-%m-%d')
+    ORDER BY date_str ASC
+    LIMIT 31
+  `;
+
+  const rows = await executeQuery<RowDataPacket[]>(sql, params);
+  return rows.map((r) => {
+    const d = String(r.date_str);
+    let displayDate = d;
+    try {
+      const parts = d.split('-');
+      if (parts.length === 3) {
+        const dateObj = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+        displayDate = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      }
+    } catch {
+      displayDate = d;
+    }
+
+    return {
+      date: d,
+      displayDate,
+      present: Number(r.present) || 0,
+      absent: Number(r.absent) || 0,
+      late: Number(r.late) || 0,
+      overtime: Number(r.overtime) || 0,
+      missingCheckout: Number(r.missing_checkout) || 0,
+      total: Number(r.total) || 0,
+    };
+  });
+}
+
+/**
+ * Aggregates attendance volume and presence rate grouped by department.
+ */
+export async function getAttendanceDepartmentBreakdown(
+  filters: DashboardFilterParams,
+  dateRange: DateRange
+): Promise<AttendanceDepartmentItem[]> {
+  const whereClauses: string[] = ['1=1'];
+  const params: unknown[] = [];
+
+  if (dateRange.startDate && dateRange.endDate) {
+    whereClauses.push('a.date >= ? AND a.date <= ?');
+    params.push(dateRange.startDate, dateRange.endDate);
+  }
+
+  if (filters.department && filters.department.trim().toUpperCase() !== 'ALL') {
+    whereClauses.push('LOWER(e.department) = LOWER(?)');
+    params.push(filters.department.trim());
+  }
+
+  if (filters.employeeType && filters.employeeType.trim().toUpperCase() !== 'ALL') {
+    whereClauses.push('(CASE WHEN ws.weekly_hours < 40 THEN "PART_TIME" ELSE "FULL_TIME" END = ?)');
+    params.push(filters.employeeType.trim().toUpperCase());
+  }
+
+  const whereSql = whereClauses.join(' AND ');
+
+  const sql = `
+    SELECT
+      COALESCE(e.department, 'Unassigned') AS department,
+      COUNT(a.id) AS total,
+      COALESCE(SUM(CASE WHEN a.status IN ('PRESENT', 'OVERTIME') THEN 1 ELSE 0 END), 0) AS present
+    FROM attendance_records a
+    LEFT JOIN employees e ON e.id = a.employee_id
+    LEFT JOIN contracts c ON c.employee_id = e.id AND c.status = 'ACTIVE'
+    LEFT JOIN working_schedules ws ON ws.id = c.working_schedule_id
+    WHERE ${whereSql}
+    GROUP BY e.department
+    ORDER BY total DESC
+  `;
+
+  const rows = await executeQuery<RowDataPacket[]>(sql, params);
+  return rows.map((r) => {
+    const total = Number(r.total) || 0;
+    const present = Number(r.present) || 0;
+    return {
+      department: String(r.department),
+      total,
+      present,
+      rate: total > 0 ? Math.round((present / total) * 1000) / 10 : 0,
+    };
+  });
+}
+
+// ── Time-Off Breakdowns (Phase 6.5) ───────────────────────────────────────────
+
+/**
+ * Aggregates time-off requests and total duration days grouped by leave type.
+ */
+export async function getTimeOffTypeBreakdown(
+  filters: DashboardFilterParams,
+  dateRange: DateRange
+): Promise<TimeOffTypeItem[]> {
+  const whereClauses: string[] = ['1=1'];
+  const params: unknown[] = [];
+
+  if (dateRange.startDate && dateRange.endDate) {
+    whereClauses.push('t.start_date <= ? AND t.end_date >= ?');
+    params.push(dateRange.endDate, dateRange.startDate);
+  }
+
+  if (filters.department && filters.department.trim().toUpperCase() !== 'ALL') {
+    whereClauses.push('LOWER(e.department) = LOWER(?)');
+    params.push(filters.department.trim());
+  }
+
+  if (filters.employeeType && filters.employeeType.trim().toUpperCase() !== 'ALL') {
+    whereClauses.push('(CASE WHEN ws.weekly_hours < 40 THEN "PART_TIME" ELSE "FULL_TIME" END = ?)');
+    params.push(filters.employeeType.trim().toUpperCase());
+  }
+
+  const whereSql = whereClauses.join(' AND ');
+
+  const sql = `
+    SELECT
+      COALESCE(t.leave_type, 'Other Leave') AS leave_type,
+      COUNT(t.id) AS count,
+      COALESCE(SUM(t.duration_days), 0) AS total_days
+    FROM time_off_requests t
+    LEFT JOIN employees e ON e.id = t.employee_id
+    LEFT JOIN contracts c ON c.employee_id = e.id AND c.status = 'ACTIVE'
+    LEFT JOIN working_schedules ws ON ws.id = c.working_schedule_id
+    WHERE ${whereSql}
+    GROUP BY t.leave_type
+    ORDER BY total_days DESC
+  `;
+
+  const rows = await executeQuery<RowDataPacket[]>(sql, params);
+  const totalDaysSum = rows.reduce((s, r) => s + (Number(r.total_days) || 0), 0);
+
+  return rows.map((r) => {
+    const days = Number(r.total_days) || 0;
+    return {
+      type: String(r.leave_type),
+      count: Number(r.count) || 0,
+      days,
+      percentage: totalDaysSum > 0 ? Math.round((days / totalDaysSum) * 1000) / 10 : 0,
+    };
+  });
+}
+
+/**
+ * Aggregates time-off requests and total duration days grouped by requesting employee's department.
+ */
+export async function getTimeOffDepartmentBreakdown(
+  filters: DashboardFilterParams,
+  dateRange: DateRange
+): Promise<TimeOffDepartmentItem[]> {
+  const whereClauses: string[] = ['1=1'];
+  const params: unknown[] = [];
+
+  if (dateRange.startDate && dateRange.endDate) {
+    whereClauses.push('t.start_date <= ? AND t.end_date >= ?');
+    params.push(dateRange.endDate, dateRange.startDate);
+  }
+
+  if (filters.department && filters.department.trim().toUpperCase() !== 'ALL') {
+    whereClauses.push('LOWER(e.department) = LOWER(?)');
+    params.push(filters.department.trim());
+  }
+
+  if (filters.employeeType && filters.employeeType.trim().toUpperCase() !== 'ALL') {
+    whereClauses.push('(CASE WHEN ws.weekly_hours < 40 THEN "PART_TIME" ELSE "FULL_TIME" END = ?)');
+    params.push(filters.employeeType.trim().toUpperCase());
+  }
+
+  const whereSql = whereClauses.join(' AND ');
+
+  const sql = `
+    SELECT
+      COALESCE(e.department, 'Unassigned') AS department,
+      COUNT(t.id) AS count,
+      COALESCE(SUM(t.duration_days), 0) AS total_days
+    FROM time_off_requests t
+    LEFT JOIN employees e ON e.id = t.employee_id
+    LEFT JOIN contracts c ON c.employee_id = e.id AND c.status = 'ACTIVE'
+    LEFT JOIN working_schedules ws ON ws.id = c.working_schedule_id
+    WHERE ${whereSql}
+    GROUP BY e.department
+    ORDER BY total_days DESC
+  `;
+
+  const rows = await executeQuery<RowDataPacket[]>(sql, params);
+  const totalDaysSum = rows.reduce((s, r) => s + (Number(r.total_days) || 0), 0);
+
+  return rows.map((r) => {
+    const days = Number(r.total_days) || 0;
+    return {
+      department: String(r.department),
+      count: Number(r.count) || 0,
+      days,
+      percentage: totalDaysSum > 0 ? Math.round((days / totalDaysSum) * 1000) / 10 : 0,
+    };
+  });
 }
 
 // ── Distinct Filter Options ──────────────────────────────────────────────────
@@ -553,8 +830,8 @@ export async function getPayrollTrendAggregation(
     }
 
     if (hasEmpType) {
-      whereClauses.push('e.employeeType = ?');
-      params.push(filters.employeeType!.trim());
+      whereClauses.push('(CASE WHEN ws.weekly_hours < 40 THEN "PART_TIME" ELSE "FULL_TIME" END = ?)');
+      params.push(filters.employeeType!.trim().toUpperCase());
     }
 
     if (hasPeriod) {
@@ -578,6 +855,8 @@ export async function getPayrollTrendAggregation(
       FROM payruns pr
       JOIN payslips p ON p.payrun_id = pr.id
       JOIN employees e ON e.id = p.employee_id
+      LEFT JOIN contracts c ON c.employee_id = e.id AND c.status = 'ACTIVE'
+      LEFT JOIN working_schedules ws ON ws.id = c.working_schedule_id
       WHERE ${whereSql}
       GROUP BY pr.id, pr.name, pr.period, pr.status, pr.created_at
       ORDER BY pr.id ASC
@@ -746,8 +1025,8 @@ export async function getDepartmentBreakdownAggregation(
   }
 
   if (filters.employeeType && filters.employeeType.trim().toUpperCase() !== 'ALL') {
-    whereClauses.push('e.employeeType = ?');
-    params.push(filters.employeeType.trim());
+    whereClauses.push('(CASE WHEN ws.weekly_hours < 40 THEN "PART_TIME" ELSE "FULL_TIME" END = ?)');
+    params.push(filters.employeeType.trim().toUpperCase());
   }
 
   const whereSql = whereClauses.join(' AND ');
@@ -761,6 +1040,8 @@ export async function getDepartmentBreakdownAggregation(
       COUNT(DISTINCT p.employee_id) AS employee_count
     FROM payslips p
     JOIN employees e ON e.id = p.employee_id
+    LEFT JOIN contracts c ON c.employee_id = e.id AND c.status = 'ACTIVE'
+    LEFT JOIN working_schedules ws ON ws.id = c.working_schedule_id
     WHERE ${whereSql}
     GROUP BY e.department
     ORDER BY gross DESC
@@ -795,8 +1076,8 @@ export async function getDepartmentBreakdownAggregation(
     fallbackParams.push(filters.department.trim());
   }
   if (filters.employeeType && filters.employeeType.trim().toUpperCase() !== 'ALL') {
-    fallbackWhere.push('e.employeeType = ?');
-    fallbackParams.push(filters.employeeType.trim());
+    fallbackWhere.push('(CASE WHEN ws.weekly_hours < 40 THEN "PART_TIME" ELSE "FULL_TIME" END = ?)');
+    fallbackParams.push(filters.employeeType.trim().toUpperCase());
   }
 
   const fallbackSql = `
@@ -806,6 +1087,7 @@ export async function getDepartmentBreakdownAggregation(
       COUNT(DISTINCT e.id) AS employee_count
     FROM employees e
     LEFT JOIN contracts c ON c.employee_id = e.id AND c.status = 'ACTIVE'
+    LEFT JOIN working_schedules ws ON ws.id = c.working_schedule_id
     WHERE ${fallbackWhere.join(' AND ')}
     GROUP BY e.department
     ORDER BY gross DESC
@@ -843,21 +1125,22 @@ export async function getEmployeeTypeBreakdownAggregation(
   }
 
   if (filters.employeeType && filters.employeeType.trim().toUpperCase() !== 'ALL') {
-    whereClauses.push('e.employeeType = ?');
-    params.push(filters.employeeType.trim());
+    whereClauses.push('(CASE WHEN ws.weekly_hours < 40 THEN "PART_TIME" ELSE "FULL_TIME" END = ?)');
+    params.push(filters.employeeType.trim().toUpperCase());
   }
 
   const whereSql = whereClauses.join(' AND ');
 
   const sql = `
     SELECT
-      COALESCE(e.employeeType, 'FULL_TIME') AS employee_type,
+      CASE WHEN ws.weekly_hours < 40 THEN 'PART_TIME' ELSE 'FULL_TIME' END AS employee_type,
       COUNT(DISTINCT e.id) AS employee_count,
       COALESCE(SUM(c.wage), 0) AS total_wage
     FROM employees e
     LEFT JOIN contracts c ON c.employee_id = e.id AND c.status = 'ACTIVE'
+    LEFT JOIN working_schedules ws ON ws.id = c.working_schedule_id
     WHERE ${whereSql}
-    GROUP BY e.employeeType
+    GROUP BY CASE WHEN ws.weekly_hours < 40 THEN 'PART_TIME' ELSE 'FULL_TIME' END
     ORDER BY employee_count DESC
   `;
 

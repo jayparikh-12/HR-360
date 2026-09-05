@@ -45,7 +45,7 @@ export interface MeResponse {
 }
 
 // Default base URL is http://localhost:5000 or from environment variable
-const API_BASE_URL = (import.meta.env.VITE_API_URL as string) || 'http://localhost:5000';
+const API_BASE_URL = (import.meta.env?.VITE_API_URL as string) || 'http://localhost:5000';
 
 type UnauthorizedCallback = () => void;
 const unauthorizedListeners = new Set<UnauthorizedCallback>();

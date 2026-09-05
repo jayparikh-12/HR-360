@@ -57,6 +57,75 @@ export interface PayrunStatusCounts {
   total?: number;
 }
 
+// ── Attendance & Time-Off Analytics Types (Phase 6.5) ────────────────────────
+
+export interface AttendanceStatusCounts {
+  present: number;
+  absent: number;
+  late: number;
+  overtime: number;
+  missingCheckout: number;
+  total: number;
+  rate: number | null;
+}
+
+export interface AttendanceTrendPoint {
+  date: string;
+  displayDate: string;
+  present: number;
+  absent: number;
+  late: number;
+  overtime: number;
+  missingCheckout: number;
+  total: number;
+}
+
+export interface AttendanceDeptBreakdown {
+  department: string;
+  total: number;
+  present: number;
+  rate: number;
+}
+
+export interface AttendanceAnalyticsData {
+  statusCounts: AttendanceStatusCounts;
+  trends: AttendanceTrendPoint[];
+  departmentBreakdown: AttendanceDeptBreakdown[];
+  totalRecords: number;
+  attendanceRate: number | null;
+}
+
+export interface TimeOffStatusCounts {
+  approved: number;
+  pending: number;
+  refused: number;
+  totalRequests: number;
+  totalDays: number;
+  approvedDays: number;
+}
+
+export interface TimeOffTypeBreakdown {
+  type: string;
+  count: number;
+  days: number;
+  percentage: number;
+}
+
+export interface TimeOffDeptBreakdown {
+  department: string;
+  count: number;
+  days: number;
+  percentage: number;
+}
+
+export interface TimeOffAnalyticsData {
+  statusCounts: TimeOffStatusCounts;
+  byType: TimeOffTypeBreakdown[];
+  byDepartment: TimeOffDeptBreakdown[];
+  totalRequests: number;
+  totalDays: number;
+}
+
 export interface DashboardMetrics {
   totalEmployees: number;
   activeEmployees: number;
@@ -83,6 +152,8 @@ export interface DashboardMetrics {
   pendingTimeOffCount: number;
   approvedTimeOffCount: number;
   alerts: DashboardAlert[];
+  attendanceAnalytics?: AttendanceAnalyticsData;
+  timeOffAnalytics?: TimeOffAnalyticsData;
   isPendingBackendAggregation: boolean;
 }
 
@@ -322,6 +393,9 @@ function aggregateLiveMetrics(
     });
   }
 
+  const attendanceAnalytics = calculateAttendanceAnalytics(filteredAttendance, filteredEmployees, filters);
+  const timeOffAnalytics = calculateTimeOffAnalytics(filteredTimeOff, filteredEmployees, filters);
+
   return {
     totalEmployees,
     activeEmployees,
@@ -340,7 +414,290 @@ function aggregateLiveMetrics(
     pendingTimeOffCount,
     approvedTimeOffCount,
     alerts,
+    attendanceAnalytics,
+    timeOffAnalytics,
     isPendingBackendAggregation: false,
+  };
+}
+
+export function matchesPeriod(dateStr: string, periodFilter?: string): boolean {
+  if (!periodFilter || periodFilter === 'ALL' || !dateStr) return true;
+  const p = periodFilter.trim();
+
+  // Range match: "2026-09-01 - 2026-09-30"
+  const rangeMatch = p.match(/(\d{4}-\d{2}-\d{2})\s*-\s*(\d{4}-\d{2}-\d{2})/);
+  if (rangeMatch) {
+    const start = rangeMatch[1];
+    const end = rangeMatch[2];
+    const d = dateStr.slice(0, 10);
+    return d >= start && d <= end;
+  }
+
+  // Month match: "2026-09"
+  const ymMatch = p.match(/^(\d{4}-\d{2})/);
+  if (ymMatch) {
+    return dateStr.startsWith(ymMatch[1]);
+  }
+
+  return dateStr.includes(p);
+}
+
+export function matchesTimeOffPeriod(startDate: string, endDate: string, periodFilter?: string): boolean {
+  if (!periodFilter || periodFilter === 'ALL') return true;
+  const p = periodFilter.trim();
+
+  const rangeMatch = p.match(/(\d{4}-\d{2}-\d{2})\s*-\s*(\d{4}-\d{2}-\d{2})/);
+  if (rangeMatch) {
+    const start = rangeMatch[1];
+    const end = rangeMatch[2];
+    return (startDate ? startDate.slice(0, 10) : '') <= end && (endDate ? endDate.slice(0, 10) : '') >= start;
+  }
+
+  const ymMatch = p.match(/^(\d{4})-(\d{2})/);
+  if (ymMatch) {
+    const year = parseInt(ymMatch[1], 10);
+    const month = parseInt(ymMatch[2], 10);
+    const start = `${ymMatch[1]}-${ymMatch[2]}-01`;
+    const lastDay = new Date(year, month, 0).getDate();
+    const end = `${ymMatch[1]}-${ymMatch[2]}-${String(lastDay).padStart(2, '0')}`;
+    return (startDate ? startDate.slice(0, 10) : '') <= end && (endDate ? endDate.slice(0, 10) : '') >= start;
+  }
+
+  return Boolean((startDate && startDate.includes(p)) || (endDate && endDate.includes(p)));
+}
+
+export function calculateAttendanceAnalytics(
+  attendanceRecords: AttendanceRecord[],
+  employees: Employee[],
+  filters?: DashboardFilters
+): AttendanceAnalyticsData {
+  const empMap = new Map<string, Employee>();
+  employees.forEach((e) => empMap.set(e.id, e));
+
+  let filtered = attendanceRecords;
+
+  if (filters?.department && filters.department !== 'ALL') {
+    const deptLower = filters.department.trim().toLowerCase();
+    filtered = filtered.filter((r) => {
+      const emp = empMap.get(r.employeeId);
+      return (emp?.department || '').trim().toLowerCase() === deptLower;
+    });
+  }
+
+  if (filters?.employeeType && filters.employeeType !== 'ALL') {
+    const typeLower = filters.employeeType.trim().toLowerCase();
+    filtered = filtered.filter((r) => {
+      const emp = empMap.get(r.employeeId);
+      if (!emp) return false;
+      const empType = ((emp as any).employeeType || '').trim().toLowerCase();
+      const sched = (emp.schedule || '').trim().toLowerCase();
+      if (empType) return empType === typeLower;
+      if (typeLower === 'part_time') return sched.includes('part');
+      if (typeLower === 'full_time') return sched.includes('standard') || sched.includes('40h');
+      return true;
+    });
+  }
+
+  if (filters?.period && filters.period !== 'ALL') {
+    filtered = filtered.filter((r) => matchesPeriod(r.date, filters.period));
+  }
+
+  const total = filtered.length;
+  const present = filtered.filter((r) => r.status === 'PRESENT').length;
+  const absent = filtered.filter((r) => r.status === 'ABSENT').length;
+  const late = filtered.filter((r) => r.status === 'LATE').length;
+  const overtime = filtered.filter((r) => r.status === 'OVERTIME').length;
+  const missingCheckout = filtered.filter((r) => r.status === 'MISSING_CHECKOUT').length;
+
+  const rate = total > 0 ? Math.round(((present + overtime) / total) * 1000) / 10 : null;
+
+  const statusCounts: AttendanceStatusCounts = {
+    present,
+    absent,
+    late,
+    overtime,
+    missingCheckout,
+    total,
+    rate,
+  };
+
+  // Group by date for trends
+  const dateMap = new Map<
+    string,
+    { present: number; absent: number; late: number; overtime: number; missingCheckout: number; total: number }
+  >();
+
+  filtered.forEach((r) => {
+    const d = r.date ? r.date.slice(0, 10) : 'Unknown';
+    if (!dateMap.has(d)) {
+      dateMap.set(d, { present: 0, absent: 0, late: 0, overtime: 0, missingCheckout: 0, total: 0 });
+    }
+    const item = dateMap.get(d)!;
+    item.total += 1;
+    if (r.status === 'PRESENT') item.present += 1;
+    else if (r.status === 'ABSENT') item.absent += 1;
+    else if (r.status === 'LATE') item.late += 1;
+    else if (r.status === 'OVERTIME') item.overtime += 1;
+    else if (r.status === 'MISSING_CHECKOUT') item.missingCheckout += 1;
+  });
+
+  const sortedDates = Array.from(dateMap.keys()).sort();
+  // Provide up to last 14 dates for clean, legible bar visualization
+  const trends: AttendanceTrendPoint[] = sortedDates.slice(-14).map((d) => {
+    const val = dateMap.get(d)!;
+    let displayDate = d;
+    try {
+      const parts = d.split('-');
+      if (parts.length === 3) {
+        const dateObj = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+        displayDate = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      }
+    } catch {
+      displayDate = d;
+    }
+
+    return {
+      date: d,
+      displayDate,
+      ...val,
+    };
+  });
+
+  // Department breakdown
+  const deptMap = new Map<string, { total: number; present: number }>();
+  filtered.forEach((r) => {
+    const emp = empMap.get(r.employeeId);
+    const dept = emp?.department || 'Unassigned';
+    if (!deptMap.has(dept)) {
+      deptMap.set(dept, { total: 0, present: 0 });
+    }
+    const dItem = deptMap.get(dept)!;
+    dItem.total += 1;
+    if (r.status === 'PRESENT' || r.status === 'OVERTIME') dItem.present += 1;
+  });
+
+  const departmentBreakdown: AttendanceDeptBreakdown[] = Array.from(deptMap.entries())
+    .map(([dept, counts]) => ({
+      department: dept,
+      total: counts.total,
+      present: counts.present,
+      rate: counts.total > 0 ? Math.round((counts.present / counts.total) * 1000) / 10 : 0,
+    }))
+    .sort((a, b) => b.total - a.total);
+
+  return {
+    statusCounts,
+    trends,
+    departmentBreakdown,
+    totalRecords: total,
+    attendanceRate: rate,
+  };
+}
+
+export function calculateTimeOffAnalytics(
+  timeOffRequests: TimeOffRequest[],
+  employees: Employee[],
+  filters?: DashboardFilters
+): TimeOffAnalyticsData {
+  const empMap = new Map<string, Employee>();
+  employees.forEach((e) => empMap.set(e.id, e));
+
+  let filtered = timeOffRequests;
+
+  if (filters?.department && filters.department !== 'ALL') {
+    const deptLower = filters.department.trim().toLowerCase();
+    filtered = filtered.filter((t) => {
+      const emp = empMap.get(t.employeeId);
+      return (emp?.department || '').trim().toLowerCase() === deptLower;
+    });
+  }
+
+  if (filters?.employeeType && filters.employeeType !== 'ALL') {
+    const typeLower = filters.employeeType.trim().toLowerCase();
+    filtered = filtered.filter((t) => {
+      const emp = empMap.get(t.employeeId);
+      if (!emp) return false;
+      const empType = ((emp as any).employeeType || '').trim().toLowerCase();
+      const sched = (emp.schedule || '').trim().toLowerCase();
+      if (empType) return empType === typeLower;
+      if (typeLower === 'part_time') return sched.includes('part');
+      if (typeLower === 'full_time') return sched.includes('standard') || sched.includes('40h');
+      return true;
+    });
+  }
+
+  if (filters?.period && filters.period !== 'ALL') {
+    filtered = filtered.filter((t) => matchesTimeOffPeriod(t.startDate, t.endDate, filters.period));
+  }
+
+  const approved = filtered.filter((t) => t.status === 'APPROVED').length;
+  const pending = filtered.filter((t) => t.status === 'PENDING').length;
+  const refused = filtered.filter((t) => t.status === 'REFUSED').length;
+  const totalRequests = filtered.length;
+
+  const totalDays = filtered.reduce((sum, t) => sum + (Number(t.durationDays) || 0), 0);
+  const approvedDays = filtered
+    .filter((t) => t.status === 'APPROVED')
+    .reduce((sum, t) => sum + (Number(t.durationDays) || 0), 0);
+
+  const statusCounts: TimeOffStatusCounts = {
+    approved,
+    pending,
+    refused,
+    totalRequests,
+    totalDays,
+    approvedDays,
+  };
+
+  // Breakdown by leave type
+  const typeMap = new Map<string, { count: number; days: number }>();
+  filtered.forEach((t) => {
+    const type = t.leaveType || 'Other Leave';
+    if (!typeMap.has(type)) {
+      typeMap.set(type, { count: 0, days: 0 });
+    }
+    const item = typeMap.get(type)!;
+    item.count += 1;
+    item.days += Number(t.durationDays) || 0;
+  });
+
+  const byType: TimeOffTypeBreakdown[] = Array.from(typeMap.entries())
+    .map(([type, val]) => ({
+      type,
+      count: val.count,
+      days: val.days,
+      percentage: totalDays > 0 ? Math.round((val.days / totalDays) * 1000) / 10 : 0,
+    }))
+    .sort((a, b) => b.days - a.days);
+
+  // Breakdown by department
+  const deptMap = new Map<string, { count: number; days: number }>();
+  filtered.forEach((t) => {
+    const emp = empMap.get(t.employeeId);
+    const dept = emp?.department || 'Unassigned';
+    if (!deptMap.has(dept)) {
+      deptMap.set(dept, { count: 0, days: 0 });
+    }
+    const item = deptMap.get(dept)!;
+    item.count += 1;
+    item.days += Number(t.durationDays) || 0;
+  });
+
+  const byDepartment: TimeOffDeptBreakdown[] = Array.from(deptMap.entries())
+    .map(([department, val]) => ({
+      department,
+      count: val.count,
+      days: val.days,
+      percentage: totalDays > 0 ? Math.round((val.days / totalDays) * 1000) / 10 : 0,
+    }))
+    .sort((a, b) => b.days - a.days);
+
+  return {
+    statusCounts,
+    byType,
+    byDepartment,
+    totalRequests,
+    totalDays,
   };
 }
 
@@ -413,9 +770,12 @@ export const dashboardApi = {
 
     // 1. Try dedicated dashboard endpoint (Phase 6 backend)
     try {
-      const [dashResponse, payruns] = await Promise.all([
+      const [dashResponse, payruns, attendance, timeOff, employees] = await Promise.all([
         apiFetch<any>(`/api/dashboard${queryString}`),
         payrollApi.getAll().catch(() => []),
+        attendanceApi.getAll().catch(() => []),
+        timeOffApi.getAll().catch(() => []),
+        employeesApi.getAll().catch(() => []),
       ]);
 
       if (dashResponse && dashResponse.success && dashResponse.data) {
@@ -426,11 +786,21 @@ export const dashboardApi = {
           backendData.statusCounts ||
           calculateStatusCounts(payruns);
 
+        const attendanceAnalytics =
+          backendData.attendanceAnalytics ||
+          calculateAttendanceAnalytics(attendance, employees, filters);
+
+        const timeOffAnalytics =
+          backendData.timeOffAnalytics ||
+          calculateTimeOffAnalytics(timeOff, employees, filters);
+
         return {
           ...backendData,
           statusCounts,
           trends,
           departmentCosts: backendData.departmentCosts || backendData.payroll?.departmentCosts || {},
+          attendanceAnalytics,
+          timeOffAnalytics,
         };
       }
     } catch (err) {
@@ -491,4 +861,37 @@ export const dashboardApi = {
     const metrics = await this.getMetrics(filters);
     return metrics.alerts || [];
   },
+
+  /**
+   * Dedicated helper to retrieve attendance analytics with optional filters.
+   */
+  async getAttendanceAnalytics(filters?: DashboardFilters): Promise<AttendanceAnalyticsData> {
+    const metrics = await this.getMetrics(filters);
+    return (
+      metrics.attendanceAnalytics || {
+        statusCounts: { present: 0, absent: 0, late: 0, overtime: 0, missingCheckout: 0, total: 0, rate: null },
+        trends: [],
+        departmentBreakdown: [],
+        totalRecords: 0,
+        attendanceRate: null,
+      }
+    );
+  },
+
+  /**
+   * Dedicated helper to retrieve time-off analytics with optional filters.
+   */
+  async getTimeOffAnalytics(filters?: DashboardFilters): Promise<TimeOffAnalyticsData> {
+    const metrics = await this.getMetrics(filters);
+    return (
+      metrics.timeOffAnalytics || {
+        statusCounts: { approved: 0, pending: 0, refused: 0, totalRequests: 0, totalDays: 0, approvedDays: 0 },
+        byType: [],
+        byDepartment: [],
+        totalRequests: 0,
+        totalDays: 0,
+      }
+    );
+  },
 };
+
