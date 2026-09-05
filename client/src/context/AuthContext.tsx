@@ -1,15 +1,14 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { 
   authApi, 
   getStoredToken, 
   setStoredToken, 
   clearStoredToken, 
-  type ApiUser 
+  setStoredUser, 
+  clearStoredUser 
 } from '../api/client';
 import { normalizeRole, toDisplayRole, type CanonicalRole } from '../utils/permissions';
-import type { UserRole } from '../types';
-
-export interface AuthUser extends ApiUser {}
+import type { UserRole, AuthUser } from '../types';
 
 export interface AuthContextType {
   user: AuthUser | null;
@@ -32,38 +31,69 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [overrideDisplayRole, setOverrideDisplayRole] = useState<UserRole | null>(null);
 
-  // Initialize and validate session on mount
+  // Guard against duplicate concurrent login submissions
+  const isLoggingInRef = useRef<boolean>(false);
+
+  /**
+   * Application Startup Lifecycle:
+   * 1. Read stored token from storage.
+   * 2. If no token exists, finish loading and show Login.
+   * 3. If token exists, call GET /api/auth/me with Bearer token.
+   * 4. If valid, restore the authenticated user profile.
+   * 5. If 401 / expired / invalid / network failure, clear session and return to Login.
+   * 6. Never reveal protected UI while authentication is still initializing.
+   */
   useEffect(() => {
     let isMounted = true;
 
     const restoreSession = async () => {
-      const storedToken = getStoredToken();
+      let storedToken: string | null = null;
+      try {
+        storedToken = getStoredToken();
+      } catch (storageError) {
+        console.warn('[AuthContext] Storage read error:', storageError);
+      }
+
       if (!storedToken) {
         if (isMounted) {
-          setIsLoading(false);
-          setIsAuthenticated(false);
-          setUser(null);
           setToken(null);
+          setUser(null);
+          setIsAuthenticated(false);
+          setIsLoading(false);
         }
         return;
       }
 
       try {
-        // Validate with backend /api/auth/me
+        // Verify token against backend GET /api/auth/me
         const response = await authApi.getMe(storedToken);
+
         if (isMounted && response.success && response.user) {
-          setUser(response.user);
+          const safeUser: AuthUser = {
+            id: response.user.id,
+            name: response.user.name,
+            email: response.user.email,
+            role: response.user.role,
+            ...(response.user.employeeId ? { employeeId: response.user.employeeId } : {}),
+          };
+
           setToken(storedToken);
+          setUser(safeUser);
           setIsAuthenticated(true);
+          // Persist safe user info (never passwords)
+          setStoredUser(safeUser);
         } else {
-          throw new Error('Session invalid or expired');
+          throw new Error('Invalid or expired authentication response');
         }
       } catch (error) {
-        console.warn('[AuthContext] Stored session invalid or expired. Resetting auth state.');
+        // Token expired, malformed, or backend returned 401
+        console.warn('[AuthContext] Stored session invalid or expired. Resetting session state.');
         clearStoredToken();
+        clearStoredUser();
+
         if (isMounted) {
-          setUser(null);
           setToken(null);
+          setUser(null);
           setIsAuthenticated(false);
         }
       } finally {
@@ -80,23 +110,64 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, []);
 
-  // Centralized Login
+  /**
+   * Login Lifecycle:
+   * 1. Check if already authenticating (duplicate submission guard).
+   * 2. Call POST /api/auth/login.
+   * 3. Persist received token and safe user profile (never store passwords).
+   * 4. Update state to reveal authenticated application.
+   */
   const login = useCallback(async (email: string, password: string): Promise<void> => {
-    const response = await authApi.login(email, password);
-    if (!response.success || !response.token || !response.user) {
-      throw new Error(response.message || 'Authentication failed');
+    if (isLoggingInRef.current) {
+      return;
     }
+    isLoggingInRef.current = true;
 
-    setStoredToken(response.token);
-    setToken(response.token);
-    setUser(response.user);
-    setOverrideDisplayRole(null); // Reset any previous preview override
-    setIsAuthenticated(true);
+    try {
+      const trimmedEmail = email.trim().toLowerCase();
+      const trimmedPassword = password.trim();
+
+      if (!trimmedEmail || !trimmedPassword) {
+        throw new Error('Please enter both work email and password.');
+      }
+
+      const response = await authApi.login(trimmedEmail, trimmedPassword);
+
+      if (!response.success || !response.token || !response.user) {
+        throw new Error(response.message || 'Invalid email or password');
+      }
+
+      const safeUser: AuthUser = {
+        id: response.user.id,
+        name: response.user.name,
+        email: response.user.email,
+        role: response.user.role,
+        ...(response.user.employeeId ? { employeeId: response.user.employeeId } : {}),
+      };
+
+      // Persist token and safe user profile only
+      setStoredToken(response.token);
+      setStoredUser(safeUser);
+
+      setToken(response.token);
+      setUser(safeUser);
+      setOverrideDisplayRole(null);
+      setIsAuthenticated(true);
+    } finally {
+      isLoggingInRef.current = false;
+    }
   }, []);
 
-  // Centralized Logout
+  /**
+   * Logout Lifecycle:
+   * 1. Clear stored token.
+   * 2. Clear stored user profile.
+   * 3. Reset React state to unauthenticated.
+   * 4. Return user to Login screen.
+   */
   const logout = useCallback(() => {
     clearStoredToken();
+    clearStoredUser();
     setToken(null);
     setUser(null);
     setOverrideDisplayRole(null);

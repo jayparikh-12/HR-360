@@ -2,6 +2,14 @@
 
 export type UserRole = 'Employee' | 'HR Manager' | 'HR Payroll User' | 'HR Payroll Manager' | 'Admin';
 
+export interface AuthUser {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  employeeId?: string;
+}
+
 export interface Employee {
   id: string;
   name: string;

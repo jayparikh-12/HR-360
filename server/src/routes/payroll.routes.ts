@@ -1,6 +1,17 @@
 import { Router } from 'express';
 import { PayrollEngine } from '../services/payrollEngine.js';
-import { employees } from './employee.routes.js';
+
+// Local in-memory employee list used by the payroll engine.
+// Phase 2.2 removes the exported `employees` array from employee.routes;
+// payroll persistence will be wired in a later phase.
+const employees = [
+  { id: 'EMP-001', name: 'John Doe', department: 'Engineering', wage: 6500 },
+  { id: 'EMP-002', name: 'Maya Lin', department: 'Product', wage: 7200 },
+  { id: 'EMP-003', name: 'Alex Rivera', department: 'Finance', wage: 5200 },
+  { id: 'EMP-004', name: 'Elena Rostova', department: 'Human Resources', wage: 8000 },
+  { id: 'EMP-005', name: 'David Kim', department: 'Engineering', wage: 6800 },
+  { id: 'EMP-006', name: 'Sarah Connor', department: 'Operations', wage: 6300 },
+];
 
 const router = Router();
 
@@ -41,8 +52,8 @@ router.post('/payruns/create', (req, res) => {
     })
   );
 
-  const totalGross = computedPayslips.reduce((a, b) => a + b.gross, 0);
-  const totalNet = computedPayslips.reduce((a, b) => a + b.net, 0);
+  const totalGross = computedPayslips.reduce((a: number, b: { gross: number }) => a + b.gross, 0);
+  const totalNet = computedPayslips.reduce((a: number, b: { net: number }) => a + b.net, 0);
 
   const newPayrun = {
     id: `PR-${Date.now().toString().slice(-4)}`,

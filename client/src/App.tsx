@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
@@ -8,14 +8,59 @@ import { Employees } from './pages/Employees';
 import { Payruns } from './pages/Payruns';
 import { Attendance } from './pages/Attendance';
 import { TimeOff } from './pages/TimeOff';
+import { employeesApi } from './api/employees';
 import { initialEmployees, initialPayruns, initialAttendance, initialTimeOff } from './data';
 import type { Employee, Payrun, AttendanceRecord } from './types';
 import './App.css';
 
+/**
+ * Phase 2.3 shim: attendance rate and leave balance are not yet persisted in MySQL.
+ * Until the attendance/time-off verticals are wired, we merge the locally-known
+ * values onto API records so the UI stays accurate during the transition.
+ */
+const LOCAL_STAT_SHIMS: Record<string, { attendanceRate: number; leaveBalance: number }> = {};
+initialEmployees.forEach((e) => {
+  LOCAL_STAT_SHIMS[e.id] = { attendanceRate: e.attendanceRate, leaveBalance: e.leaveBalance };
+});
+
 const AppContent: React.FC = () => {
   const { isAuthenticated, isLoading, user, displayRole, setDisplayRole, logout } = useAuth();
   const [currentTab, setCurrentTab] = useState<string>('dashboard');
-  const [employees] = useState<Employee[]>(initialEmployees);
+
+  // ── Employee state (MySQL-backed, Phase 2.2) ────────────────────────────────
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [employeesLoading, setEmployeesLoading] = useState<boolean>(false);
+  const [employeesError, setEmployeesError] = useState<string | null>(null);
+
+  const fetchEmployees = useCallback(async () => {
+    setEmployeesLoading(true);
+    setEmployeesError(null);
+    try {
+      const apiEmployees = await employeesApi.getAll();
+      // Merge Phase 2.3 shims so attendance/leave columns display correctly
+      const merged = apiEmployees.map((emp) => ({
+        ...emp,
+        ...(LOCAL_STAT_SHIMS[emp.id] ?? { attendanceRate: 0, leaveBalance: 0 }),
+      }));
+      setEmployees(merged);
+    } catch (err) {
+      console.error('[App] Failed to load employees from API:', err);
+      setEmployeesError('Could not load employee data. Showing cached data.');
+      // Fallback: keep previously loaded employees (or initial data if first load)
+      setEmployees((prev) => (prev.length > 0 ? prev : initialEmployees));
+    } finally {
+      setEmployeesLoading(false);
+    }
+  }, []);
+
+  // Fetch employees when the user authenticates
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchEmployees();
+    }
+  }, [isAuthenticated, fetchEmployees]);
+
+  // ── Other module state (still local — Phase 2.3+) ──────────────────────────
   const [payruns, setPayruns] = useState<Payrun[]>(initialPayruns);
   const [attendance, setAttendance] = useState<AttendanceRecord[]>(initialAttendance);
   const [timeOff] = useState(initialTimeOff);
@@ -84,10 +129,23 @@ const AppContent: React.FC = () => {
         );
       case 'employees':
         return (
-          <Employees
-            employees={employees}
-            onNavigateTab={(tab) => setCurrentTab(tab)}
-          />
+          <>
+            {employeesError && (
+              <div style={{ marginBottom: '12px', padding: '10px 14px', background: '#fef3c7', border: '1px solid #d97706', borderRadius: '8px', fontSize: '13px', color: '#92400e' }}>
+                ⚠️ {employeesError}
+              </div>
+            )}
+            {employeesLoading && employees.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--slate-400)', fontSize: '14px' }}>
+                Loading employees…
+              </div>
+            ) : (
+              <Employees
+                employees={employees}
+                onNavigateTab={(tab) => setCurrentTab(tab)}
+              />
+            )}
+          </>
         );
       case 'payruns':
         return (
