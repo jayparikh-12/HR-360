@@ -129,7 +129,7 @@ test('PeoplePay360 — Phase 6.6 Final Dashboard Verification Suite', async () =
   }
 
   // ── Setup: Seed rich, multi-dimensional test records ────────────────────────
-  const seedPrefix = 'P66_FINAL_';
+  const seedPrefix = 'PR-ZZZ-P66-';
   try {
     // 1. Ensure working schedules
     await executeQuery(`

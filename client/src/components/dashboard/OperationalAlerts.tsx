@@ -170,7 +170,7 @@ export const OperationalAlerts: React.FC<OperationalAlertsProps> = ({
 
       {/* Loading Skeleton State */}
       {loading && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '12px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))', gap: '12px' }}>
           {[1, 2].map((i) => (
             <div 
               key={i} 
@@ -244,7 +244,7 @@ export const OperationalAlerts: React.FC<OperationalAlertsProps> = ({
         <div 
           style={{ 
             display: 'grid', 
-            gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', 
+            gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))', 
             gap: '12px' 
           }}
         >

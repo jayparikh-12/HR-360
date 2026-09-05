@@ -15,6 +15,8 @@
 
 import { Router, Request, Response } from 'express';
 import { authenticateToken } from '../middleware/auth.middleware.js';
+import { roleHasPermission } from '../config/permissions.js';
+import { PERMISSIONS } from '../types/rbac.js';
 import {
   getAllAttendance,
   getAttendanceById,
@@ -84,6 +86,14 @@ router.get('/:id', async (req: Request, res: Response): Promise<void> => {
 
     if (!record) {
       res.status(404).json({ success: false, message: 'Attendance record not found.' });
+      return;
+    }
+
+    // IDOR Protection: Employee can only view their own attendance record
+    const isSelf = req.user?.employeeId && req.user.employeeId === record.employeeId;
+    const isManagerOrAdmin = req.user?.role && roleHasPermission(req.user.role, PERMISSIONS.ATTENDANCE_READ) && req.user.role !== 'Employee';
+    if (!isSelf && !isManagerOrAdmin) {
+      res.status(403).json({ success: false, message: 'Forbidden: You do not have permission to view this attendance record.' });
       return;
     }
 
@@ -201,6 +211,13 @@ router.post('/check-out', async (req: Request, res: Response): Promise<void> => 
       res.status(403).json({ success: false, message: 'Forbidden: Employees can only check out for themselves.' });
       return;
     }
+    if (recordIdInput) {
+      const record = await getAttendanceById(recordIdInput.trim());
+      if (record && record.employeeId !== req.user.employeeId) {
+        res.status(403).json({ success: false, message: 'Forbidden: Employees can only check out for themselves.' });
+        return;
+      }
+    }
   }
 
   try {
@@ -262,6 +279,15 @@ router.post('/:id/check-out', async (req: Request, res: Response): Promise<void>
   if (!isNonEmptyString(id)) {
     res.status(400).json({ success: false, message: 'Invalid attendance record ID.' });
     return;
+  }
+
+  // IDOR check: Employee cannot clock out someone else
+  if (req.user?.role === 'Employee' && req.user.employeeId) {
+    const record = await getAttendanceById(id.trim());
+    if (record && record.employeeId !== req.user.employeeId) {
+      res.status(403).json({ success: false, message: 'Forbidden: Employees can only check out for themselves.' });
+      return;
+    }
   }
 
   try {

@@ -23,6 +23,7 @@ import { Router, Request, Response } from 'express';
 import { authenticateToken } from '../middleware/auth.middleware.js';
 import { authorize } from '../middleware/authorize.js';
 import { PERMISSIONS } from '../types/rbac.js';
+import { roleHasPermission } from '../config/permissions.js';
 import {
   getAllTimeOffRequests,
   getTimeOffRequestById,
@@ -116,6 +117,17 @@ router.get('/:id', async (req: Request, res: Response): Promise<void> => {
 
     if (!record) {
       res.status(404).json({ success: false, message: 'Time off request not found.' });
+      return;
+    }
+
+    // IDOR Protection: Employee can only view their own leave requests
+    const isSelf = req.user?.employeeId && req.user.employeeId === record.employeeId;
+    const isManagerOrAdmin = req.user?.role && roleHasPermission(req.user.role, PERMISSIONS.TIMEOFF_APPROVE);
+    if (!isSelf && !isManagerOrAdmin) {
+      res.status(403).json({
+        success: false,
+        message: 'Forbidden: You do not have permission to view this time off request.',
+      });
       return;
     }
 

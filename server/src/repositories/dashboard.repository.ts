@@ -177,7 +177,7 @@ export async function getEmployeeMetrics(
 
   // Active/employment period semantics: employee must have joined on or before period end date
   if (dateRange && dateRange.endDate) {
-    whereClauses.push('DATE(e.createdAt) <= ?');
+    whereClauses.push('DATE(e.created_at) <= ?');
     params.push(dateRange.endDate);
   }
 
@@ -262,7 +262,7 @@ export async function getDepartmentWages(
   }
 
   if (dateRange && dateRange.endDate) {
-    whereClauses.push('DATE(e.createdAt) <= ?');
+    whereClauses.push('DATE(e.created_at) <= ?');
     params.push(dateRange.endDate);
   }
 

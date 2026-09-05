@@ -8,9 +8,9 @@ import { PERMISSIONS } from '../types/rbac.js';
 import { getPermissionsForRole } from '../config/permissions.js';
 
 
+import { JWT_SECRET, JWT_SIGN_OPTIONS } from '../config/jwt.config.js';
+
 const router = Router();
-const JWT_SECRET = process.env.JWT_SECRET || 'peoplepay360-hackathon-jwt-secret-2026';
-const TOKEN_EXPIRY: jwt.SignOptions['expiresIn'] = (process.env.JWT_EXPIRES_IN as jwt.SignOptions['expiresIn']) || '20m';
 
 /**
  * POST /api/auth/login
@@ -68,7 +68,7 @@ router.post('/login', async (req: Request<{}, {}, LoginRequest>, res: Response<L
       role: userAccount.role,
     };
 
-    const token = jwt.sign(payload, JWT_SECRET, { expiresIn: TOKEN_EXPIRY });
+    const token = jwt.sign(payload, JWT_SECRET, JWT_SIGN_OPTIONS);
 
     // Safe user response (never leaking password)
     const safeUser = toSafeUser(userAccount);
