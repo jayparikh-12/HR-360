@@ -1,5 +1,9 @@
 import express from 'express';
 import cors from 'cors';
+import dotenv from 'dotenv';
+
+dotenv.config();
+
 import authRoutes from './routes/auth.routes.js';
 import employeeRoutes from './routes/employee.routes.js';
 import contractRoutes from './routes/contract.routes.js';

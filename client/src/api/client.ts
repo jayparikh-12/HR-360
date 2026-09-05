@@ -9,6 +9,7 @@
  */
 
 export const TOKEN_STORAGE_KEY = 'peoplepay360_auth_token';
+export const USER_STORAGE_KEY = 'peoplepay360_auth_user';
 
 export class ApiError extends Error {
   statusCode: number;
@@ -49,7 +50,8 @@ const API_BASE_URL = (import.meta.env.VITE_API_URL as string) || 'http://localho
 export function getStoredToken(): string | null {
   try {
     return localStorage.getItem(TOKEN_STORAGE_KEY);
-  } catch {
+  } catch (err) {
+    console.warn('[API Client] Could not read auth token from local storage:', err);
     return null;
   }
 }
@@ -67,6 +69,40 @@ export function clearStoredToken(): void {
     localStorage.removeItem(TOKEN_STORAGE_KEY);
   } catch (err) {
     console.warn('[API Client] Could not clear auth token from local storage:', err);
+  }
+}
+
+export function getStoredUser(): ApiUser | null {
+  try {
+    const raw = localStorage.getItem(USER_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (err) {
+    console.warn('[API Client] Could not read user profile from local storage:', err);
+    return null;
+  }
+}
+
+export function setStoredUser(user: ApiUser): void {
+  try {
+    // Only persist safe user information (never passwords)
+    const safeUser: ApiUser = {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      ...(user.employeeId ? { employeeId: user.employeeId } : {}),
+    };
+    localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(safeUser));
+  } catch (err) {
+    console.warn('[API Client] Could not persist user profile to local storage:', err);
+  }
+}
+
+export function clearStoredUser(): void {
+  try {
+    localStorage.removeItem(USER_STORAGE_KEY);
+  } catch (err) {
+    console.warn('[API Client] Could not clear user profile from local storage:', err);
   }
 }
 
