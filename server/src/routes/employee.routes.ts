@@ -103,11 +103,14 @@ router.post('/', authorize(PERMISSIONS.EMPLOYEE_WRITE), async (req: Request, res
   // ── Required field validation ──
   const errors: string[] = [];
 
-  if (!isNonEmptyString(body.firstName)) errors.push('firstName is required.');
-  if (!isNonEmptyString(body.lastName))  errors.push('lastName is required.');
-  if (!isNonEmptyString(body.email))     errors.push('email is required.');
+  // Accept either name or firstName+lastName from legacy clients
+  const fullName = isNonEmptyString(body.name)
+    ? body.name.trim()
+    : [(req.body.firstName || '').trim(), (req.body.lastName || '').trim()].filter(Boolean).join(' ');
+
+  if (!fullName) errors.push('name is required.');
+  if (!isNonEmptyString(body.email))      errors.push('email is required.');
   if (!isNonEmptyString(body.department)) errors.push('department is required.');
-  if (!isNonEmptyString(body.jobPosition)) errors.push('jobPosition is required.');
 
   if (errors.length > 0) {
     res.status(400).json({ success: false, message: errors.join(' ') });
@@ -122,12 +125,8 @@ router.post('/', authorize(PERMISSIONS.EMPLOYEE_WRITE), async (req: Request, res
   }
 
   // ── Optional enum validation ──
-  if (body.employeeType !== undefined && !VALID_EMP_TYPES.has(body.employeeType as string)) {
-    res.status(400).json({ success: false, message: 'employeeType must be FULL_TIME, PART_TIME, or CONTRACT.' });
-    return;
-  }
-  if (body.status !== undefined && !VALID_STATUSES.has(body.status as string)) {
-    res.status(400).json({ success: false, message: 'status must be ACTIVE or INACTIVE.' });
+  if (body.status !== undefined && !VALID_STATUSES.has((body.status as string).toUpperCase())) {
+    res.status(400).json({ success: false, message: 'status must be ACTIVE, PROBATION, or TERMINATED.' });
     return;
   }
   if (body.gender !== undefined && body.gender !== null && body.gender !== '') {
@@ -141,21 +140,29 @@ router.post('/', authorize(PERMISSIONS.EMPLOYEE_WRITE), async (req: Request, res
     }
   }
 
+  // Accept position from either 'position' or legacy 'jobPosition'
+  const position = isNonEmptyString(body.position)
+    ? body.position.trim()
+    : isNonEmptyString((req.body as Record<string, unknown>).jobPosition as string)
+      ? (req.body.jobPosition as string).trim()
+      : 'Staff';
+
+  // Accept bankAccount from either 'bankAccount' or legacy 'bankAccountNo'
+  const bankAccount = isNonEmptyString(body.bankAccount)
+    ? body.bankAccount.trim()
+    : isNonEmptyString((req.body as Record<string, unknown>).bankAccountNo as string)
+      ? (req.body.bankAccountNo as string).trim()
+      : null;
+
   const input: CreateEmployeeInput = {
-    firstName:       (body.firstName as string).trim(),
-    lastName:        (body.lastName as string).trim(),
-    email:           emailStr,
-    department:      (body.department as string).trim(),
-    jobPosition:     (body.jobPosition as string).trim(),
-    gender:          body.gender ? String(body.gender).trim().toUpperCase() : null,
-    employeeType:    body.employeeType,
-    status:          body.status,
-    phone:           typeof body.phone === 'string' ? body.phone.trim() || null : null,
-    workingSchedule: typeof body.workingSchedule === 'string' ? body.workingSchedule.trim() || null : null,
-    managerId:       typeof body.managerId === 'string' ? body.managerId.trim() || null : null,
-    bankName:        typeof body.bankName === 'string' ? body.bankName.trim() || null : null,
-    bankAccountNo:   typeof body.bankAccountNo === 'string' ? body.bankAccountNo.trim() || null : null,
-    ifscRouting:     typeof body.ifscRouting === 'string' ? body.ifscRouting.trim() || null : null,
+    name:        fullName,
+    email:       emailStr,
+    department:  (body.department as string).trim(),
+    position,
+    gender:      body.gender ? String(body.gender).trim().toUpperCase() : null,
+    status:      body.status,
+    joinDate:    isNonEmptyString(body.joinDate) ? body.joinDate.trim() : undefined,
+    bankAccount,
   };
 
   try {
@@ -196,30 +203,12 @@ router.patch('/:id', authorize(PERMISSIONS.EMPLOYEE_WRITE), async (req: Request,
       return;
     }
   }
-
-  if (body.firstName !== undefined && !isNonEmptyString(body.firstName)) {
-    res.status(400).json({ success: false, message: 'firstName cannot be empty.' });
-    return;
-  }
-  if (body.lastName !== undefined && !isNonEmptyString(body.lastName)) {
-    res.status(400).json({ success: false, message: 'lastName cannot be empty.' });
-    return;
-  }
   if (body.department !== undefined && !isNonEmptyString(body.department)) {
     res.status(400).json({ success: false, message: 'department cannot be empty.' });
     return;
   }
-  if (body.jobPosition !== undefined && !isNonEmptyString(body.jobPosition)) {
-    res.status(400).json({ success: false, message: 'jobPosition cannot be empty.' });
-    return;
-  }
-
-  if (body.employeeType !== undefined && !VALID_EMP_TYPES.has(body.employeeType as string)) {
-    res.status(400).json({ success: false, message: 'employeeType must be FULL_TIME, PART_TIME, or CONTRACT.' });
-    return;
-  }
-  if (body.status !== undefined && !VALID_STATUSES.has(body.status as string)) {
-    res.status(400).json({ success: false, message: 'status must be ACTIVE or INACTIVE.' });
+  if (body.status !== undefined && !VALID_STATUSES.has((body.status as string || '').toUpperCase())) {
+    res.status(400).json({ success: false, message: 'status must be ACTIVE, PROBATION, or TERMINATED.' });
     return;
   }
   if (body.gender !== undefined && body.gender !== null && body.gender !== '') {
@@ -233,18 +222,26 @@ router.patch('/:id', authorize(PERMISSIONS.EMPLOYEE_WRITE), async (req: Request,
     }
   }
 
-  // ── Strip protected/system fields the client should never control ──
-  const {
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    ...safeBody
-  } = body as Record<string, unknown>;
-  // Explicitly remove any attempt to set protected fields
-  delete safeBody['id'];
-  delete safeBody['empCode'];
-  delete safeBody['createdAt'];
-  delete safeBody['updatedAt'];
-
-  const input: UpdateEmployeeInput = safeBody as UpdateEmployeeInput;
+  // Accept legacy field names from older clients
+  const rawBody = req.body as Record<string, unknown>;
+  const input: UpdateEmployeeInput = {
+    name:        isNonEmptyString(body.name) ? body.name.trim() : undefined,
+    email:       isNonEmptyString(body.email) ? body.email.trim().toLowerCase() : undefined,
+    department:  isNonEmptyString(body.department) ? body.department.trim() : undefined,
+    position:    isNonEmptyString(body.position) ? body.position.trim()
+                   : isNonEmptyString(rawBody.jobPosition as string) ? (rawBody.jobPosition as string).trim()
+                   : undefined,
+    gender:      body.gender !== undefined ? (body.gender ? String(body.gender).trim().toUpperCase() : null) : undefined,
+    status:      isNonEmptyString(body.status) ? body.status.trim().toUpperCase() : undefined,
+    joinDate:    isNonEmptyString(body.joinDate) ? body.joinDate.trim() : undefined,
+    bankAccount: isNonEmptyString(body.bankAccount) ? body.bankAccount.trim()
+                   : isNonEmptyString(rawBody.bankAccountNo as string) ? (rawBody.bankAccountNo as string).trim()
+                   : undefined,
+  };
+  // Remove undefined keys so the repository only updates what was actually supplied
+  (Object.keys(input) as (keyof UpdateEmployeeInput)[]).forEach((k) => {
+    if (input[k] === undefined) delete input[k];
+  });
 
   try {
     const updated = await updateEmployee(sanitizedId, input);
