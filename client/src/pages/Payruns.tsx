@@ -11,7 +11,6 @@ import {
   Loader2
 } from 'lucide-react';
 import type { Payrun, PayslipItem, Employee } from '../types';
-import { initialPayruns } from '../data';
 import { payrollApi } from '../api/payroll';
 import { ApiError } from '../api/client';
 import { useAuth } from '../context/AuthContext';
@@ -24,9 +23,18 @@ interface PayrunsProps {
   onSelectPayrun?: (id: string) => void;
 }
 
+/**
+ * Resolve the default payrun to display when the user enters the Command Center.
+ * Priority: first DRAFT payrun (user's active work) → most recent payrun → undefined.
+ * Never hardcodes a specific payrun ID.
+ */
 const getDefaultPayrun = (runs: Payrun[]): Payrun | undefined => {
   if (!runs || runs.length === 0) return undefined;
-  return runs.find((p) => p.id === 'PR-2026-09') || runs[runs.length - 1] || runs[0];
+  // Prefer the most-recent DRAFT so a fresh workflow is front-and-center
+  const draft = runs.find((p) => p.status === 'DRAFT');
+  if (draft) return draft;
+  // Fall back to the most-recent payrun (DB returns created_at DESC)
+  return runs[0];
 };
 
 export const Payruns: React.FC<PayrunsProps> = ({ 
@@ -40,16 +48,17 @@ export const Payruns: React.FC<PayrunsProps> = ({
   const canValidateAndPay = displayRole === 'Admin' || displayRole === 'HR Payroll Manager';
   const canCreatePayrun = displayRole === 'Admin' || displayRole === 'HR Payroll Manager' || displayRole === 'HR Payroll User';
 
-  // Determine initial active payrun: preserve activePayrunId in same session if valid, otherwise baseline default
-  const resolveInitialPayrun = (): Payrun => {
+  // Determine initial active payrun: preserve activePayrunId in same session if valid, otherwise smart default.
+  // Returns undefined when no payruns exist — the UI will show an empty state.
+  const resolveInitialPayrun = (): Payrun | undefined => {
     if (activePayrunId) {
       const match = payruns.find((p) => p.id === activePayrunId);
       if (match) return match;
     }
-    return getDefaultPayrun(payruns) || initialPayruns[0];
+    return getDefaultPayrun(payruns);
   };
 
-  const [activePayrun, setActivePayrun] = useState<Payrun>(resolveInitialPayrun);
+  const [activePayrun, setActivePayrun] = useState<Payrun | undefined>(resolveInitialPayrun);
   const [selectedPayslip, setSelectedPayslip] = useState<PayslipItem | null>(null);
   const [wizardOpen, setWizardOpen] = useState(false);
   const [wizardStep, setWizardStep] = useState(1);
@@ -57,13 +66,26 @@ export const Payruns: React.FC<PayrunsProps> = ({
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Sync activePayrun with authoritative backend status on mount
+  // Wizard controlled form state (Step 1)
+  const [wizardName, setWizardName] = useState('October 2026 Regular Cycle');
+  const [wizardPeriod, setWizardPeriod] = useState('2026-10-01 to 2026-10-31');
+  const [wizardSalaryStructure, setWizardSalaryStructure] = useState('Standard Full-Time Tech');
+  const [wizardLoading, setWizardLoading] = useState(false);
+  const [wizardError, setWizardError] = useState<string | null>(null);
+
+  // Sync activePayrun with authoritative backend status on mount / when activePayrunId changes.
+  // Always trusts the backend as source of truth for status.
   useEffect(() => {
     let isMounted = true;
     const loadPersistedPayrun = async () => {
       try {
         const backendRuns = await payrollApi.getAll();
-        if (!isMounted || !backendRuns || backendRuns.length === 0) return;
+        if (!isMounted) return;
+        if (!backendRuns || backendRuns.length === 0) {
+          // No payruns in DB — show empty state
+          setActivePayrun(undefined);
+          return;
+        }
 
         setActivePayrun((prev) => {
           let match: Payrun | undefined;
@@ -71,16 +93,16 @@ export const Payruns: React.FC<PayrunsProps> = ({
             match = backendRuns.find((pr) => pr.id === activePayrunId);
           }
           if (!match) {
-            match = getDefaultPayrun(backendRuns) || backendRuns[0];
+            match = getDefaultPayrun(backendRuns);
           }
-          if (!match) return prev;
+          if (!match) return undefined;
 
           const mergedPayslips = (match.payslips && match.payslips.length > 0)
             ? match.payslips
             : (prev?.payslips || []).map((p) => ({ ...p, status: match!.status }));
 
           const enriched: Payrun = {
-            ...prev,
+            ...(prev || match),
             ...match,
             status: match.status,
             payslips: mergedPayslips,
@@ -101,7 +123,7 @@ export const Payruns: React.FC<PayrunsProps> = ({
 
   // Validate Payrun via backend API (PATCH /api/payroll/payruns/:id/validate)
   const handleValidate = async () => {
-    if (actionLoading) return;
+    if (actionLoading || !activePayrun) return;
     setError(null);
     setActionLoading(true);
 
@@ -132,7 +154,7 @@ export const Payruns: React.FC<PayrunsProps> = ({
 
   // Pay & Disburse Payrun via backend API (PATCH /api/payroll/payruns/:id/pay)
   const handlePay = async () => {
-    if (actionLoading) return;
+    if (actionLoading || !activePayrun) return;
     setError(null);
     setActionLoading(true);
 
@@ -161,8 +183,9 @@ export const Payruns: React.FC<PayrunsProps> = ({
     }
   };
 
-  // Local calculation of draft payslips
+  // Local computation: DRAFT → COMPUTED (client-side only; no /compute API endpoint exists)
   const handleComputePayslips = () => {
+    if (!activePayrun) return;
     setError(null);
     const updated: Payrun = {
       ...activePayrun,
@@ -174,51 +197,46 @@ export const Payruns: React.FC<PayrunsProps> = ({
     onSelectPayrun?.(updated.id);
   };
 
-  // Complete wizard
-  const handleFinishWizard = () => {
-    const newPayslips: PayslipItem[] = employees
-      .filter((e) => selectedEmpIds.includes(e.id))
-      .map((e) => {
-        const basic = Math.round(e.wage * 0.6);
-        const hra = Math.round(e.wage * 0.25);
-        const allowance = e.wage - basic - hra;
-        const gross = e.wage;
-        const tax = Math.round(gross * 0.1);
-        const otherDeductions = Math.round(gross * 0.07);
-        const net = gross - tax - otherDeductions;
-        return {
-          id: `PS-${e.id}`,
-          employeeId: e.id,
-          employeeName: e.name,
-          department: e.department,
-          basic,
-          hra,
-          allowance,
-          gross,
-          tax,
-          otherDeductions,
-          net,
-          status: 'COMPUTED',
-        };
+  /**
+   * Create a new payrun via the backend API.
+   * The backend creates the record with status = DRAFT.
+   * We use the returned object directly — no local status assumptions.
+   */
+  const handleFinishWizard = async () => {
+    if (wizardLoading) return;
+    setWizardError(null);
+    setWizardLoading(true);
+
+    try {
+      const created = await payrollApi.create({
+        name: wizardName.trim() || 'New Payrun',
+        period: wizardPeriod.trim() || 'October 2026',
+        salaryStructure: wizardSalaryStructure,
+        employeeIds: selectedEmpIds.length > 0 ? selectedEmpIds : undefined,
       });
 
-    const newRun: Payrun = {
-      id: `PR-${Date.now().toString().slice(-4)}`,
-      name: 'September 2026 Regular Cycle',
-      period: 'Sep 01 – Sep 30, 2026',
-      salaryStructure: 'Standard Full-Time Tech',
-      totalGross: newPayslips.reduce((a, b) => a + b.gross, 0),
-      totalNet: newPayslips.reduce((a, b) => a + b.net, 0),
-      employeeCount: newPayslips.length,
-      status: 'COMPUTED',
-      payslips: newPayslips,
-    };
+      // Use backend response as-is: status will be DRAFT
+      const newRun: Payrun = {
+        ...created,
+        payslips: created.payslips || [],
+      };
 
-    setActivePayrun(newRun);
-    onUpdatePayrun(newRun);
-    onSelectPayrun?.(newRun.id);
-    setWizardOpen(false);
-    setWizardStep(1);
+      setActivePayrun(newRun);
+      onUpdatePayrun(newRun);
+      onSelectPayrun?.(newRun.id);
+      setWizardOpen(false);
+      setWizardStep(1);
+      // Reset wizard fields for next use
+      setWizardName('October 2026 Regular Cycle');
+      setWizardPeriod('2026-10-01 to 2026-10-31');
+      setWizardSalaryStructure('Standard Full-Time Tech');
+    } catch (err: any) {
+      console.error('[Payruns] Wizard create failed:', err);
+      const msg = err instanceof ApiError ? err.message : (err?.message || 'Failed to create payrun. Please try again.');
+      setWizardError(msg);
+    } finally {
+      setWizardLoading(false);
+    }
   };
 
   return (
@@ -275,6 +293,34 @@ export const Payruns: React.FC<PayrunsProps> = ({
         </div>
       )}
 
+      {/* Empty State — no payruns exist yet */}
+      {!activePayrun && (
+        <div
+          style={{
+            textAlign: 'center',
+            padding: '80px 20px',
+            color: 'var(--slate-400)',
+          }}
+        >
+          <div style={{ fontSize: '40px', marginBottom: '16px' }}>📋</div>
+          <div style={{ fontSize: '16px', fontWeight: 600, color: 'var(--slate-600)', marginBottom: '8px' }}>
+            No Payruns Yet
+          </div>
+          <div style={{ fontSize: '13px', marginBottom: '24px', color: 'var(--slate-500)' }}>
+            Create your first payrun to get started with payroll processing.
+          </div>
+          {canCreatePayrun && (
+            <button className="btn btn-primary" onClick={() => setWizardOpen(true)}>
+              <Play size={14} />
+              <span>New Payrun Wizard</span>
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Main Payrun Command Center — only when a payrun is active */}
+      {activePayrun && (
+        <>
       {/* 4-Stage Stepper Bar */}
       <div className="stepper-bar">
         <div className={`step-node ${activePayrun.status !== 'DRAFT' ? 'completed' : 'active'}`}>
@@ -478,6 +524,9 @@ export const Payruns: React.FC<PayrunsProps> = ({
         </table>
       </div>
 
+        </>
+      )}
+
       {/* 2-STEP PAYRUN WIZARD MODAL */}
       {wizardOpen && (
         <div className="modal-overlay">
@@ -495,11 +544,20 @@ export const Payruns: React.FC<PayrunsProps> = ({
               <div>
                 <div className="form-field">
                   <label className="form-label">Payrun Title</label>
-                  <input className="form-input" defaultValue="October 2026 Regular Cycle" />
+                  <input
+                    className="form-input"
+                    value={wizardName}
+                    onChange={(e) => setWizardName(e.target.value)}
+                    placeholder="e.g. October 2026 Regular Cycle"
+                  />
                 </div>
                 <div className="form-field">
                   <label className="form-label">Salary Structure</label>
-                  <select className="form-input" defaultValue="Standard Full-Time Tech">
+                  <select
+                    className="form-input"
+                    value={wizardSalaryStructure}
+                    onChange={(e) => setWizardSalaryStructure(e.target.value)}
+                  >
                     <option>Standard Full-Time Tech</option>
                     <option>Executive Management</option>
                     <option>Hourly Operations</option>
@@ -507,11 +565,25 @@ export const Payruns: React.FC<PayrunsProps> = ({
                 </div>
                 <div className="form-field">
                   <label className="form-label">Payroll Period</label>
-                  <input className="form-input" defaultValue="2026-10-01 to 2026-10-31" />
+                  <input
+                    className="form-input"
+                    value={wizardPeriod}
+                    onChange={(e) => setWizardPeriod(e.target.value)}
+                    placeholder="e.g. 2026-10-01 to 2026-10-31"
+                  />
                 </div>
 
                 <div className="modal-footer">
-                  <button className="btn btn-secondary" onClick={() => setWizardOpen(false)}>Cancel</button>
+                  <button
+                    className="btn btn-secondary"
+                    onClick={() => {
+                      setWizardOpen(false);
+                      setWizardStep(1);
+                      setWizardError(null);
+                    }}
+                  >
+                    Cancel
+                  </button>
                   <button className="btn btn-primary" onClick={() => setWizardStep(2)}>
                     Continue to Employees →
                   </button>
@@ -539,10 +611,25 @@ export const Payruns: React.FC<PayrunsProps> = ({
                   ))}
                 </div>
 
+                {wizardError && (
+                  <div style={{ marginTop: '12px', padding: '10px 14px', backgroundColor: '#fef2f2', border: '1px solid #fecaca', borderRadius: '6px', color: '#991b1b', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <AlertCircle size={14} />
+                    <span>{wizardError}</span>
+                  </div>
+                )}
+
                 <div className="modal-footer">
-                  <button className="btn btn-secondary" onClick={() => setWizardStep(1)}>← Back</button>
-                  <button className="btn btn-primary" onClick={handleFinishWizard}>
-                    Create Payrun ({selectedEmpIds.length} Selected)
+                  <button className="btn btn-secondary" onClick={() => setWizardStep(1)} disabled={wizardLoading}>← Back</button>
+                  <button
+                    className="btn btn-primary"
+                    onClick={handleFinishWizard}
+                    disabled={wizardLoading}
+                  >
+                    {wizardLoading ? (
+                      <><Loader2 size={14} className="spin" style={{ animation: 'spin 1s linear infinite' }} /><span>Creating Payrun...</span></>
+                    ) : (
+                      <span>Create Payrun ({selectedEmpIds.length} Selected)</span>
+                    )}
                   </button>
                 </div>
               </div>
@@ -552,7 +639,7 @@ export const Payruns: React.FC<PayrunsProps> = ({
       )}
 
       {/* INDIVIDUAL PAYSLIP VOUCHER MODAL */}
-      {selectedPayslip && (
+      {selectedPayslip && activePayrun && (
         <div className="modal-overlay">
           <div className="modal-content" style={{ maxWidth: '640px' }}>
             <div className="modal-header">

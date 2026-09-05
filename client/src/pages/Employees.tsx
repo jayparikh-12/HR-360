@@ -1314,7 +1314,7 @@ export const Employees: React.FC<EmployeesProps> = ({
           <div className="page-header">
             <div>
               <h1 className="page-title">Employee Directory</h1>
-              <p className="page-desc">Central operational hub for {employees.length} active staff members.</p>
+              <p className="page-desc">Central operational hub for {employees.filter(e => e.status === 'ACTIVE').length} active staff members.</p>
             </div>
             <div style={{ display: 'flex', gap: '10px' }}>
               <button
