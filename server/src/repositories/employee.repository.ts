@@ -1,10 +1,8 @@
 /**
  * Employee Repository — Data-access layer for the employees table.
  *
- * Live MySQL Schema columns:
- *   id, empCode, firstName, lastName, email, phone, department,
- *   jobPosition, gender, employeeType, status, workingSchedule,
- *   managerId, bankName, bankAccountNo, ifscRouting, createdAt, updatedAt
+ * Normalized to live MySQL schema:
+ *   id, name, email, department, position, gender, status, join_date, bank_account, created_at
  *
  * Uses parameterized queries exclusively.
  * Connects through the centralized MySQL pool via executeQuery.
@@ -35,6 +33,7 @@ export interface EmployeeRow extends RowDataPacket {
 
 export interface EmployeeRecord {
   id: string;
+  empCode?: string;
   name: string;
   email: string;
   department: string;
@@ -126,6 +125,7 @@ function mapRowToRecord(row: EmployeeRow): EmployeeRecord {
     : 0;
   return {
     id: row.id,
+    empCode: row.empCode ? String(row.empCode).trim() : row.id,
     name: fullName,
     email: row.email,
     department: row.department,
@@ -148,6 +148,7 @@ function mapRowToRecord(row: EmployeeRow): EmployeeRecord {
 const EMPLOYEE_SELECT = `
   SELECT
     e.id,
+    e.id AS empCode,
     e.name,
     e.email,
     e.department,
@@ -240,7 +241,10 @@ export async function createEmployee(input: CreateEmployeeInput): Promise<Employ
   );
 
   const created = await getEmployeeById(id);
-  if (!created) throw new Error('Database operation failed. Please try again.');
+  if (!created) {
+    throw new Error('Employee creation verification failed.');
+  }
+
   return created;
 }
 
@@ -251,8 +255,8 @@ export async function updateEmployee(
   const existing = await getEmployeeById(id);
   if (!existing) return null;
 
-  if (input.email !== undefined) {
-    const conflict = await emailExists(input.email, existing.id);
+  if (input.email && input.email.trim().toLowerCase() !== existing.email.toLowerCase()) {
+    const conflict = await emailExists(input.email, id);
     if (conflict) throw new Error('DUPLICATE_EMAIL');
   }
 
@@ -292,7 +296,7 @@ export async function updateEmployee(
   if (input.status !== undefined) {
     const s = input.status.trim().toUpperCase();
     setClauses.push('status = ?');
-    values.push(s === 'TERMINATED' || s === 'INACTIVE' ? 'INACTIVE' : s);
+    values.push(s === 'TERMINATED' || s === 'INACTIVE' ? 'INACTIVE' : s === 'PROBATION' ? 'PROBATION' : 'ACTIVE');
   }
 
   const bank = input.bankAccountNo || input.bankAccount;
@@ -339,4 +343,3 @@ export async function deleteEmployee(id: string): Promise<boolean> {
     return result.affectedRows > 0;
   }
 }
-

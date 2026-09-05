@@ -46,7 +46,7 @@ export const DetailedPayslipModal: React.FC<DetailedPayslipModalProps> = ({
     try {
       await payrollApi.downloadPayslipPdf(payslip.payslipId);
     } catch (err: any) {
-      console.error('[DetailedPayslipModal] Download PDF failed:', err);
+      console.error('[DetailedPayslipModal] Download PDF failed:', err instanceof Error ? err.message : String(err));
       setDownloadError(err?.message || 'Failed to generate payslip PDF. Please try again.');
     } finally {
       setDownloading(false);
@@ -69,7 +69,7 @@ export const DetailedPayslipModal: React.FC<DetailedPayslipModalProps> = ({
       }
       setPayslip(data);
     } catch (err: any) {
-      console.error('[DetailedPayslipModal] Failed to load payslip:', err);
+      console.error('[DetailedPayslipModal] Failed to load payslip:', err instanceof Error ? err.message : String(err));
       if (err instanceof ApiError) {
         if (err.statusCode === 403) {
           setError('Access Denied: You are not authorized to view this employee’s payslip.');

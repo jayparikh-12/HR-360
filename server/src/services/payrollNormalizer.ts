@@ -80,10 +80,15 @@ export function normalizePayrollPeriod(
     if (dateMatches && dateMatches.length >= 2) {
       startStr = dateMatches[0];
       endStr = dateMatches[1];
+    } else if (/^\d{4}-\d{2}$/.test(trimmed)) {
+      const [y, m] = trimmed.split('-').map(Number);
+      const lastDay = new Date(Date.UTC(y, m, 0)).getUTCDate();
+      startStr = `${trimmed}-01`;
+      endStr = `${trimmed}-${String(lastDay).padStart(2, '0')}`;
     } else {
       throw new PayrollInputError(
         'INVALID_PERIOD',
-        `Invalid payroll period string '${periodInput}'. Expected format containing 'YYYY-MM-DD - YYYY-MM-DD'.`
+        `Invalid payroll period string '${periodInput}'. Expected format containing 'YYYY-MM-DD - YYYY-MM-DD' or 'YYYY-MM'.`
       );
     }
   } else if (typeof periodInput === 'object' && periodInput !== null) {
@@ -220,7 +225,8 @@ export function normalizeEmployee(raw: RawEmployeeData): NormalizedEmployeeInput
 function isEmployeeIdMatch(
   contractEmpId: string,
   targetEmpId: string,
-  contractEmpCode?: string
+  contractEmpCode?: string,
+  targetEmpCode?: string
 ): boolean {
   if (contractEmpId === targetEmpId) return true;
   const normTarget = targetEmpId.replace(/[-_]/g, '').toLowerCase();
@@ -229,6 +235,11 @@ function isEmployeeIdMatch(
   if (contractEmpCode) {
     const normCode = contractEmpCode.replace(/[-_]/g, '').toLowerCase();
     if (normCode === normTarget) return true;
+  }
+  if (targetEmpCode) {
+    const normTargetCode = targetEmpCode.replace(/[-_]/g, '').toLowerCase();
+    if (normTargetCode === normA) return true;
+    if (contractEmpCode && normTargetCode === contractEmpCode.replace(/[-_]/g, '').toLowerCase()) return true;
   }
   return false;
 }
@@ -327,7 +338,8 @@ export function normalizeContract(
 export function selectContractForPeriod(
   contracts: RawContractData[],
   employeeId: string,
-  period: NormalizedPayrollPeriodInput | { periodStart: string; periodEnd: string }
+  period: NormalizedPayrollPeriodInput | { periodStart: string; periodEnd: string },
+  employeeCode?: string
 ): NormalizedContractInput {
   if (!contracts || !Array.isArray(contracts) || contracts.length === 0) {
     throw new PayrollInputError(
@@ -345,7 +357,7 @@ export function selectContractForPeriod(
     if (!c || typeof c !== 'object') return false;
     const cEmpId = String(c.employeeId || c.employee_id || '').trim();
     const cEmpCode = c.empCode || c.emp_code ? String(c.empCode || c.emp_code).trim() : undefined;
-    return isEmployeeIdMatch(cEmpId, targetEmpId, cEmpCode);
+    return isEmployeeIdMatch(cEmpId, targetEmpId, cEmpCode, employeeCode);
   });
 
   if (employeeContracts.length === 0) {
@@ -770,7 +782,7 @@ export function normalizePayrollCalculationInput(data: RawPayrollDomainData): Fu
   let contract: NormalizedContractInput;
 
   if (data.contracts && Array.isArray(data.contracts) && data.contracts.length > 0) {
-    contract = selectContractForPeriod(data.contracts, employee.employeeId, payrollPeriod);
+    contract = selectContractForPeriod(data.contracts, employee.employeeId, payrollPeriod, employee.employeeCode);
   } else if (data.contract && typeof data.contract === 'object') {
     contract = normalizeContract(data.contract, employee.employeeId);
     // Validate that the single contract is effective during this payroll period

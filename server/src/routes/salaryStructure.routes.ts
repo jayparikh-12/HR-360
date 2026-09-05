@@ -25,6 +25,7 @@ import {
   type CreateSalaryStructureInput,
 } from '../repositories/salaryStructure.repository.js';
 import { findEmployeeByIdOrCode, getContractById } from '../repositories/contract.repository.js';
+import { handleDatabaseError } from '../middleware/errorHandler.js';
 
 const router = Router();
 
@@ -138,8 +139,8 @@ router.post('/', requireAdmin, async (req: Request, res: Response): Promise<void
   for (const field of monetaryFields) {
     if (body[field] !== undefined && body[field] !== null && body[field] !== '') {
       const num = Number(body[field]);
-      if (isNaN(num) || !isFinite(num) || num < 0) {
-        res.status(400).json({ success: false, message: `${field} must be a non-negative number.` });
+      if (isNaN(num) || !isFinite(num) || num < 0 || num > 999999999.99) {
+        res.status(400).json({ success: false, message: `${field} must be a non-negative number and cannot exceed 999,999,999.99.` });
         return;
       }
     }
@@ -207,11 +208,7 @@ router.post('/', requireAdmin, async (req: Request, res: Response): Promise<void
     const created = await createSalaryStructure(input);
     res.status(201).json({ success: true, data: created });
   } catch (err) {
-    console.error('[SalaryStructure API] Failed to create structure:', err instanceof Error ? err.message : err);
-    res.status(500).json({
-      success: false,
-      message: 'Unable to create salary structure. Please try again.',
-    });
+    handleDatabaseError(err, res, 'Failed to create salary structure');
   }
 });
 

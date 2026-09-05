@@ -66,6 +66,7 @@ import {
 import { PayslipPdfService } from '../services/payslipPdf.service.js';
 import { executeQuery } from '../config/database.js';
 import { RowDataPacket } from 'mysql2/promise';
+import { handleDatabaseError } from '../middleware/errorHandler.js';
 
 // Fallback baseline employee roster used by payroll engine calculations
 const defaultEmployees = [
@@ -364,14 +365,24 @@ router.post('/payruns/create', authorize(PERMISSIONS.PAYRUN_CREATE), async (req:
         // Load real contracts for this employee from repository
         let contracts = await getContractsByEmployeeId(emp.id);
 
+        if (contracts && contracts.length > 0) {
+          contracts = contracts.map((c) => ({
+            ...c,
+            employeeId: emp.id,
+            empCode: (emp as any).empCode || c.empCode,
+          }));
+        }
+
         // Fallback for mock/test employees if no contracts in DB
-        if ((!contracts || contracts.length === 0) && 'wage' in emp && typeof emp.wage === 'number' && emp.wage > 0) {
+        if (!contracts || contracts.length === 0) {
+          const fallbackWage =
+            'wage' in emp && typeof emp.wage === 'number' && emp.wage > 0 ? emp.wage : 5000;
           contracts = [
             {
               id: (emp as any).activeContractId || `CON-${emp.id}`,
               employeeId: emp.id,
               employeeName: emp.name,
-              wage: emp.wage,
+              wage: fallbackWage,
               startDate: '2023-01-01',
               endDate: null,
               structure: structureId || 'STR-001',
@@ -386,6 +397,7 @@ router.post('/payruns/create', authorize(PERMISSIONS.PAYRUN_CREATE), async (req:
         const calculationInput = normalizePayrollCalculationInput({
           employee: {
             id: emp.id,
+            empCode: (emp as any).empCode,
             name: emp.name,
             department: emp.department,
             status: 'status' in emp ? emp.status : 'ACTIVE',
@@ -432,9 +444,20 @@ router.post('/payruns/create', authorize(PERMISSIONS.PAYRUN_CREATE), async (req:
     const created = await createPayrun(input);
 
     // 9. Persist payslips & historical calculation snapshots to MySQL (survives server restarts)
-    const periodParts = trimmedPeriod.split('-');
-    const periodStart = periodParts.length === 2 ? `${trimmedPeriod}-01` : null;
-    const periodEnd = periodParts.length === 2 ? `${trimmedPeriod}-30` : null;
+    let periodStart: string | null = null;
+    let periodEnd: string | null = null;
+    if (/^\d{4}-\d{2}$/.test(trimmedPeriod)) {
+      const [y, m] = trimmedPeriod.split('-').map(Number);
+      const lastDay = new Date(Date.UTC(y, m, 0)).getUTCDate();
+      periodStart = `${trimmedPeriod}-01`;
+      periodEnd = `${trimmedPeriod}-${String(lastDay).padStart(2, '0')}`;
+    } else {
+      const dateMatches = trimmedPeriod.match(/\d{4}-\d{2}-\d{2}/g);
+      if (dateMatches && dateMatches.length >= 2) {
+        periodStart = dateMatches[0];
+        periodEnd = dateMatches[1];
+      }
+    }
 
     await insertPayslips(created.id, computedPayslips, payrunStatus, {
       startDate: periodStart || undefined,
@@ -460,11 +483,7 @@ router.post('/payruns/create', authorize(PERMISSIONS.PAYRUN_CREATE), async (req:
       });
       return;
     }
-    console.error('[Payroll API] Failed to create payrun:', err instanceof Error ? err.message : err);
-    res.status(500).json({
-      success: false,
-      message: 'Unable to create payrun record. Please try again.',
-    });
+    handleDatabaseError(err, res, 'Failed to create payrun');
   }
 });
 
@@ -510,11 +529,7 @@ const handleComputePayrun = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
-    console.error('[Payroll API] Failed to compute payrun:', err instanceof Error ? err.message : err);
-    res.status(500).json({
-      success: false,
-      message: 'Unable to compute payrun. Please verify employee records, contracts, and attendance data.',
-    });
+    handleDatabaseError(err, res, 'Failed to compute payrun');
   }
 };
 
@@ -566,8 +581,7 @@ const handleValidatePayrun = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
-    console.error('[Payroll API] Failed to validate payrun:', err instanceof Error ? err.message : err);
-    res.status(500).json({ success: false, message: 'Unable to validate payrun. Please try again.' });
+    handleDatabaseError(err, res, 'Failed to validate payrun');
   }
 };
 
@@ -625,8 +639,7 @@ const handlePayPayrun = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    console.error('[Payroll API] Failed to mark payrun as paid:', err instanceof Error ? err.message : err);
-    res.status(500).json({ success: false, message: 'Unable to mark payrun as paid. Please try again.' });
+    handleDatabaseError(err, res, 'Failed to mark payrun as paid');
   }
 };
 
@@ -672,7 +685,7 @@ router.get(
       const errMessage = (err as Error)?.message || 'An unexpected error occurred';
 
       if (err instanceof PayslipNotFoundError || errName === 'PayslipNotFoundError') {
-        res.status(404).json({ success: false, message: errMessage });
+        res.status(404).json({ success: false, message: 'Payslip not found' });
         return;
       }
 

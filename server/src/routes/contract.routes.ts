@@ -30,6 +30,7 @@ import {
   getAllSchedules,
   getScheduleById,
 } from '../repositories/schedule.repository.js';
+import { handleDatabaseError } from '../middleware/errorHandler.js';
 
 const router = Router();
 
@@ -130,8 +131,8 @@ router.post('/', authorize(PERMISSIONS.CONTRACT_WRITE), async (req: Request, res
     return;
   }
   const numericWage = Number(wageInput);
-  if (isNaN(numericWage) || !isFinite(numericWage) || numericWage < 0) {
-    res.status(400).json({ success: false, message: 'wage must be a non-negative number.' });
+  if (isNaN(numericWage) || !isFinite(numericWage) || numericWage < 0 || numericWage > 999999999.99) {
+    res.status(400).json({ success: false, message: 'wage must be a non-negative number and cannot exceed 999,999,999.99.' });
     return;
   }
 
@@ -245,11 +246,7 @@ router.post('/', authorize(PERMISSIONS.CONTRACT_WRITE), async (req: Request, res
     const createdContract = await createContract(input);
     res.status(201).json({ success: true, data: createdContract });
   } catch (err) {
-    console.error('[Contract API] Failed to create contract:', err instanceof Error ? err.message : err);
-    res.status(500).json({
-      success: false,
-      message: 'Unable to create contract record. Please try again.',
-    });
+    handleDatabaseError(err, res, 'Failed to create contract');
   }
 });
 

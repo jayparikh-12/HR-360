@@ -28,22 +28,19 @@ import {
   type CreateEmployeeInput,
   type UpdateEmployeeInput,
 } from '../repositories/employee.repository.js';
+import { isValidDateString, isValidEmail, isNonEmptyString } from '../utils/validators.js';
+import { handleDatabaseError } from '../middleware/errorHandler.js';
 
 const router = Router();
 
 // All employee endpoints require a valid JWT
 router.use(authenticateToken);
 
-// ── Validation helpers ────────────────────────────────────────────────────────
+// ── Validation constants ──────────────────────────────────────────────────────
 
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const VALID_EMP_TYPES = new Set(['FULL_TIME', 'PART_TIME', 'CONTRACT']);
-const VALID_STATUSES = new Set(['ACTIVE', 'INACTIVE']);
+const VALID_STATUSES = new Set(['ACTIVE', 'INACTIVE', 'PROBATION', 'TERMINATED']);
 const VALID_GENDERS = new Set(['MALE', 'FEMALE', 'NON_BINARY', 'OTHER', 'PREFER_NOT_TO_SAY']);
-
-function isNonEmptyString(v: unknown): v is string {
-  return typeof v === 'string' && v.trim().length > 0;
-}
 
 // ── GET /api/employees ────────────────────────────────────────────────────────
 
@@ -121,9 +118,27 @@ router.post('/', requireAdmin, async (req: Request, res: Response): Promise<void
 
   // ── Email format ──
   const emailStr = (body.email as string).trim().toLowerCase();
-  if (!EMAIL_REGEX.test(emailStr)) {
+  if (!isValidEmail(emailStr)) {
     res.status(400).json({ success: false, message: 'Invalid email address format.' });
     return;
+  }
+
+  // ── Optional joinDate format validation ──
+  if (body.joinDate !== undefined && body.joinDate !== null && body.joinDate !== '') {
+    if (!isValidDateString(body.joinDate)) {
+      res.status(400).json({ success: false, message: 'joinDate must be a valid date in YYYY-MM-DD format.' });
+      return;
+    }
+  }
+
+  // ── Optional employeeType validation ──
+  const rawEmpType = (body.employeeType || (req.body as Record<string, unknown>).employee_type) as string | undefined;
+  if (rawEmpType !== undefined && rawEmpType !== null && rawEmpType !== '') {
+    const upperType = String(rawEmpType).trim().toUpperCase();
+    if (!VALID_EMP_TYPES.has(upperType)) {
+      res.status(400).json({ success: false, message: 'employeeType must be FULL_TIME, PART_TIME, or CONTRACT.' });
+      return;
+    }
   }
 
   // ── Optional enum validation ──
@@ -163,6 +178,7 @@ router.post('/', requireAdmin, async (req: Request, res: Response): Promise<void
     position,
     gender:      body.gender ? String(body.gender).trim().toUpperCase() : null,
     status:      body.status,
+    employeeType: rawEmpType ? String(rawEmpType).trim().toUpperCase() : undefined,
     joinDate:    isNonEmptyString(body.joinDate) ? body.joinDate.trim() : undefined,
     bankAccount,
   };
@@ -175,11 +191,7 @@ router.post('/', requireAdmin, async (req: Request, res: Response): Promise<void
       res.status(409).json({ success: false, message: 'An employee with this email address already exists.' });
       return;
     }
-    console.error('[Employee API] Failed to create employee:', err instanceof Error ? err.message : err);
-    res.status(500).json({
-      success: false,
-      message: 'Unable to create employee record. Please try again.',
-    });
+    handleDatabaseError(err, res, 'Failed to create employee');
   }
 });
 
@@ -196,11 +208,11 @@ router.patch('/:id', authorize(PERMISSIONS.EMPLOYEE_WRITE), async (req: Request,
   }
 
   const sanitizedId = id.trim().slice(0, 191);
-  const body = req.body as Partial<UpdateEmployeeInput>;
+  const body = req.body as Partial<CreateEmployeeInput & UpdateEmployeeInput>;
 
   // ── Field-level validation for provided fields ──
   if (body.email !== undefined) {
-    if (!isNonEmptyString(body.email) || !EMAIL_REGEX.test(body.email.trim())) {
+    if (!isNonEmptyString(body.email) || !isValidEmail(body.email.trim())) {
       res.status(400).json({ success: false, message: 'Invalid email address format.' });
       return;
     }
@@ -208,6 +220,19 @@ router.patch('/:id', authorize(PERMISSIONS.EMPLOYEE_WRITE), async (req: Request,
   if (body.department !== undefined && !isNonEmptyString(body.department)) {
     res.status(400).json({ success: false, message: 'department cannot be empty.' });
     return;
+  }
+  if (body.joinDate !== undefined && body.joinDate !== null && body.joinDate !== '') {
+    if (!isValidDateString(body.joinDate)) {
+      res.status(400).json({ success: false, message: 'joinDate must be a valid date in YYYY-MM-DD format.' });
+      return;
+    }
+  }
+  if (body.employeeType !== undefined && body.employeeType !== null && body.employeeType !== '') {
+    const upperType = String(body.employeeType).trim().toUpperCase();
+    if (!VALID_EMP_TYPES.has(upperType)) {
+      res.status(400).json({ success: false, message: 'employeeType must be FULL_TIME, PART_TIME, or CONTRACT.' });
+      return;
+    }
   }
   if (body.status !== undefined && !VALID_STATUSES.has((body.status as string || '').toUpperCase())) {
     res.status(400).json({ success: false, message: 'status must be ACTIVE, PROBATION, or TERMINATED.' });
@@ -235,6 +260,7 @@ router.patch('/:id', authorize(PERMISSIONS.EMPLOYEE_WRITE), async (req: Request,
                    : undefined,
     gender:      body.gender !== undefined ? (body.gender ? String(body.gender).trim().toUpperCase() : null) : undefined,
     status:      isNonEmptyString(body.status) ? body.status.trim().toUpperCase() : undefined,
+    employeeType: body.employeeType ? String(body.employeeType).trim().toUpperCase() : undefined,
     joinDate:    isNonEmptyString(body.joinDate) ? body.joinDate.trim() : undefined,
     bankAccount: isNonEmptyString(body.bankAccount) ? body.bankAccount.trim()
                    : isNonEmptyString(rawBody.bankAccountNo as string) ? (rawBody.bankAccountNo as string).trim()
@@ -260,11 +286,7 @@ router.patch('/:id', authorize(PERMISSIONS.EMPLOYEE_WRITE), async (req: Request,
       res.status(409).json({ success: false, message: 'An employee with this email address already exists.' });
       return;
     }
-    console.error('[Employee API] Failed to update employee:', err instanceof Error ? err.message : err);
-    res.status(500).json({
-      success: false,
-      message: 'Unable to update employee record. Please try again.',
-    });
+    handleDatabaseError(err, res, 'Failed to update employee');
   }
 });
 
@@ -288,11 +310,7 @@ router.delete('/:id', requireAdmin, async (req: Request, res: Response): Promise
     }
     res.json({ success: true, message: 'Employee successfully removed.' });
   } catch (err) {
-    console.error('[Employee API] Failed to delete employee:', err instanceof Error ? err.message : err);
-    res.status(500).json({
-      success: false,
-      message: 'Unable to remove employee record. Please try again.',
-    });
+    handleDatabaseError(err, res, 'Failed to delete employee');
   }
 });
 

@@ -36,6 +36,7 @@ import {
   TimeOffValidationError,
   type CreateTimeOffInput,
 } from '../repositories/timeOff.repository.js';
+import { handleDatabaseError } from '../middleware/errorHandler.js';
 
 const router = Router();
 
@@ -249,11 +250,7 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    console.error('[TimeOff API] Failed to create time off request:', err instanceof Error ? err.message : err);
-    res.status(500).json({
-      success: false,
-      message: 'Unable to submit leave request. Please try again.',
-    });
+    handleDatabaseError(err, res, 'Failed to create time off request');
   }
 });
 
@@ -284,11 +281,7 @@ router.patch('/:id/approve', authorize(PERMISSIONS.TIMEOFF_APPROVE), async (req:
       }
     }
 
-    console.error('[TimeOff API] Failed to approve leave request:', err instanceof Error ? err.message : err);
-    res.status(500).json({
-      success: false,
-      message: 'Unable to approve leave request. Please try again.',
-    });
+    handleDatabaseError(err, res, 'Failed to approve leave request');
   }
 });
 
@@ -319,11 +312,7 @@ router.patch('/:id/refuse', authorize(PERMISSIONS.TIMEOFF_APPROVE), async (req: 
       }
     }
 
-    console.error('[TimeOff API] Failed to refuse leave request:', err instanceof Error ? err.message : err);
-    res.status(500).json({
-      success: false,
-      message: 'Unable to refuse leave request. Please try again.',
-    });
+    handleDatabaseError(err, res, 'Failed to refuse leave request');
   }
 });
 

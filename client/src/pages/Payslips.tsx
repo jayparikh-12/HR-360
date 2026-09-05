@@ -73,7 +73,7 @@ export const Payslips: React.FC = () => {
       const history = await payrollApi.getEmployeePayslips(targetEmployeeId);
       setPayslips(history);
     } catch (err: any) {
-      console.error('[Payslips] Failed to load payslips:', err);
+      console.error('[Payslips] Failed to load payslips:', err instanceof Error ? err.message : String(err));
       if (err instanceof ApiError) {
         if (err.statusCode === 403) {
           setError('Access Denied: You do not have permission to view payroll records for this employee.');

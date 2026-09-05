@@ -27,6 +27,7 @@ import {
   type CreateCheckInInput,
   type RecordCheckOutInput,
 } from '../repositories/attendance.repository.js';
+import { handleDatabaseError } from '../middleware/errorHandler.js';
 
 const router = Router();
 
@@ -181,11 +182,7 @@ router.post('/check-in', async (req: Request, res: Response): Promise<void> => {
     const createdRecord = await createCheckIn(input);
     res.status(201).json({ success: true, data: createdRecord });
   } catch (err) {
-    console.error('[Attendance API] Failed to check in:', err instanceof Error ? err.message : err);
-    res.status(500).json({
-      success: false,
-      message: 'Unable to record check-in. Please try again.',
-    });
+    handleDatabaseError(err, res, 'Failed to record check-in');
   }
 });
 
@@ -262,11 +259,7 @@ router.post('/check-out', async (req: Request, res: Response): Promise<void> => 
       return;
     }
 
-    console.error('[Attendance API] Failed to check out:', err instanceof Error ? err.message : err);
-    res.status(500).json({
-      success: false,
-      message: 'Unable to record check-out. Please try again.',
-    });
+    handleDatabaseError(err, res, 'Failed to check out');
   }
 });
 
@@ -315,11 +308,7 @@ router.post('/:id/check-out', async (req: Request, res: Response): Promise<void>
       return;
     }
 
-    console.error('[Attendance API] Failed to check out record:', err instanceof Error ? err.message : err);
-    res.status(500).json({
-      success: false,
-      message: 'Unable to record check-out. Please try again.',
-    });
+    handleDatabaseError(err, res, 'Failed to check out record');
   }
 });
 

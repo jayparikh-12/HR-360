@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Clock } from 'lucide-react';
+import { Clock, RefreshCw } from 'lucide-react';
 import type { AttendanceRecord } from '../types';
 import { attendanceApi } from '../api/attendance';
 import { ApiError } from '../api/client';
@@ -56,7 +56,7 @@ export const Attendance: React.FC<AttendanceProps> = ({ onAddRecord }) => {
       setRecords(data);
       syncActiveState(data);
     } catch (err) {
-      console.error('[Attendance Page] Failed to fetch records:', err);
+      console.error('[Attendance Page] Failed to fetch records:', err instanceof Error ? err.message : String(err));
       setError(err instanceof ApiError ? err.message : 'Unable to load attendance records. Please try again.');
     } finally {
       setLoading(false);
@@ -120,7 +120,7 @@ export const Attendance: React.FC<AttendanceProps> = ({ onAddRecord }) => {
         await loadAttendance();
       }
     } catch (err) {
-      console.error('[Attendance Action] Error toggling check state:', err);
+      console.error('[Attendance Action] Error toggling check state:', err instanceof Error ? err.message : String(err));
       setError(err instanceof ApiError ? err.message : 'Operation failed. Please try again.');
     } finally {
       setSubmitting(false);
@@ -159,21 +159,34 @@ export const Attendance: React.FC<AttendanceProps> = ({ onAddRecord }) => {
           <p className="page-desc">Daily check-in and check-out logs feeding into the payroll overtime and absence engine.</p>
         </div>
 
-        {/* Live Check-in / Out Widget */}
-        <button
-          className={`btn ${isCheckedIn ? 'btn-danger' : 'btn-primary'}`}
-          onClick={handleToggleCheck}
-          disabled={submitting}
-        >
-          <Clock size={15} />
-          <span>
-            {submitting
-              ? 'Processing...'
-              : isCheckedIn
-              ? 'Clock Out (Active Session)'
-              : 'Self Check-In Now'}
-          </span>
-        </button>
+        <div style={{ display: 'flex', gap: '10px' }}>
+          <button
+            className="btn btn-secondary btn-sm"
+            onClick={loadAttendance}
+            disabled={loading}
+            style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+            title="Refresh attendance from database"
+          >
+            <RefreshCw size={13} className={loading ? 'spin' : ''} />
+            <span>Refresh</span>
+          </button>
+
+          {/* Live Check-in / Out Widget */}
+          <button
+            className={`btn ${isCheckedIn ? 'btn-danger' : 'btn-primary'}`}
+            onClick={handleToggleCheck}
+            disabled={submitting}
+          >
+            <Clock size={15} />
+            <span>
+              {submitting
+                ? 'Processing...'
+                : isCheckedIn
+                ? 'Clock Out (Active Session)'
+                : 'Self Check-In Now'}
+            </span>
+          </button>
+        </div>
       </div>
 
       {error && (

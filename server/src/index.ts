@@ -21,6 +21,7 @@ import salaryRuleRoutes from './routes/salaryRule.routes.js';
 import payrollRoutes from './routes/payroll.routes.js';
 import dashboardRoutes from './routes/dashboard.routes.js';
 import { testDatabaseConnection } from './config/database.js';
+import { apiNotFoundError, globalErrorHandler } from './middleware/errorHandler.js';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -56,12 +57,23 @@ app.use('/api/salary-rules', salaryRuleRoutes);
 app.use('/api/payroll', payrollRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 
-app.listen(PORT, async () => {
-  console.log(`[PeoplePay360] Server running on http://localhost:${PORT}`);
-  const dbResult = await testDatabaseConnection();
-  if (dbResult.connected) {
-    console.log(`[Database] MySQL connection established (database: ${dbResult.details?.database})`);
-  } else {
-    console.error(`[Database] MySQL connection warning: ${dbResult.message}`);
-  }
-});
+// Catch-all for undefined /api routes (returns JSON 404 instead of Express HTML)
+app.use('/api', apiNotFoundError);
+
+// Global unhandled error middleware (safe 500 JSON without stack trace leakage)
+app.use(globalErrorHandler);
+
+export { app };
+
+// Start listening if run directly
+if (process.env.NODE_ENV !== 'test') {
+  app.listen(PORT, async () => {
+    console.log(`[PeoplePay360] Server running on http://localhost:${PORT}`);
+    const dbResult = await testDatabaseConnection();
+    if (dbResult.connected) {
+      console.log(`[Database] MySQL connection established (database: ${dbResult.details?.database})`);
+    } else {
+      console.error(`[Database] MySQL connection warning: ${dbResult.message}`);
+    }
+  });
+}
