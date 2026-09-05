@@ -19,6 +19,7 @@ import {
   getDashboardSummary,
   getDashboardFilterOptions,
   getDashboardAnalytics,
+  getDashboardAlerts,
 } from '../services/dashboard.service.js';
 import type { DashboardFilterParams } from '../repositories/dashboard.repository.js';
 
@@ -111,4 +112,34 @@ router.get('/analytics', async (req: Request, res: Response): Promise<void> => {
   }
 });
 
+// ── GET /api/dashboard/alerts ─────────────────────────────────────────────────
+router.get('/alerts', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const period = typeof req.query.period === 'string' ? req.query.period : undefined;
+    const department = typeof req.query.department === 'string' ? req.query.department : undefined;
+    const employeeType = typeof req.query.employeeType === 'string' ? req.query.employeeType : undefined;
+
+    const filters: DashboardFilterParams = {
+      period,
+      department,
+      employeeType,
+    };
+
+    const alerts = await getDashboardAlerts(filters);
+    res.json({
+      success: true,
+      data: {
+        alerts,
+      },
+    });
+  } catch (err) {
+    console.error('[Dashboard API] Alerts error:', err instanceof Error ? err.message : err);
+    res.status(500).json({
+      success: false,
+      message: 'Unable to aggregate operational alerts. Please try again.',
+    });
+  }
+});
+
 export default router;
+

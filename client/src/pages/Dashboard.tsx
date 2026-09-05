@@ -3,7 +3,6 @@ import {
   Users, 
   CheckCircle2, 
   TrendingUp, 
-  AlertTriangle, 
   Play,
   RefreshCw,
   Filter,
@@ -22,7 +21,8 @@ import { formatCurrency } from '../utils/formatters';
 import { 
   PayrollTrendChart, 
   PayrollStatusChart, 
-  PayrollBreakdownChart 
+  PayrollBreakdownChart,
+  OperationalAlerts,
 } from '../components/dashboard';
 
 interface DashboardProps {
@@ -513,69 +513,25 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
             />
           </div>
 
-          {/* Live Payroll Alerts & Action Items Feed */}
-          <div className="card">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <h3 style={{ fontSize: '14px', fontWeight: 700, color: 'var(--slate-900)' }}>
-                Payroll Action Items & Alerts
-              </h3>
-              <span className={`badge ${metrics.alerts.length > 0 ? 'badge-warning' : 'badge-success'}`}>
-                {metrics.alerts.length} Action Item{metrics.alerts.length === 1 ? '' : 's'}
-              </span>
-            </div>
-
-            {metrics.alerts.length === 0 ? (
-              <div style={{ 
-                padding: '24px', 
-                textAlign: 'center', 
-                color: 'var(--slate-500)', 
-                fontSize: '13px',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: '8px'
-              }}>
-                <CheckCircle2 size={24} color="#047857" />
-                <div style={{ fontWeight: 600, color: 'var(--text-main)' }}>All Systems Clear</div>
-                <div>All payroll cycles and time-off requests are up to date.</div>
-              </div>
-            ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '10px' }}>
-                {metrics.alerts.map((alert) => (
-                  <div 
-                    key={alert.id}
-                    style={{ 
-                      padding: '12px', 
-                      background: alert.type === 'warning' ? 'var(--warning-bg)' : 'var(--info-bg)', 
-                      border: `1px solid ${alert.type === 'warning' ? 'var(--warning-border)' : 'var(--info-border)'}`, 
-                      borderRadius: '6px', 
-                      display: 'flex', 
-                      gap: '10px',
-                      alignItems: 'flex-start'
-                    }}
-                  >
-                    {alert.type === 'warning' ? (
-                      <AlertTriangle size={18} color="#b45309" style={{ flexShrink: 0, marginTop: '2px' }} />
-                    ) : (
-                      <Users size={18} color="#0369a1" style={{ flexShrink: 0, marginTop: '2px' }} />
-                    )}
-                    <div>
-                      <div style={{ 
-                        fontWeight: 600, 
-                        fontSize: '13px', 
-                        color: alert.type === 'warning' ? 'var(--warning-text)' : 'var(--info-text)' 
-                      }}>
-                        {alert.title}
-                      </div>
-                      <div style={{ fontSize: '12px', color: 'var(--slate-600)', marginTop: '2px' }}>
-                        {alert.message}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+          {/* Phase 6.4: Alerts & Operational Insights Section */}
+          <OperationalAlerts
+            alerts={metrics.alerts || []}
+            loading={loading}
+            error={error}
+            onRefresh={() => fetchDashboardData(true)}
+            onNavigate={onNavigate}
+            activeFilterSummary={
+              isAnyFilterActive
+                ? [
+                    filters.period && filters.period !== 'ALL' ? `Period: ${filters.period}` : '',
+                    filters.department && filters.department !== 'ALL' ? `Dept: ${filters.department}` : '',
+                    filters.employeeType && filters.employeeType !== 'ALL' ? `Type: ${filters.employeeType}` : '',
+                  ]
+                    .filter(Boolean)
+                    .join(' • ')
+                : undefined
+            }
+          />
         </>
       )}
     </div>

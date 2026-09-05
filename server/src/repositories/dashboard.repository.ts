@@ -30,6 +30,8 @@ export interface EmployeeAggregationResult {
   total: number;
   active: number;
   inactive: number;
+  probation: number;
+  uncontracted: number;
   departmentCount: number;
   byDepartment: Record<string, number>;
   byType: Record<string, number>;
@@ -155,6 +157,10 @@ export async function getEmployeeMetrics(
       COUNT(e.id) AS total,
       SUM(CASE WHEN e.status = 'ACTIVE' THEN 1 ELSE 0 END) AS active,
       SUM(CASE WHEN e.status IN ('INACTIVE', 'TERMINATED') THEN 1 ELSE 0 END) AS inactive,
+      SUM(CASE WHEN e.status = 'PROBATION' THEN 1 ELSE 0 END) AS probation,
+      SUM(CASE WHEN e.status = 'ACTIVE' AND NOT EXISTS (
+        SELECT 1 FROM contracts c WHERE c.employee_id = e.id AND c.status = 'ACTIVE'
+      ) THEN 1 ELSE 0 END) AS uncontracted,
       COUNT(DISTINCT e.department) AS department_count
     FROM employees e
     WHERE ${whereSql}
@@ -166,6 +172,8 @@ export async function getEmployeeMetrics(
   const total = Number(row.total) || 0;
   const active = Number(row.active) || 0;
   const inactive = Number(row.inactive) || 0;
+  const probation = Number(row.probation) || 0;
+  const uncontracted = Number(row.uncontracted) || 0;
   const departmentCount = Number(row.department_count) || 0;
 
   // Breakdown by department
@@ -190,6 +198,8 @@ export async function getEmployeeMetrics(
     total,
     active,
     inactive,
+    probation,
+    uncontracted,
     departmentCount,
     byDepartment,
     byType,
@@ -864,3 +874,64 @@ export async function getEmployeeTypeBreakdownAggregation(
     };
   });
 }
+
+// ── Operational Payrun Alerts Aggregation ────────────────────────────────────
+
+export interface PayrunAlertItem {
+  id: string;
+  name: string;
+  period: string;
+  status: string;
+  employeeCount: number;
+}
+
+/**
+ * Retrieves pending payruns (DRAFT, COMPUTED, VALIDATED) scoped by period and department.
+ */
+export async function getPendingPayrunsForAlerts(
+  filters: DashboardFilterParams,
+  dateRange: DateRange
+): Promise<PayrunAlertItem[]> {
+  const whereClauses: string[] = ["pr.status IN ('DRAFT', 'COMPUTED', 'VALIDATED')"];
+  const params: unknown[] = [];
+
+  if (dateRange?.periodLabel && dateRange.periodLabel.trim().toUpperCase() !== 'ALL') {
+    whereClauses.push('(pr.period = ? OR pr.period LIKE ?)');
+    params.push(dateRange.periodLabel, `%${dateRange.periodLabel}%`);
+  }
+
+  if (filters.department && filters.department.trim().toUpperCase() !== 'ALL') {
+    whereClauses.push(`(
+      pr.status = 'DRAFT' OR EXISTS (
+        SELECT 1 FROM payslips ps
+        JOIN employees e ON e.id = ps.employee_id
+        WHERE ps.payrun_id = pr.id AND LOWER(e.department) = LOWER(?)
+      )
+    )`);
+    params.push(filters.department.trim());
+  }
+
+  const whereSql = whereClauses.join(' AND ');
+  const sql = `
+    SELECT
+      pr.id,
+      pr.name,
+      pr.period,
+      pr.status,
+      COALESCE(pr.employee_count, 0) AS employee_count
+    FROM payruns pr
+    WHERE ${whereSql}
+    ORDER BY pr.id DESC
+    LIMIT 20
+  `;
+
+  const rows = await executeQuery<RowDataPacket[]>(sql, params);
+  return rows.map((r) => ({
+    id: String(r.id),
+    name: String(r.name),
+    period: String(r.period),
+    status: String(r.status),
+    employeeCount: Number(r.employee_count) || 0,
+  }));
+}
+

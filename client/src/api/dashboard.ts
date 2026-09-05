@@ -25,11 +25,18 @@ export interface DashboardFilters {
   employeeType?: string;
 }
 
+export type AlertSeverity = 'critical' | 'warning' | 'info' | 'success';
+
 export interface DashboardAlert {
   id: string;
-  type: 'warning' | 'info' | 'success';
+  type: 'critical' | 'warning' | 'info' | 'success' | string;
+  severity?: AlertSeverity;
   title: string;
   message: string;
+  area?: 'payroll' | 'attendance' | 'time-off' | 'employees' | string;
+  count?: number;
+  actionTab?: string;
+  actionLabel?: string;
 }
 
 export interface PayrollTrendPoint {
@@ -475,5 +482,13 @@ export const dashboardApi = {
     } catch {
       return [];
     }
+  },
+
+  /**
+   * Dedicated helper to retrieve operational alerts and insights with optional filters.
+   */
+  async getAlerts(filters?: DashboardFilters): Promise<DashboardAlert[]> {
+    const metrics = await this.getMetrics(filters);
+    return metrics.alerts || [];
   },
 };

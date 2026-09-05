@@ -21,6 +21,7 @@ import {
   getPayrunStatusBreakdown,
   getDepartmentBreakdownAggregation,
   getEmployeeTypeBreakdownAggregation,
+  getPendingPayrunsForAlerts,
   type DashboardFilterParams,
   type DateRange,
   type EmployeeAggregationResult,
@@ -32,15 +33,21 @@ import {
   type StatusBreakdownItem,
   type DepartmentPayrollBreakdownItem,
   type EmployeeTypeBreakdownItem,
+  type PayrunAlertItem,
 } from '../repositories/dashboard.repository.js';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
 export interface DashboardAlert {
   id: string;
-  type: 'warning' | 'info' | 'success';
+  type: 'critical' | 'warning' | 'info' | 'success';
+  severity: 'critical' | 'warning' | 'info' | 'success';
+  area: 'payroll' | 'attendance' | 'time-off' | 'employees' | string;
   title: string;
   message: string;
+  count: number;
+  actionTab?: 'payruns' | 'attendance' | 'time-off' | 'employees' | string;
+  actionLabel?: string;
 }
 
 export interface DashboardAnalyticsResponse {
@@ -149,61 +156,197 @@ export function parsePeriodFilter(period?: string | null): DateRange {
 
 // ── Alert Derivation ─────────────────────────────────────────────────────────
 
-function deriveDashboardAlerts(
-  payroll: PayrollAggregationResult,
+export function deriveDashboardAlerts(
+  pendingPayruns: PayrunAlertItem[],
   timeOff: TimeOffAggregationResult,
-  attendance: AttendanceAggregationResult
+  attendance: AttendanceAggregationResult,
+  employees?: EmployeeAggregationResult,
+  latestPayrunFallback?: PayrollAggregationResult['latestPayrun']
 ): DashboardAlert[] {
   const alerts: DashboardAlert[] = [];
 
-  // Payrun status alerts
-  if (payroll.latestPayrun) {
-    const lp = payroll.latestPayrun;
-    if (lp.status === 'DRAFT') {
-      alerts.push({
-        id: 'alert-payrun-draft',
-        type: 'warning',
-        title: 'Payrun Calculation Pending',
-        message: `${lp.name} (${lp.period}) is in DRAFT. Run Compute to calculate salary vouchers.`,
-      });
-    } else if (lp.status === 'COMPUTED') {
-      alerts.push({
-        id: 'alert-payrun-computed',
-        type: 'info',
-        title: 'Payrun Awaiting Validation',
-        message: `${lp.name} calculations are ready. Validate before marking as paid.`,
-      });
-    } else if (lp.status === 'VALIDATED') {
-      alerts.push({
-        id: 'alert-payrun-validated',
-        type: 'info',
-        title: 'Payrun Ready for Disbursement',
-        message: `${lp.name} is validated and approved for payment disbursement.`,
-      });
-    }
-  }
-
-  // Time off pending alerts
-  if (timeOff.pending > 0) {
+  // 1. Payruns awaiting validation (COMPUTED)
+  const computedPayruns = pendingPayruns.filter((p) => p.status === 'COMPUTED');
+  if (computedPayruns.length > 0) {
+    const count = computedPayruns.length;
+    const first = computedPayruns[0];
     alerts.push({
-      id: 'alert-pending-timeoff',
+      id: 'alert-payrun-computed',
       type: 'warning',
-      title: `${timeOff.pending} Leave Request${timeOff.pending > 1 ? 's' : ''} Pending`,
-      message: 'Pending time-off requests require managerial review before payroll cut-off.',
+      severity: 'warning',
+      area: 'payroll',
+      title: count === 1 ? 'Payrun Awaiting Validation' : `${count} Payruns Awaiting Validation`,
+      message:
+        count === 1
+          ? `${first.name} (${first.period}) calculations are ready. Validate before marking as paid.`
+          : `${count} payruns have completed calculation and require administrator validation.`,
+      count,
+      actionTab: 'payruns',
+      actionLabel: 'Review & Validate',
+    });
+  } else if (latestPayrunFallback && latestPayrunFallback.status === 'COMPUTED') {
+    alerts.push({
+      id: 'alert-payrun-computed',
+      type: 'warning',
+      severity: 'warning',
+      area: 'payroll',
+      title: 'Payrun Awaiting Validation',
+      message: `${latestPayrunFallback.name} (${latestPayrunFallback.period}) calculations are ready. Validate before marking as paid.`,
+      count: 1,
+      actionTab: 'payruns',
+      actionLabel: 'Review & Validate',
     });
   }
 
-  // Attendance missing checkout alerts
-  if (attendance.missingCheckout > 0) {
+  // 2. Validated payruns pending payment disbursement (VALIDATED)
+  const validatedPayruns = pendingPayruns.filter((p) => p.status === 'VALIDATED');
+  if (validatedPayruns.length > 0) {
+    const count = validatedPayruns.length;
+    const first = validatedPayruns[0];
+    alerts.push({
+      id: 'alert-payrun-validated',
+      type: 'critical',
+      severity: 'critical',
+      area: 'payroll',
+      title: count === 1 ? 'Payrun Ready for Disbursement' : `${count} Payruns Ready for Disbursement`,
+      message:
+        count === 1
+          ? `${first.name} (${first.period}) is validated and approved for payment disbursement.`
+          : `${count} payruns are validated and awaiting payment disbursement.`,
+      count,
+      actionTab: 'payruns',
+      actionLabel: 'Process Disbursement',
+    });
+  } else if (latestPayrunFallback && latestPayrunFallback.status === 'VALIDATED') {
+    alerts.push({
+      id: 'alert-payrun-validated',
+      type: 'critical',
+      severity: 'critical',
+      area: 'payroll',
+      title: 'Payrun Ready for Disbursement',
+      message: `${latestPayrunFallback.name} (${latestPayrunFallback.period}) is validated and approved for payment disbursement.`,
+      count: 1,
+      actionTab: 'payruns',
+      actionLabel: 'Process Disbursement',
+    });
+  }
+
+  // 3. Payrun calculation pending (DRAFT)
+  const draftPayruns = pendingPayruns.filter((p) => p.status === 'DRAFT');
+  if (draftPayruns.length > 0) {
+    const count = draftPayruns.length;
+    const first = draftPayruns[0];
+    alerts.push({
+      id: 'alert-payrun-draft',
+      type: 'warning',
+      severity: 'warning',
+      area: 'payroll',
+      title: count === 1 ? 'Payrun Calculation Pending' : `${count} Payrun Calculations Pending`,
+      message:
+        count === 1
+          ? `${first.name} (${first.period}) is in DRAFT. Run Compute to calculate salary vouchers.`
+          : `${count} payruns are in DRAFT state. Run Compute to calculate salary vouchers.`,
+      count,
+      actionTab: 'payruns',
+      actionLabel: 'Launch Payrun',
+    });
+  } else if (latestPayrunFallback && latestPayrunFallback.status === 'DRAFT') {
+    alerts.push({
+      id: 'alert-payrun-draft',
+      type: 'warning',
+      severity: 'warning',
+      area: 'payroll',
+      title: 'Payrun Calculation Pending',
+      message: `${latestPayrunFallback.name} (${latestPayrunFallback.period}) is in DRAFT. Run Compute to calculate salary vouchers.`,
+      count: 1,
+      actionTab: 'payruns',
+      actionLabel: 'Launch Payrun',
+    });
+  }
+
+  // 4. Attendance missing checkout alerts
+  if (attendance && attendance.missingCheckout > 0) {
+    const count = attendance.missingCheckout;
     alerts.push({
       id: 'alert-missing-checkout',
-      type: 'warning',
-      title: `${attendance.missingCheckout} Check-out${attendance.missingCheckout > 1 ? 's' : ''} Missing`,
+      type: count > 5 ? 'critical' : 'warning',
+      severity: count > 5 ? 'critical' : 'warning',
+      area: 'attendance',
+      title: `${count} Check-out${count > 1 ? 's' : ''} Missing`,
       message: 'Uncompleted daily shifts require verification before wage computation.',
+      count,
+      actionTab: 'attendance',
+      actionLabel: 'Verify Attendance',
+    });
+  }
+
+  // 5. Time off pending requests
+  if (timeOff && timeOff.pending > 0) {
+    const count = timeOff.pending;
+    alerts.push({
+      id: 'alert-pending-timeoff',
+      type: 'warning',
+      severity: 'warning',
+      area: 'time-off',
+      title: `${count} Leave Request${count > 1 ? 's' : ''} Pending`,
+      message: 'Pending time-off requests require managerial review before payroll cut-off.',
+      count,
+      actionTab: 'time-off',
+      actionLabel: 'Review Requests',
+    });
+  }
+
+  // 6. Active employees missing active contracts
+  if (employees && employees.uncontracted && employees.uncontracted > 0) {
+    const count = employees.uncontracted;
+    alerts.push({
+      id: 'alert-uncontracted-employees',
+      type: 'critical',
+      severity: 'critical',
+      area: 'employees',
+      title: `${count} Active Employee${count > 1 ? 's' : ''} Missing Contract`,
+      message: 'Active employees lack an active salary contract. Contracts are required before running payroll.',
+      count,
+      actionTab: 'employees',
+      actionLabel: 'View Directory',
+    });
+  }
+
+  // 7. Employees on probation
+  if (employees && employees.probation && employees.probation > 0) {
+    const count = employees.probation;
+    alerts.push({
+      id: 'alert-probation-review',
+      type: 'info',
+      severity: 'info',
+      area: 'employees',
+      title: `${count} Employee${count > 1 ? 's' : ''} on Probation`,
+      message: 'Probationary reviews are pending evaluation against active contracts.',
+      count,
+      actionTab: 'employees',
+      actionLabel: 'View Directory',
     });
   }
 
   return alerts;
+}
+
+/**
+ * Dedicated coordinator to retrieve operational alerts and insights with optional filters.
+ */
+export async function getDashboardAlerts(
+  filters: DashboardFilterParams = {}
+): Promise<DashboardAlert[]> {
+  const dateRange = parsePeriodFilter(filters.period);
+
+  const [employees, attendance, timeOff, pendingPayruns] = await Promise.all([
+    getEmployeeMetrics(filters, dateRange),
+    getAttendanceMetrics(filters, dateRange),
+    getTimeOffMetrics(filters, dateRange),
+    getPendingPayrunsForAlerts(filters, dateRange),
+  ]);
+
+  return deriveDashboardAlerts(pendingPayruns, timeOff, attendance, employees);
 }
 
 // ── Dashboard Aggregation Coordinator ────────────────────────────────────────
@@ -223,6 +366,7 @@ export async function getDashboardSummary(
     payrollTrend,
     statusResult,
     employeeTypeBreakdown,
+    pendingPayruns,
   ] = await Promise.all([
     getEmployeeMetrics(filters, dateRange),
     getPayrollMetrics(filters, dateRange),
@@ -232,6 +376,7 @@ export async function getDashboardSummary(
     getPayrollTrendAggregation(filters, dateRange),
     getPayrunStatusBreakdown(filters, dateRange),
     getEmployeeTypeBreakdownAggregation(filters),
+    getPendingPayrunsForAlerts(filters, dateRange),
   ]);
 
   const departmentBreakdown = await getDepartmentBreakdownAggregation(
@@ -251,7 +396,13 @@ export async function getDashboardSummary(
   const baseWagesSum = Object.values(baseDeptWages).reduce((sum, w) => sum + w, 0);
   const totalPayrollCost = payroll.gross > 0 ? payroll.gross : baseWagesSum;
 
-  const alerts = deriveDashboardAlerts(payroll, timeOff, attendance);
+  const alerts = deriveDashboardAlerts(
+    pendingPayruns,
+    timeOff,
+    attendance,
+    employees,
+    payroll.latestPayrun
+  );
 
   return {
     // Grouped module objects
