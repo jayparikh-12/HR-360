@@ -1,6 +1,19 @@
-import React from 'react';
-import { Search, Plus, LogOut, Sun, Moon } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { 
+  Search, 
+  Plus, 
+  LogOut, 
+  Sun, 
+  Moon, 
+  ShieldCheck, 
+  Mail, 
+  Building, 
+  Key, 
+  CheckCircle2, 
+  Clock
+} from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
+import { useAuth } from '../context/AuthContext';
 import type { UserRole } from '../types';
 
 interface HeaderProps {
@@ -11,6 +24,18 @@ interface HeaderProps {
   onLogout: () => void;
 }
 
+interface RoleProfile {
+  initials: string;
+  name: string;
+  email: string;
+  id: string;
+  department: string;
+  securityLevel: string;
+  scope: string;
+  badgeColor: string;
+  badgeBg: string;
+}
+
 export const Header: React.FC<HeaderProps> = ({ 
   currentRole, 
   userName, 
@@ -18,19 +43,94 @@ export const Header: React.FC<HeaderProps> = ({
   onLogout
 }) => {
   const { theme, toggleTheme } = useTheme();
+  const { user } = useAuth();
+
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const closeTimeoutRef = useRef<any>(null);
 
   const canRunPayroll = currentRole === 'Admin' || currentRole === 'HR Payroll Manager' || currentRole === 'HR Payroll User';
 
-  const getInitials = (role: UserRole) => {
+  const handleMouseEnter = () => {
+    if (closeTimeoutRef.current) {
+      clearTimeout(closeTimeoutRef.current);
+      closeTimeoutRef.current = null;
+    }
+    setIsDropdownOpen(true);
+  };
+
+  const handleMouseLeave = () => {
+    closeTimeoutRef.current = setTimeout(() => {
+      setIsDropdownOpen(false);
+    }, 220);
+  };
+
+  const getProfile = (role: UserRole): RoleProfile => {
     switch (role) {
-      case 'Employee': return 'JD';
-      case 'HR Manager': return 'SC';
-      case 'HR Payroll User': return 'AR';
-      case 'Admin': return 'SR';
+      case 'Admin':
+        return {
+          initials: 'SR',
+          name: user?.name || userName || 'System Administrator',
+          email: user?.email || 'admin@company.com',
+          id: user?.id || 'USR-999',
+          department: 'Platform & Infrastructure',
+          securityLevel: 'Superadmin (Full Access)',
+          scope: 'System RBAC, Master Configuration & Employee 360',
+          badgeColor: '#6366f1',
+          badgeBg: 'rgba(99, 102, 241, 0.16)',
+        };
+      case 'HR Manager':
+        return {
+          initials: 'SC',
+          name: user?.name || userName || 'Sarah Connor',
+          email: user?.email || 'sarah.c@company.com',
+          id: user?.employeeId || user?.id || 'EMP-006',
+          department: 'Operations & People',
+          securityLevel: 'HR Manager Level',
+          scope: 'Employee Directory, Contracts & Time Off Approvals',
+          badgeColor: '#10b981',
+          badgeBg: 'rgba(16, 185, 129, 0.16)',
+        };
       case 'HR Payroll Manager':
-      default: return 'ER';
+        return {
+          initials: 'ER',
+          name: user?.name || userName || 'Elena Rostova',
+          email: user?.email || 'elena.r@company.com',
+          id: user?.employeeId || user?.id || 'EMP-004',
+          department: 'Human Resources & Finance',
+          securityLevel: 'Payroll Controller',
+          scope: 'Deterministic Payrun Engine, Salary Rules & Approval',
+          badgeColor: '#8b5cf6',
+          badgeBg: 'rgba(139, 92, 246, 0.16)',
+        };
+      case 'HR Payroll User':
+        return {
+          initials: 'AR',
+          name: user?.name || userName || 'Alex Rivera',
+          email: user?.email || 'alex.rivera@company.com',
+          id: user?.employeeId || user?.id || 'EMP-003',
+          department: 'Finance Operations',
+          securityLevel: 'Payroll Specialist',
+          scope: 'Payrun Drafting, Attendance Verification & Payslips',
+          badgeColor: '#3b82f6',
+          badgeBg: 'rgba(59, 130, 246, 0.16)',
+        };
+      case 'Employee':
+      default:
+        return {
+          initials: 'JD',
+          name: user?.name || userName || 'John Doe',
+          email: user?.email || 'john.doe@company.com',
+          id: user?.employeeId || user?.id || 'EMP-001',
+          department: 'Engineering',
+          securityLevel: 'Staff Member',
+          scope: 'Self Clock-In/Out, Leave Requests & Payslip Vouchers',
+          badgeColor: '#06b6d4',
+          badgeBg: 'rgba(6, 182, 212, 0.16)',
+        };
     }
   };
+
+  const profile = getProfile(currentRole);
 
   return (
     <header className="header">
@@ -68,7 +168,7 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
         )}
 
-        {/* Authenticated Role Badge (Strictly read-only, verified from auth token) */}
+        {/* Authenticated Role Badge */}
         <div 
           className="role-badge" 
           style={{ 
@@ -84,13 +184,215 @@ export const Header: React.FC<HeaderProps> = ({
             gap: '6px'
           }}
         >
-          <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#6366f1' }} />
+          <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: profile.badgeColor }} />
           <span>Role: {currentRole}</span>
         </div>
 
-        {/* Avatar */}
-        <div className="avatar" title={`${userName} (${currentRole})`}>
-          {getInitials(currentRole)}
+        {/* User Profile Avatar with Hover Details Dropdown */}
+        <div 
+          className="user-profile-wrapper"
+          style={{ position: 'relative' }}
+          onMouseEnter={handleMouseEnter}
+          onMouseLeave={handleMouseLeave}
+        >
+          <div 
+            className="avatar" 
+            style={{ 
+              cursor: 'pointer',
+              transition: 'transform 0.15s ease, box-shadow 0.15s ease',
+              transform: isDropdownOpen ? 'scale(1.06)' : 'scale(1)',
+              boxShadow: isDropdownOpen ? `0 0 0 2px ${profile.badgeColor}` : 'none'
+            }}
+          >
+            {profile.initials}
+          </div>
+
+          {/* Hover Details Card */}
+          {isDropdownOpen && (
+            <div 
+              className="profile-hover-card"
+              style={{
+                position: 'absolute',
+                top: 'calc(100% + 10px)',
+                right: 0,
+                width: '320px',
+                backgroundColor: theme === 'dark' ? '#111827' : '#ffffff',
+                color: theme === 'dark' ? '#f8fafc' : '#0f172a',
+                border: `1px solid ${theme === 'dark' ? '#334155' : '#e2e8f0'}`,
+                borderRadius: '12px',
+                padding: '16px',
+                boxShadow: theme === 'dark' 
+                  ? '0 20px 30px -5px rgba(0, 0, 0, 0.7), 0 8px 12px -3px rgba(0, 0, 0, 0.4)' 
+                  : '0 20px 25px -5px rgba(15, 23, 42, 0.12), 0 8px 10px -6px rgba(15, 23, 42, 0.08)',
+                zIndex: 1000,
+                animation: 'fadeInSlideDown 0.18s cubic-bezier(0.16, 1, 0.3, 1)',
+                backdropFilter: 'blur(8px)',
+              }}
+            >
+              {/* Header: Avatar, Name & Online Status */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '14px' }}>
+                <div style={{ position: 'relative' }}>
+                  <div 
+                    style={{
+                      width: '44px',
+                      height: '44px',
+                      borderRadius: '50%',
+                      backgroundColor: profile.badgeBg,
+                      color: profile.badgeColor,
+                      border: `2px solid ${profile.badgeColor}`,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '16px',
+                      fontWeight: 800,
+                    }}
+                  >
+                    {profile.initials}
+                  </div>
+                  <span 
+                    style={{
+                      position: 'absolute',
+                      bottom: 0,
+                      right: 0,
+                      width: '12px',
+                      height: '12px',
+                      borderRadius: '50%',
+                      backgroundColor: '#10b981',
+                      border: `2px solid ${theme === 'dark' ? '#111827' : '#ffffff'}`,
+                    }}
+                    title="Active Authenticated Session"
+                  />
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: '15px', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {profile.name}
+                  </div>
+                  <div style={{ fontSize: '12px', color: theme === 'dark' ? '#94a3b8' : '#64748b', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
+                    <Mail size={12} />
+                    <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{profile.email}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Badges / Pill row */}
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '14px' }}>
+                <span 
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    padding: '3px 8px',
+                    borderRadius: '6px',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    backgroundColor: profile.badgeBg,
+                    color: profile.badgeColor,
+                    border: `1px solid ${profile.badgeColor}40`,
+                  }}
+                >
+                  <ShieldCheck size={12} />
+                  {currentRole}
+                </span>
+
+                <span 
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    padding: '3px 8px',
+                    borderRadius: '6px',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    backgroundColor: theme === 'dark' ? '#1e293b' : '#f1f5f9',
+                    color: theme === 'dark' ? '#cbd5e1' : '#475569',
+                    border: `1px solid ${theme === 'dark' ? '#334155' : '#e2e8f0'}`,
+                  }}
+                >
+                  <Key size={11} />
+                  {profile.id}
+                </span>
+
+                <span 
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    padding: '3px 8px',
+                    borderRadius: '6px',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                    color: '#10b981',
+                    border: '1px solid rgba(16, 185, 129, 0.25)',
+                  }}
+                >
+                  <CheckCircle2 size={11} />
+                  Active
+                </span>
+              </div>
+
+              {/* Detail Items */}
+              <div 
+                style={{
+                  backgroundColor: theme === 'dark' ? '#0f172a' : '#f8fafc',
+                  border: `1px solid ${theme === 'dark' ? '#1f2937' : '#e2e8f0'}`,
+                  borderRadius: '8px',
+                  padding: '10px 12px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '8px',
+                  fontSize: '12px',
+                  marginBottom: '14px',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ color: theme === 'dark' ? '#94a3b8' : '#64748b', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                    <Building size={13} /> Department
+                  </span>
+                  <span style={{ fontWeight: 600 }}>{profile.department}</span>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ color: theme === 'dark' ? '#94a3b8' : '#64748b', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                    <ShieldCheck size={13} /> Security Scope
+                  </span>
+                  <span style={{ fontWeight: 600, color: profile.badgeColor }}>{profile.securityLevel}</span>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ color: theme === 'dark' ? '#94a3b8' : '#64748b', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                    <Clock size={13} /> Session Validity
+                  </span>
+                  <span style={{ fontWeight: 600, color: '#10b981' }}>20 min JWT</span>
+                </div>
+              </div>
+
+              {/* Operational Scope Description */}
+              <div style={{ fontSize: '11px', color: theme === 'dark' ? '#94a3b8' : '#64748b', lineHeight: '1.4', marginBottom: '14px', padding: '0 2px' }}>
+                <strong style={{ color: theme === 'dark' ? '#cbd5e1' : '#334155' }}>Operational Access:</strong> {profile.scope}
+              </div>
+
+              {/* Quick Sign Out Action inside Popover */}
+              <button
+                className="btn btn-secondary btn-sm"
+                onClick={onLogout}
+                style={{
+                  width: '100%',
+                  display: 'flex',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '7px 12px',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  borderRadius: '6px',
+                }}
+              >
+                <LogOut size={13} />
+                <span>Sign Out of PeoplePay360</span>
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Logout / Switch User */}
@@ -107,3 +409,5 @@ export const Header: React.FC<HeaderProps> = ({
     </header>
   );
 };
+
+export default Header;

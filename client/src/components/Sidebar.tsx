@@ -14,9 +14,10 @@ import { useAuth } from '../context/AuthContext';
 interface SidebarProps {
   currentTab: string;
   onSelectTab: (tab: string) => void;
+  employeeCount?: number;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onSelectTab }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onSelectTab, employeeCount }) => {
   const { displayRole } = useAuth();
 
   const isAdmin = displayRole === 'Admin';
@@ -32,6 +33,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onSelectTab }) => 
   const showTimeOff = isAdmin || isHRManager || isEmployee;
   const showPayrollEngine = isAdmin || isPayroll;
   const showConfiguration = isAdmin;
+
+  const countBadge = employeeCount !== undefined && employeeCount !== null ? employeeCount : 6;
 
   return (
     <aside className="sidebar">
@@ -77,7 +80,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onSelectTab }) => 
                     <Users size={17} />
                     <span>Employees</span>
                   </div>
-                  <span className="nav-badge">6</span>
+                  <span className="nav-badge">{countBadge}</span>
                 </button>
               </li>
             )}

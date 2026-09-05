@@ -224,6 +224,7 @@ const AppContent: React.FC = () => {
       {/* 1. Sidebar */}
       <Sidebar
         currentTab={currentTab}
+        employeeCount={employees.length}
         onSelectTab={(tab) => {
           if (tab === 'login') {
             logout();
