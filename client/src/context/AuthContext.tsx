@@ -1,52 +1,50 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { 
-  authApi, 
-  getStoredToken, 
-  setStoredToken, 
-  clearStoredToken, 
-  setStoredUser, 
-  clearStoredUser 
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  useRef,
+} from 'react';
+import {
+  authApi,
+  getStoredToken,
+  setStoredToken,
+  clearStoredToken,
+  setStoredUser,
+  clearStoredUser,
 } from '../api/client';
-import { normalizeRole, toDisplayRole, type CanonicalRole } from '../utils/permissions';
+import type { User, AuthContextValue } from '../types/auth';
 import type { UserRole, AuthUser } from '../types';
+import { toDisplayRole } from '../utils/permissions';
 
-export interface AuthContextType {
-  user: AuthUser | null;
-  token: string | null;
-  role: CanonicalRole | null;
+export interface ExtendedAuthContextValue extends AuthContextValue {
   displayRole: UserRole;
-  isAuthenticated: boolean;
-  isLoading: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  logout: () => void;
   setDisplayRole: (role: UserRole) => void;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+export type AuthContextType = ExtendedAuthContextValue;
+
+const AuthContext = createContext<ExtendedAuthContextValue | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<AuthUser | null>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [overrideDisplayRole, setOverrideDisplayRole] = useState<UserRole | null>(null);
 
-  // Guard against duplicate concurrent login submissions
+  // Prevent concurrent login requests
   const isLoggingInRef = useRef<boolean>(false);
 
-  /**
-   * Application Startup Lifecycle:
-   * 1. Read stored token from storage.
-   * 2. If no token exists, finish loading and show Login.
-   * 3. If token exists, call GET /api/auth/me with Bearer token.
-   * 4. If valid, restore the authenticated user profile.
-   * 5. If 401 / expired / invalid / network failure, clear session and return to Login.
-   * 6. Never reveal protected UI while authentication is still initializing.
-   */
+  // --------------------------------------------------------------------------
+  // Application Startup: Validate Token & Restore Session
+  // --------------------------------------------------------------------------
   useEffect(() => {
     let isMounted = true;
 
-    const restoreSession = async () => {
+    const initializeSession = async () => {
       let storedToken: string | null = null;
       try {
         storedToken = getStoredToken();
@@ -54,18 +52,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.warn('[AuthContext] Storage read error:', storageError);
       }
 
+      // If no token exists, immediately unauthenticate
       if (!storedToken) {
         if (isMounted) {
-          setToken(null);
           setUser(null);
+          setToken(null);
           setIsAuthenticated(false);
           setIsLoading(false);
         }
         return;
       }
 
+      // Token exists: validate with backend /api/auth/me
       try {
-        // Verify token against backend GET /api/auth/me
         const response = await authApi.getMe(storedToken);
 
         if (isMounted && response.success && response.user) {
@@ -80,17 +79,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setToken(storedToken);
           setUser(safeUser);
           setIsAuthenticated(true);
-          // Persist safe user info (never passwords)
           setStoredUser(safeUser);
         } else {
-          throw new Error('Invalid or expired authentication response');
+          throw new Error('Session invalid or unauthorized');
         }
-      } catch (error) {
-        // Token expired, malformed, or backend returned 401
-        console.warn('[AuthContext] Stored session invalid or expired. Resetting session state.');
+      } catch (err) {
+        console.warn('[AuthContext] Stored session validation failed:', err);
         clearStoredToken();
         clearStoredUser();
-
         if (isMounted) {
           setToken(null);
           setUser(null);
@@ -103,38 +99,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     };
 
-    restoreSession();
+    initializeSession();
 
     return () => {
       isMounted = false;
     };
   }, []);
 
-  /**
-   * Login Lifecycle:
-   * 1. Check if already authenticating (duplicate submission guard).
-   * 2. Call POST /api/auth/login.
-   * 3. Persist received token and safe user profile (never store passwords).
-   * 4. Update state to reveal authenticated application.
-   */
+  // --------------------------------------------------------------------------
+  // Login Implementation
+  // --------------------------------------------------------------------------
   const login = useCallback(async (email: string, password: string): Promise<void> => {
     if (isLoggingInRef.current) {
       return;
     }
+
+    const normalizedEmail = email.trim().toLowerCase();
+    const cleanPassword = password.trim();
+
+    if (!normalizedEmail || !cleanPassword) {
+      throw new Error('Please enter both work email and password.');
+    }
+
     isLoggingInRef.current = true;
 
     try {
-      const trimmedEmail = email.trim().toLowerCase();
-      const trimmedPassword = password.trim();
-
-      if (!trimmedEmail || !trimmedPassword) {
-        throw new Error('Please enter both work email and password.');
-      }
-
-      const response = await authApi.login(trimmedEmail, trimmedPassword);
+      const response = await authApi.login(normalizedEmail, cleanPassword);
 
       if (!response.success || !response.token || !response.user) {
-        throw new Error(response.message || 'Invalid email or password');
+        throw new Error(response.message || 'Authentication failed. Please verify credentials.');
       }
 
       const safeUser: AuthUser = {
@@ -145,10 +138,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         ...(response.user.employeeId ? { employeeId: response.user.employeeId } : {}),
       };
 
-      // Persist token and safe user profile only
+      // Persist token and safe user profile
       setStoredToken(response.token);
       setStoredUser(safeUser);
 
+      // Update centralized auth state
       setToken(response.token);
       setUser(safeUser);
       setOverrideDisplayRole(null);
@@ -158,13 +152,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
-  /**
-   * Logout Lifecycle:
-   * 1. Clear stored token.
-   * 2. Clear stored user profile.
-   * 3. Reset React state to unauthenticated.
-   * 4. Return user to Login screen.
-   */
+  // --------------------------------------------------------------------------
+  // Logout Implementation
+  // --------------------------------------------------------------------------
   const logout = useCallback(() => {
     clearStoredToken();
     clearStoredUser();
@@ -174,40 +164,37 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsAuthenticated(false);
   }, []);
 
-  // Derived role values
-  const role: CanonicalRole | null = useMemo(() => {
-    return user ? normalizeRole(user.role) : null;
-  }, [user]);
-
+  // --------------------------------------------------------------------------
+  // Role display integration for UI continuity
+  // --------------------------------------------------------------------------
   const displayRole: UserRole = useMemo(() => {
     if (overrideDisplayRole) return overrideDisplayRole;
     if (user?.role) return toDisplayRole(user.role);
     return 'HR Payroll Manager';
   }, [user, overrideDisplayRole]);
 
-  const setDisplayRole = useCallback((newRole: UserRole) => {
-    setOverrideDisplayRole(newRole);
+  const setDisplayRole = useCallback((role: UserRole) => {
+    setOverrideDisplayRole(role);
   }, []);
 
-  const contextValue = useMemo(
+  const value: ExtendedAuthContextValue = useMemo(
     () => ({
       user,
       token,
-      role,
-      displayRole,
       isAuthenticated,
       isLoading,
       login,
       logout,
+      displayRole,
       setDisplayRole,
     }),
-    [user, token, role, displayRole, isAuthenticated, isLoading, login, logout, setDisplayRole]
+    [user, token, isAuthenticated, isLoading, login, logout, displayRole, setDisplayRole]
   );
 
-  return <AuthContext.Provider value={contextValue}>{children}</AuthContext.Provider>;
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
-export const useAuth = (): AuthContextType => {
+export const useAuth = (): ExtendedAuthContextValue => {
   const context = useContext(AuthContext);
   if (!context) {
     throw new Error('useAuth must be used within an AuthProvider');

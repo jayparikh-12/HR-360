@@ -97,7 +97,6 @@ const AppContent: React.FC = () => {
             animation: 'pulse 1.8s ease-in-out infinite' 
           }}
         >
-          P
         </div>
         <div style={{ textAlign: 'center' }}>
           <div style={{ fontSize: '20px', fontWeight: 800, letterSpacing: '-0.02em', color: '#ffffff' }}>

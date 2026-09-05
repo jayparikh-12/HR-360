@@ -1,8 +1,12 @@
 import { Router, Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import { authenticateToken } from '../middleware/auth.middleware.js';
+import { authorize } from '../middleware/authorize.js';
 import { findUserByEmail, verifyPassword, toSafeUser } from '../models/user.model.js';
 import { LoginRequest, LoginResponse, MeResponse, TokenPayload } from '../types/auth.types.js';
+import { PERMISSIONS } from '../types/rbac.js';
+import { getPermissionsForRole } from '../config/permissions.js';
+
 
 const router = Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'peoplepay360-hackathon-jwt-secret-2026';
@@ -110,4 +114,33 @@ router.get('/me', authenticateToken, (req: Request, res: Response<MeResponse>): 
   }
 });
 
+/**
+ * GET /api/auth/whoami
+ * RBAC proof-of-concept endpoint (Part 1 validation only).
+ *
+ * Demonstrates the full middleware chain:
+ *   authenticateToken → authorize(EMPLOYEE_READ) → handler
+ *
+ * Requires: Authorization: Bearer <token>
+ * All authenticated users have EMPLOYEE_READ, so this is accessible to every
+ * valid session. Remove or restrict this endpoint before production.
+ */
+
+
+router.get(
+  '/whoami',
+  authenticateToken,
+  authorize(PERMISSIONS.ATTENDANCE_READ),
+  (req: Request, res: Response) => {
+    const user = req.user!;
+    const permissions = [...getPermissionsForRole(user.role)];
+    return res.json({
+      success: true,
+      user,
+      permissions,
+    });
+  }
+);
+
 export default router;
+
