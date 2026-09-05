@@ -566,7 +566,7 @@ export const CreateStructureModal: React.FC<CreateStructureModalProps> = ({ onCl
       const created = await salaryStructuresApi.create(payload);
       onSuccess(created);
     } catch (err) {
-      console.error('[CreateStructureModal] Error:', err);
+      console.error('[CreateStructureModal] Error:', err instanceof Error ? err.message : String(err));
       if (err instanceof ApiError) {
         if (err.statusCode === 409) {
           setError(err.message || 'Salary structure with this code or ID already exists.');
@@ -832,7 +832,7 @@ export const CreateRuleModal: React.FC<CreateRuleModalProps> = ({
       const created = await salaryRulesApi.create(payload);
       onSuccess(created);
     } catch (err) {
-      console.error('[CreateRuleModal] Error:', err);
+      console.error('[CreateRuleModal] Error:', err instanceof Error ? err.message : String(err));
       if (err instanceof ApiError) {
         if (err.statusCode === 409) {
           setError(err.message || 'Rule code or ID already exists in this structure.');
@@ -1150,7 +1150,7 @@ export const SalaryStructures: React.FC<SalaryStructuresProps> = () => {
       const data = await salaryStructuresApi.getAll();
       setStructures(data);
     } catch (err) {
-      console.error('[SalaryStructures] Failed to load structures:', err);
+      console.error('[SalaryStructures] Failed to load structures:', err instanceof Error ? err.message : String(err));
       setError(err instanceof ApiError ? err.message : 'Unable to load salary structures from server.');
     } finally {
       setLoadingStructures(false);
@@ -1166,7 +1166,7 @@ export const SalaryStructures: React.FC<SalaryStructuresProps> = () => {
       const data = await salaryRulesApi.getAll(queryId);
       setRules(data);
     } catch (err) {
-      console.error('[SalaryStructures] Failed to load rules:', err);
+      console.error('[SalaryStructures] Failed to load rules:', err instanceof Error ? err.message : String(err));
       setError(err instanceof ApiError ? err.message : 'Unable to load salary rules from server.');
     } finally {
       setLoadingRules(false);

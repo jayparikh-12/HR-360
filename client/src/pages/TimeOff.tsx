@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Check, X, Plus } from 'lucide-react';
+import { Check, X, Plus, RefreshCw } from 'lucide-react';
 import type { TimeOffRequest } from '../types';
 import { timeOffApi } from '../api/timeOff';
 import { ApiError } from '../api/client';
@@ -35,7 +35,7 @@ export const TimeOff: React.FC<TimeOffProps> = ({ onApprove, onRefuse }) => {
       const data = await timeOffApi.getAll();
       setRequests(data);
     } catch (err) {
-      console.error('[TimeOff Page] Failed to fetch requests:', err);
+      console.error('[TimeOff Page] Failed to fetch requests:', err instanceof Error ? err.message : String(err));
       setError(err instanceof ApiError ? err.message : 'Unable to load time-off requests.');
     } finally {
       setLoading(false);
@@ -61,7 +61,7 @@ export const TimeOff: React.FC<TimeOffProps> = ({ onApprove, onRefuse }) => {
         onRefuse?.(id);
       }
     } catch (err) {
-      console.error(`[TimeOff Action] Failed to ${newStatus.toLowerCase()} request:`, err);
+      console.error(`[TimeOff Action] Failed to ${newStatus.toLowerCase()} request:`, err instanceof Error ? err.message : String(err));
       setError(err instanceof ApiError ? err.message : `Failed to ${newStatus.toLowerCase()} request.`);
     } finally {
       setActionLoadingId(null);
@@ -97,7 +97,7 @@ export const TimeOff: React.FC<TimeOffProps> = ({ onApprove, onRefuse }) => {
       setNewModalOpen(false);
       setReason('');
     } catch (err) {
-      console.error('[TimeOff Modal] Failed to submit request:', err);
+      console.error('[TimeOff Modal] Failed to submit request:', err instanceof Error ? err.message : String(err));
       setModalError(err instanceof ApiError ? err.message : 'Failed to submit time-off request.');
     } finally {
       setModalSubmitting(false);
@@ -120,9 +120,21 @@ export const TimeOff: React.FC<TimeOffProps> = ({ onApprove, onRefuse }) => {
           <h1 className="page-title">Time Off & Leave Operations</h1>
           <p className="page-desc">Manage employee leave requests, approve entitlements, and automatically deduct unpaid days from payroll.</p>
         </div>
-        <button className="btn btn-primary" onClick={() => setNewModalOpen(true)}>
-          <Plus size={14} /> Request Leave
-        </button>
+        <div style={{ display: 'flex', gap: '10px' }}>
+          <button
+            className="btn btn-secondary btn-sm"
+            onClick={loadRequests}
+            disabled={loading}
+            style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+            title="Refresh requests from database"
+          >
+            <RefreshCw size={13} className={loading ? 'spin' : ''} />
+            <span>Refresh</span>
+          </button>
+          <button className="btn btn-primary" onClick={() => setNewModalOpen(true)}>
+            <Plus size={14} /> Request Leave
+          </button>
+        </div>
       </div>
 
       {error && (

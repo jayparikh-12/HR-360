@@ -21,10 +21,11 @@ import { TimeOff } from './pages/TimeOff';
 import { Contracts } from './pages/Contracts';
 import { Schedules } from './pages/Schedules';
 import { SalaryStructures } from './pages/SalaryStructures';
+import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { employeesApi } from './api/employees';
 import { payrollApi } from './api/payroll';
 import { initialEmployees } from './data';
-import type { Employee, Payrun, UserRole } from './types';
+import type { Employee, Payrun } from './types';
 import './App.css';
 
 // Phase 2.3 shim: merge static attendance/leave stats onto API records
@@ -138,7 +139,7 @@ const AppShell: React.FC = () => {
       }));
       setEmployees(merged);
     } catch (err: unknown) {
-      console.error('[App] Failed to load employees from API:', err);
+      console.error('[App] Failed to load employees from API:', err instanceof Error ? err.message : String(err));
       setEmployeesError(err instanceof Error ? err.message : 'Could not load employee data from server.');
     } finally {
       setEmployeesLoading(false);
@@ -305,7 +306,9 @@ export const App: React.FC = () => (
   <BrowserRouter>
     <ThemeProvider>
       <AuthProvider>
-        <AppRoutes />
+        <ErrorBoundary>
+          <AppRoutes />
+        </ErrorBoundary>
       </AuthProvider>
     </ThemeProvider>
   </BrowserRouter>

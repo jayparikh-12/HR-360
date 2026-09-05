@@ -62,7 +62,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
       const data = await dashboardApi.getMetrics(filters);
       setMetrics(data);
     } catch (err: unknown) {
-      console.error('[Dashboard] Failed to load metrics:', err);
+      console.error('[Dashboard] Failed to load metrics:', err instanceof Error ? err.message : String(err));
       setError(
         err instanceof Error
           ? err.message

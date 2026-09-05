@@ -144,7 +144,7 @@ export const Payruns: React.FC<PayrunsProps> = ({
       onUpdatePayrun(newActive);
       onSelectPayrun?.(newActive.id);
     } catch (err: any) {
-      console.error('[Payruns] Validate failed:', err);
+      console.error('[Payruns] Validate failed:', err instanceof Error ? err.message : String(err));
       const msg = err instanceof ApiError ? err.message : (err?.message || 'Failed to validate payrun. Please try again.');
       setError(msg);
     } finally {
@@ -175,7 +175,7 @@ export const Payruns: React.FC<PayrunsProps> = ({
       onUpdatePayrun(newActive);
       onSelectPayrun?.(newActive.id);
     } catch (err: any) {
-      console.error('[Payruns] Payment failed:', err);
+      console.error('[Payruns] Payment failed:', err instanceof Error ? err.message : String(err));
       const msg = err instanceof ApiError ? err.message : (err?.message || 'Failed to process payment. Please try again.');
       setError(msg);
     } finally {
@@ -231,7 +231,7 @@ export const Payruns: React.FC<PayrunsProps> = ({
       setWizardPeriod('2026-10-01 to 2026-10-31');
       setWizardSalaryStructure('Standard Full-Time Tech');
     } catch (err: any) {
-      console.error('[Payruns] Wizard create failed:', err);
+      console.error('[Payruns] Wizard create failed:', err instanceof Error ? err.message : String(err));
       const msg = err instanceof ApiError ? err.message : (err?.message || 'Failed to create payrun. Please try again.');
       setWizardError(msg);
     } finally {

@@ -602,7 +602,7 @@ const Employee360Hub: React.FC<Employee360HubProps> = ({
       });
     } catch (err: any) {
       if (!active) return;
-      console.error('[Employee360] Failed to load employee 360 data:', err);
+      console.error('[Employee360] Failed to load employee 360 data:', err instanceof Error ? err.message : String(err));
       if (err instanceof ApiError && err.statusCode === 404) {
         setError('The requested employee record could not be found. It may have been deleted.');
       } else if (err instanceof ApiError && err.statusCode === 401) {
