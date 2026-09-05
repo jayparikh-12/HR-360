@@ -184,10 +184,25 @@ export async function getContractById(id: string): Promise<ContractRecord | null
 }
 
 /**
+ * Normalizes an employee identifier to its hyphenated canonical form.
+ * Converts 'EMP001' -> 'EMP-001' so that raw numeric codes match stored IDs.
+ */
+function normalizeEmployeeId(id: string): string {
+  const trimmed = id.trim();
+  // If already has a hyphen or is a UUID, return as-is
+  if (trimmed.includes('-')) return trimmed;
+  // Insert hyphen between alpha prefix and numeric suffix: EMP001 -> EMP-001
+  const match = trimmed.match(/^([A-Za-z]+)(\d+)$/);
+  if (match) return `${match[1].toUpperCase()}-${match[2]}`;
+  return trimmed;
+}
+
+/**
  * Returns all contracts for a specific employee ID or empCode.
+ * Accepts both 'EMP-001' and 'EMP001' formats.
  */
 export async function getContractsByEmployeeId(employeeId: string): Promise<ContractRecord[]> {
-  const trimmed = employeeId.trim();
+  const trimmed = normalizeEmployeeId(employeeId);
   const sql = `
     ${CONTRACT_SELECT}
     WHERE c.employee_id = ? OR e.id = ?
@@ -199,9 +214,10 @@ export async function getContractsByEmployeeId(employeeId: string): Promise<Cont
 
 /**
  * Returns the currently ACTIVE contract for an employee if one exists.
+ * Accepts both 'EMP-001' and 'EMP001' formats.
  */
 export async function getActiveContractByEmployeeId(employeeId: string): Promise<ContractRecord | null> {
-  const trimmed = employeeId.trim();
+  const trimmed = normalizeEmployeeId(employeeId);
   const sql = `
     ${CONTRACT_SELECT}
     WHERE (c.employee_id = ? OR e.id = ?)
