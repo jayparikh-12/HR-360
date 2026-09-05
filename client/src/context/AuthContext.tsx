@@ -12,8 +12,6 @@ import {
   getStoredToken,
   setStoredToken,
   clearStoredToken,
-  setStoredUser,
-  clearStoredUser,
 } from '../api/client';
 import type { User, AuthContextValue } from '../types/auth';
 import type { UserRole, AuthUser } from '../types';
@@ -79,14 +77,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setToken(storedToken);
           setUser(safeUser);
           setIsAuthenticated(true);
-          setStoredUser(safeUser);
         } else {
           throw new Error('Session invalid or unauthorized');
         }
       } catch (err) {
         console.warn('[AuthContext] Stored session validation failed:', err);
         clearStoredToken();
-        clearStoredUser();
         if (isMounted) {
           setToken(null);
           setUser(null);
@@ -138,9 +134,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         ...(response.user.employeeId ? { employeeId: response.user.employeeId } : {}),
       };
 
-      // Persist token and safe user profile
+      // Persist token
       setStoredToken(response.token);
-      setStoredUser(safeUser);
 
       // Update centralized auth state
       setToken(response.token);
@@ -157,7 +152,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // --------------------------------------------------------------------------
   const logout = useCallback(() => {
     clearStoredToken();
-    clearStoredUser();
     setToken(null);
     setUser(null);
     setOverrideDisplayRole(null);
