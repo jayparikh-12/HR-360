@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Search,
   FileText,
@@ -1269,15 +1269,24 @@ export const Employees: React.FC<EmployeesProps> = ({
   const [selectedDept, setSelectedDept] = useState('ALL');
   const [showAddForm, setShowAddForm] = useState(false);
 
+  // Memoize active headcount count to avoid recalculation on every unrelated render
+  const activeCount = useMemo(() => {
+    return employees.filter((e) => e.status === 'ACTIVE').length;
+  }, [employees]);
 
-  const filtered = employees.filter((emp) => {
-    const matchSearch =
-      emp.name.toLowerCase().includes(search.toLowerCase()) ||
-      emp.email.toLowerCase().includes(search.toLowerCase()) ||
-      emp.id.toLowerCase().includes(search.toLowerCase());
-    const matchDept = selectedDept === 'ALL' || emp.department === selectedDept;
-    return matchSearch && matchDept;
-  });
+  // Memoize filtered employee directory list based on search and selected department
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return employees.filter((emp) => {
+      const matchSearch =
+        !q ||
+        emp.name.toLowerCase().includes(q) ||
+        emp.email.toLowerCase().includes(q) ||
+        emp.id.toLowerCase().includes(q);
+      const matchDept = selectedDept === 'ALL' || emp.department === selectedDept;
+      return matchSearch && matchDept;
+    });
+  }, [employees, search, selectedDept]);
 
   const handleCreated = () => {
     onRefresh?.();
@@ -1311,7 +1320,7 @@ export const Employees: React.FC<EmployeesProps> = ({
           <div className="page-header">
             <div>
               <h1 className="page-title">Employee Directory</h1>
-              <p className="page-desc">Central operational hub for {employees.filter(e => e.status === 'ACTIVE').length} active staff members.</p>
+              <p className="page-desc">Central operational hub for {activeCount} active staff members.</p>
             </div>
             <div style={{ display: 'flex', gap: '10px' }}>
               <button

@@ -1,13 +1,13 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { 
   FileText, 
   RefreshCw, 
   AlertCircle, 
   Calendar, 
   CheckCircle2, 
-  CreditCard,
-  Search,
-  UserCheck,
+  CreditCard, 
+  Search, 
+  UserCheck, 
   Download
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -37,6 +37,15 @@ export const Payslips: React.FC = () => {
   // Search/filter for payslips in current view
   const [searchTerm, setSearchTerm] = useState<string>('');
 
+  const requestIdRef = useRef<number>(0);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      requestIdRef.current = -1;
+    };
+  }, []);
+
   // 1. Load employees list for managers/admins
   useEffect(() => {
     if (!isEmployee) {
@@ -58,7 +67,7 @@ export const Payslips: React.FC = () => {
   // Strictly enforce user's own employeeId for EMPLOYEE role to prevent any cross-employee UI leak
   const targetEmployeeId = isEmployee ? (user?.employeeId || '') : selectedEmployeeId;
 
-  // 2. Fetch employee payslips from backend API
+  // 2. Fetch employee payslips from backend API with concurrency guard
   const fetchPayslips = useCallback(async () => {
     if (!targetEmployeeId) {
       setLoading(false);
@@ -66,27 +75,34 @@ export const Payslips: React.FC = () => {
       return;
     }
 
+    const currentReqId = ++requestIdRef.current;
     setLoading(true);
     setError(null);
 
     try {
       const history = await payrollApi.getEmployeePayslips(targetEmployeeId);
-      setPayslips(history);
+      if (currentReqId === requestIdRef.current) {
+        setPayslips(history);
+      }
     } catch (err: any) {
-      console.error('[Payslips] Failed to load payslips:', err instanceof Error ? err.message : String(err));
-      if (err instanceof ApiError) {
-        if (err.statusCode === 403) {
-          setError('Access Denied: You do not have permission to view payroll records for this employee.');
-        } else if (err.statusCode === 404) {
-          setError(`No payroll records found for employee '${targetEmployeeId}'.`);
+      if (currentReqId === requestIdRef.current) {
+        console.error('[Payslips] Failed to load payslips:', err instanceof Error ? err.message : String(err));
+        if (err instanceof ApiError) {
+          if (err.statusCode === 403) {
+            setError('Access Denied: You do not have permission to view payroll records for this employee.');
+          } else if (err.statusCode === 404) {
+            setError(`No payroll records found for employee '${targetEmployeeId}'.`);
+          } else {
+            setError(err.message || 'Failed to retrieve payslip history.');
+          }
         } else {
-          setError(err.message || 'Failed to retrieve payslip history.');
+          setError(err?.message || 'Unable to load payslips. Please check your connection.');
         }
-      } else {
-        setError(err?.message || 'Unable to load payslips. Please check your connection.');
       }
     } finally {
-      setLoading(false);
+      if (currentReqId === requestIdRef.current) {
+        setLoading(false);
+      }
     }
   }, [targetEmployeeId]);
 
@@ -94,13 +110,15 @@ export const Payslips: React.FC = () => {
     fetchPayslips();
   }, [fetchPayslips]);
 
-  // Filter payslips by cycle name or period
-  const filteredPayslips = payslips.filter((p) => {
-    if (!searchTerm.trim()) return true;
+  // Filter payslips by cycle name or period (memoized for render efficiency)
+  const filteredPayslips = useMemo(() => {
+    if (!searchTerm.trim()) return payslips;
     const term = searchTerm.toLowerCase();
-    const periodStr = `${p.payrollPeriod.start || ''} ${p.payrollPeriod.end || ''}`.toLowerCase();
-    return p.payrunName.toLowerCase().includes(term) || periodStr.includes(term) || p.status.toLowerCase().includes(term);
-  });
+    return payslips.filter((p) => {
+      const periodStr = `${p.payrollPeriod.start || ''} ${p.payrollPeriod.end || ''}`.toLowerCase();
+      return p.payrunName.toLowerCase().includes(term) || periodStr.includes(term) || p.status.toLowerCase().includes(term);
+    });
+  }, [payslips, searchTerm]);
 
   const getStatusBadge = (status: string) => {
     switch (status) {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   Users, 
   CheckCircle2, 
@@ -54,8 +54,18 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
   const [availableDepartments, setAvailableDepartments] = useState<string[]>([]);
   const [availablePeriods, setAvailablePeriods] = useState<string[]>([]);
 
+  const requestIdRef = useRef<number>(0);
+
+  // Unmount cleanup to prevent stale async updates
+  useEffect(() => {
+    return () => {
+      requestIdRef.current = -1;
+    };
+  }, []);
+
   // ── Data Fetching ───────────────────────────────────────────────────────────
   const fetchDashboardData = useCallback(async (isBackgroundRefresh = false) => {
+    const currentReqId = ++requestIdRef.current;
     if (isBackgroundRefresh) {
       setRefreshing(true);
     } else {
@@ -65,17 +75,23 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
 
     try {
       const data = await dashboardApi.getMetrics(filters);
-      setMetrics(data);
+      if (currentReqId === requestIdRef.current) {
+        setMetrics(data);
+      }
     } catch (err: unknown) {
-      console.error('[Dashboard] Failed to load metrics:', err instanceof Error ? err.message : String(err));
-      setError(
-        err instanceof Error
-          ? err.message
-          : 'Unable to connect to the payroll service. Please verify server status and try again.'
-      );
+      if (currentReqId === requestIdRef.current) {
+        console.error('[Dashboard] Failed to load metrics:', err instanceof Error ? err.message : String(err));
+        setError(
+          err instanceof Error
+            ? err.message
+            : 'Unable to connect to the payroll service. Please verify server status and try again.'
+        );
+      }
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (currentReqId === requestIdRef.current) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
   }, [filters]);
 
