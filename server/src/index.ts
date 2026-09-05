@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import authRoutes from './routes/auth.routes.js';
 import employeeRoutes from './routes/employee.routes.js';
 import contractRoutes from './routes/contract.routes.js';
 import attendanceRoutes from './routes/attendance.routes.js';
@@ -18,6 +19,7 @@ app.get('/api/health', (_req, res) => {
 });
 
 // Mount Routes
+app.use('/api/auth', authRoutes);
 app.use('/api/employees', employeeRoutes);
 app.use('/api/contracts', contractRoutes);
 app.use('/api/attendance', attendanceRoutes);

@@ -1,14 +1,33 @@
 import React from 'react';
-import { Search, Plus } from 'lucide-react';
+import { Search, Plus, LogOut } from 'lucide-react';
 import type { UserRole } from '../types';
 
 interface HeaderProps {
   currentRole: UserRole;
+  userName: string;
   onRoleChange: (role: UserRole) => void;
   onQuickPayrun: () => void;
+  onLogout: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ currentRole, onRoleChange, onQuickPayrun }) => {
+export const Header: React.FC<HeaderProps> = ({ 
+  currentRole, 
+  userName,
+  onRoleChange, 
+  onQuickPayrun,
+  onLogout
+}) => {
+  const getInitials = (role: UserRole) => {
+    switch (role) {
+      case 'Employee': return 'JD';
+      case 'HR Manager': return 'SC';
+      case 'HR Payroll User': return 'AR';
+      case 'Admin': return 'SR';
+      case 'HR Payroll Manager':
+      default: return 'ER';
+    }
+  };
+
   return (
     <header className="header">
       {/* Search */}
@@ -45,9 +64,20 @@ export const Header: React.FC<HeaderProps> = ({ currentRole, onRoleChange, onQui
         </select>
 
         {/* Avatar */}
-        <div className="avatar" title={currentRole}>
-          {currentRole === 'Employee' ? 'JD' : 'ER'}
+        <div className="avatar" title={`${userName} (${currentRole})`}>
+          {getInitials(currentRole)}
         </div>
+
+        {/* Logout / Switch User */}
+        <button 
+          className="btn btn-secondary btn-sm" 
+          onClick={onLogout}
+          title="Sign Out to Login Screen"
+          style={{ padding: '5px 8px' }}
+        >
+          <LogOut size={14} />
+          <span>Sign Out</span>
+        </button>
       </div>
     </header>
   );
