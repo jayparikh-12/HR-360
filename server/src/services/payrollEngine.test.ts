@@ -525,7 +525,7 @@ describe('PHASE 4.8: Percentage-Based Salary Rule Calculation', () => {
 });
 
 describe('Integration with PayrollEngine.compute', () => {
-  it('15. preserves baseline legacy calculations when no salary rules are passed', () => {
+  it('15. does not apply legacy hardcoded fallback when no salary rules are passed', () => {
     const legacyInput = {
       employeeId: 'EMP-001',
       employeeName: 'John Doe',
@@ -536,14 +536,16 @@ describe('Integration with PayrollEngine.compute', () => {
 
     const payslip = PayrollEngine.compute(legacyInput);
 
-    assert.strictEqual(payslip.basic, 3900); // 60% of 6500
-    assert.strictEqual(payslip.hra, 1625);   // 25% of 6500
-    assert.strictEqual(payslip.allowance, 975); // 15% of 6500
+    assert.strictEqual(payslip.basic, 0);
+    assert.strictEqual(payslip.hra, 0);
+    assert.strictEqual(payslip.allowance, 0);
     assert.strictEqual(payslip.gross, 6500);
-    assert.strictEqual(payslip.tax, 650);    // 10% of 6500
-    assert.strictEqual(payslip.otherDeductions, 455); // 7% of 6500
-    assert.strictEqual(payslip.net, 5395);   // 6500 - (650 + 455)
-    assert.strictEqual(payslip.rulesResult, undefined);
+    assert.strictEqual(payslip.tax, 0);
+    assert.strictEqual(payslip.otherDeductions, 0);
+    assert.strictEqual(payslip.totalDeductions, 0);
+    assert.strictEqual(payslip.net, 6500);
+    assert.strictEqual(payslip.totalEarnings, 0);
+    assert.ok(payslip.rulesResult);
   });
 
   it('attaches deterministic rule calculation results when salaryRules are provided', () => {
@@ -998,7 +1000,7 @@ describe('PHASE 4.11 & 4.12: Payroll Calculation Pipeline & Regression Integrati
     // basic = 6000 * 0.60 = 3600
     // dailyRate = 3600 / 30 = 120
     // unpaidLeaveDeduction = 120 * 2 = 240
-    assert.strictEqual(payslip.basic, 3600);
+    assert.strictEqual(payslip.basic, 0);
     assert.strictEqual(payslip.unpaidLeaveDeduction, 240);
   });
 
@@ -1397,11 +1399,10 @@ describe('PHASE 4.13 & 4.14: Pipeline Integration & Regression', () => {
     // Phase 4.15 netSalary is 12000 (12000 - 0 deductions)
     assert.strictEqual(payslip.netSalary, 12000);
 
-    // Baseline legacy fields remain untouched for backward compatibility
-    // Legacy gross = 10000, legacy tax = 1000, legacy otherDeductions = 700 -> net = 8300
+    // Salary rules are the ONLY source of deductions -> zero fallback deductions applied
     assert.strictEqual(payslip.gross, 10000);
-    assert.strictEqual(payslip.totalDeductions, 1700);
-    assert.strictEqual(payslip.net, 8300);
+    assert.strictEqual(payslip.totalDeductions, 0);
+    assert.strictEqual(payslip.net, 12000);
   });
 });
 
@@ -1774,8 +1775,8 @@ describe('PHASE 4.15: Final Net Salary Calculation', () => {
     assert.strictEqual(payslip.rulesResult.earnings, 10000);
     assert.strictEqual(payslip.rulesResult.deductions, 8500);
     assert.strictEqual(payslip.rulesResult.contributions.length, 4);
-    assert.strictEqual(payslip.rulesResult.contributions.filter(c => c.categoryType === 'EARNING').length, 2);
-    assert.strictEqual(payslip.rulesResult.contributions.filter(c => c.categoryType === 'DEDUCTION').length, 2);
+    assert.strictEqual(payslip.rulesResult.contributions.filter((c: any) => c.categoryType === 'EARNING').length, 2);
+    assert.strictEqual(payslip.rulesResult.contributions.filter((c: any) => c.categoryType === 'DEDUCTION').length, 2);
   });
 });
 

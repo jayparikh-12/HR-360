@@ -31,8 +31,17 @@ import {
   type TimeOffRecordInput,
   type TimeOffSummary,
   type PayrollSalaryRule,
-  type PayrollCalculationInput,
 } from './payrollEngine.js';
+import type {
+  PayrollCalculationInput,
+  NormalizedEmployeeInput,
+  NormalizedContractInput,
+  NormalizedSalaryStructureInput,
+  NormalizedSalaryRuleInput,
+  NormalizedAttendanceInput,
+  NormalizedTimeOffInput,
+  NormalizedPayrollPeriodInput,
+} from '../types/payroll.types.js';
 
 export interface EmployeeDataInput {
   id: string;
@@ -123,18 +132,118 @@ export function preparePayrollCalculationInput(params: PreparePayrollInputParams
       ? overrideOvertimeHours
       : 0;
 
-  const calculationInput: PayrollCalculationInput = {
+  // Canonical normalized domain entities
+  const nameParts = (employee.name || '').trim().split(/\s+/);
+  const firstName = nameParts[0] || 'Employee';
+  const lastName = nameParts.slice(1).join(' ');
+  const fullName = employee.name || 'Unknown Employee';
+
+  const canonicalEmployee: NormalizedEmployeeInput = {
     employeeId: employee.id,
-    employeeName: employee.name || 'Unknown Employee',
+    firstName,
+    lastName,
+    fullName,
+    department: employee.department || 'General',
+    position: 'Employee',
+    employmentStatus: 'ACTIVE',
+  };
+
+  const canonicalContract: NormalizedContractInput = {
+    contractId: contract?.id || `CON-${employee.id}`,
+    employeeId: employee.id,
+    wage: monthlyWage,
+    startDate: period.startDate,
+    endDate: period.endDate || null,
+    salaryStructureId,
+    status: 'ACTIVE',
+  };
+
+  const canonicalStructure: NormalizedSalaryStructureInput | null = salaryStructureId
+    ? { structureId: salaryStructureId, code: salaryStructureId, name: salaryStructureId }
+    : null;
+
+  const canonicalPeriod: NormalizedPayrollPeriodInput = {
+    periodStart: period.startDate,
+    periodEnd: period.endDate,
+    year: parseInt(period.startDate.slice(0, 4), 10) || 2026,
+    month: parseInt(period.startDate.slice(5, 7), 10) || 1,
+    totalDays: 30,
+  };
+
+  const canonicalRules: NormalizedSalaryRuleInput[] = (salaryRules || []).map((r) => ({
+    ruleId: r.id,
+    structureId: r.salaryStructureId || r.structureId || r.structure_id || null,
+    name: r.name,
+    code: r.code,
+    sequence: typeof r.sequence === 'number' ? r.sequence : parseInt(String(r.sequence), 10) || 0,
+    category: (r.category.toUpperCase() as any),
+    calculationType: ((r.calculationType || r.calculation_type || 'FIXED').toUpperCase() as any),
+    amount: r.amount !== undefined && r.amount !== null ? Number(r.amount) : null,
+    percentage: r.percentage !== undefined && r.percentage !== null ? Number(r.percentage) : null,
+    formula: r.formula || null,
+    id: r.id,
+  }));
+
+  const canonicalAttendance: NormalizedAttendanceInput = {
+    records: attendanceRecords.map((a) => ({
+      id: a.id || 'ATT-1',
+      date: a.date instanceof Date ? a.date.toISOString().split('T')[0] : String(a.date),
+      checkIn: a.checkIn || '',
+      checkOut: a.checkOut || '',
+      workedHours: Number(a.workedHours ?? 0),
+      status: (a.status as any) || 'PRESENT',
+    })),
+    summary: {
+      totalWorkedHours: attendanceSummary.totalWorkedHours,
+      presentDays: attendanceSummary.presentDays,
+      absentDays: attendanceSummary.absentDays,
+      lateDays: attendanceSummary.lateDays,
+      overtimeDays: attendanceSummary.overtimeDays,
+      overtimeHours: (attendanceSummary as any).overtimeHours ?? 0,
+      totalRecordedDays: attendanceSummary.totalRecords,
+    },
+  };
+
+  const canonicalTimeOff: NormalizedTimeOffInput = {
+    requests: timeOffRecords.map((t) => ({
+      id: t.id || 'TO-1',
+      leaveType: t.leaveType || 'Unpaid Leave',
+      startDate: t.startDate instanceof Date ? t.startDate.toISOString().split('T')[0] : String(t.startDate),
+      endDate: t.endDate instanceof Date ? t.endDate.toISOString().split('T')[0] : String(t.endDate),
+      durationDays: Number(t.durationDays ?? 1),
+      status: (t.status as any) || 'APPROVED',
+      isUnpaid: true,
+    })),
+    summary: {
+      totalApprovedDays: timeOffSummary.approvedLeaveDays,
+      approvedPaidDays: timeOffSummary.paidLeaveDays,
+      approvedUnpaidDays: timeOffSummary.unpaidLeaveDays,
+      pendingDays: 0,
+      refusedDays: 0,
+    },
+  };
+
+  const calculationInput: PayrollCalculationInput = {
+    employee: canonicalEmployee,
+    contract: canonicalContract,
+    salaryStructure: canonicalStructure,
+    salaryRules: canonicalRules,
+    attendance: canonicalAttendance,
+    timeOff: canonicalTimeOff,
+    payrollPeriod: canonicalPeriod,
+
+    // Integrated convenience properties
+    employeeId: employee.id,
+    employeeName: fullName,
     department: employee.department || 'General',
     monthlyWage,
     unpaidDays,
     overtimeHours,
     salaryStructureId,
-    salaryRules,
     attendanceSummary,
     timeOffSummary,
-    payrollPeriod: period,
+    attendanceRecords,
+    timeOffRecords,
   };
 
   return {

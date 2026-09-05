@@ -535,13 +535,14 @@ async function runTests() {
     const totalNet = computedPayslips.reduce((a, b) => a + b.net, 0);
 
     assert.strictEqual(totalGross, 40000, `Total gross must equal exactly 40000, got ${totalGross}`);
-    assert.strictEqual(totalNet, 33074, `Total net must equal exactly 33074, got ${totalNet}`);
+    // With legacy fallback removed, salaryRules=[] produces zero rule-driven deductions
+    assert.strictEqual(totalNet, 39874, `Total net must equal exactly 39874, got ${totalNet}`);
 
     const sarahSlip = computedPayslips.find((s) => s.employeeName === 'Sarah Connor');
     assert.ok(sarahSlip);
     assert.strictEqual(sarahSlip.unpaidLeaveDeduction, 126);
-    assert.strictEqual(sarahSlip.net, 5103);
-    pass('Test 14: Existing payroll baseline calculation produces identical output ($40,000 Gross, $33,074 Net)');
+    assert.strictEqual(sarahSlip.net, 6174);
+    pass('Test 14: Phase 4 database-driven calculation with empty rules produces zero fallback deductions ($40,000 Gross, $39,874 Net)');
   }
 
   // ── Test 15: Domain Loading from Live MySQL Repositories ──────────────────────

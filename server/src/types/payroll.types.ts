@@ -68,7 +68,7 @@ export interface NormalizedSalaryStructureInput {
 
 // ── Salary Rule Input Contract ───────────────────────────────────────────────
 
-export type SalaryRuleCategory = 'BASIC' | 'ALLOWANCE' | 'GROSS' | 'DEDUCTION' | 'NET';
+export type SalaryRuleCategory = 'BASIC' | 'ALLOWANCE' | 'GROSS' | 'DEDUCTION' | 'NET' | 'EARNING' | 'EARNINGS' | 'DEDUCTIONS';
 export type SalaryRuleCalculationType = 'FIXED' | 'PERCENTAGE' | 'FORMULA';
 
 export interface NormalizedSalaryRuleInput {
@@ -83,9 +83,33 @@ export interface NormalizedSalaryRuleInput {
   percentage: number | null;
   formula: string | null;
   active?: boolean;
+  // Compatibility aliases
+  id?: string;
+  structure_id?: string | null;
+  salaryStructureId?: string | null;
+  calculation_type?: string;
 }
 
-// ── Payroll Period Input Contract ───────────────────────────────────────────
+export interface PayrollSalaryRule {
+  id: string;
+  ruleId?: string;
+  name: string;
+  code: string;
+  sequence: number;
+  category: string;
+  calculationType?: string;
+  calculation_type?: string;
+  amount?: number | null;
+  percentage?: number | null;
+  base?: number | null;
+  percentageBase?: string | null;
+  salaryStructureId?: string | null;
+  structureId?: string | null;
+  structure_id?: string | null;
+  status?: string | null;
+  isActive?: boolean;
+  [key: string]: any;
+}
 
 export interface NormalizedPayrollPeriodInput {
   periodStart: string; // YYYY-MM-DD
@@ -150,19 +174,49 @@ export interface NormalizedTimeOffInput {
   summary: NormalizedTimeOffSummary;
 }
 
-// ── Unified Payroll Calculation Input ────────────────────────────────────────
+export interface PayrollPeriod {
+  startDate: string;
+  endDate: string;
+}
+
+// ── Unified Payroll Calculation Input (Single Source of Truth) ───────────────
 
 export interface PayrollCalculationInput {
+  // Canonical normalized domain entities (hydrated by payrollNormalizer / payrollLoader)
+  employee?: NormalizedEmployeeInput;
+  contract?: NormalizedContractInput;
+  salaryStructure?: NormalizedSalaryStructureInput | null;
+  salaryRules?: NormalizedSalaryRuleInput[] | any[];
+  attendance?: NormalizedAttendanceInput;
+  timeOff?: NormalizedTimeOffInput;
+  payrollPeriod?: NormalizedPayrollPeriodInput | PayrollPeriod | { startDate: string; endDate: string };
+
+  // Integrated / convenience properties (direct accessors)
+  employeeId?: string;
+  employeeName?: string;
+  department?: string;
+  monthlyWage?: number;
+  unpaidDays?: number;
+  overtimeHours?: number;
+  salaryStructureId?: string | null;
+  attendanceSummary?: NormalizedAttendanceSummary | any;
+  timeOffSummary?: NormalizedTimeOffSummary | any;
+  attendanceRecords?: NormalizedAttendanceRecord[] | any[];
+  timeOffRecords?: NormalizedTimeOffRequest[] | any[];
+  [key: string]: any;
+}
+
+export interface FullyNormalizedPayrollCalculationInput extends PayrollCalculationInput {
   employee: NormalizedEmployeeInput;
   contract: NormalizedContractInput;
-  salaryStructure?: NormalizedSalaryStructureInput | null;
+  salaryStructure: NormalizedSalaryStructureInput | null;
   salaryRules: NormalizedSalaryRuleInput[];
   attendance: NormalizedAttendanceInput;
   timeOff: NormalizedTimeOffInput;
   payrollPeriod: NormalizedPayrollPeriodInput;
 }
 
-// ── Payroll Calculation Result Contract ──────────────────────────────────────
+// ── Payroll Calculation Result Contract (Single Source of Truth) ─────────────
 
 export interface SalaryRuleContribution {
   ruleId: string;
@@ -172,6 +226,8 @@ export interface SalaryRuleContribution {
   calculationType: SalaryRuleCalculationType;
   sequence: number;
   amount: number;
+  percentage?: number | null;
+  base?: number | null;
 }
 
 export interface CalculatedPayslip {
@@ -189,11 +245,33 @@ export interface CalculatedPayslip {
   net: number;
   warning?: string;
 
-  // Phase 4.9 & 4.10 additions:
+  // Rule breakdown
   totalEarnings?: number;
   earnings?: SalaryRuleContribution[];
   deductions?: SalaryRuleContribution[];
+
+  // Phase 4 calculation results
+  grossSalary?: number;
+  totalCalculatedDeductions?: number;
+  netSalary?: number;
+
+  // Detailed summarization results
+  rulesResult?: any;
+  fixedRulesResult?: any;
+  fixedEarnings?: number;
+  fixedDeductions?: number;
+  percentageEarnings?: number;
+  percentageDeductions?: number;
+  attendanceSummary?: any;
+  timeOffSummary?: any;
+
+  // Explanatory normalized domain entities
+  employee?: NormalizedEmployeeInput;
+  contract?: NormalizedContractInput;
+  salaryStructure?: NormalizedSalaryStructureInput | null;
 }
+
+export type PayrollCalculationResult = CalculatedPayslip;
 
 // ── Raw Domain Data Payload for Normalization Layer ─────────────────────────
 

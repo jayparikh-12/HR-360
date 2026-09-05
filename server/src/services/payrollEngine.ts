@@ -993,8 +993,9 @@ export function summarizeTimeOff(
 // ── Baseline Payroll Calculation Contracts ────────────────────────────────────
 
 import type {
-  PayrollCalculationInput as NormalizedPayrollCalculationInput,
-  CalculatedPayslip as NormalizedCalculatedPayslip,
+  PayrollCalculationInput,
+  CalculatedPayslip,
+  PayrollCalculationResult,
   SalaryRuleContribution,
   NormalizedSalaryRuleInput,
   SalaryRuleCategory,
@@ -1002,80 +1003,16 @@ import type {
 } from '../types/payroll.types.js';
 
 export type {
+  PayrollCalculationInput,
+  CalculatedPayslip,
+  PayrollCalculationResult,
   SalaryRuleContribution,
   NormalizedSalaryRuleInput,
   PayrollInputErrorCode,
 } from '../types/payroll.types.js';
 export { PayrollInputError } from '../types/payroll.types.js';
 
-// ── Types & Interfaces ───────────────────────────────────────────────────────
-
-/**
- * Flat input shape consumed by calculation callers and preparation helpers.
- */
-export interface PayrollCalculationInput {
-  employeeId: string;
-  employeeName: string;
-  department: string;
-  monthlyWage: number;
-  unpaidDays?: number;
-  overtimeHours?: number;
-  // Phase 4.6, 4.7, 4.8 Salary Rules
-  salaryStructureId?: string | null;
-  salaryRules?: PayrollSalaryRule[];
-  // Phase 4.11 Attendance Integration
-  attendanceSummary?: AttendanceSummary;
-  attendanceRecords?: AttendanceRecordInput[];
-  // Phase 4.12 Time Off Integration
-  timeOffSummary?: TimeOffSummary;
-  timeOffRecords?: TimeOffRecordInput[];
-  // Payroll Period
-  payrollPeriod?: PayrollPeriod;
-}
-
 export type LegacyPayrollCalculationInput = PayrollCalculationInput;
-
-export interface CalculatedPayslip {
-  employeeId: string;
-  employeeName: string;
-  department: string;
-  basic: number;
-  hra: number;
-  allowance: number;
-  gross: number;
-  tax: number;
-  unpaidLeaveDeduction: number;
-  otherDeductions: number;
-  totalDeductions: number;
-  net: number;
-  warning?: string;
-
-  // Phase 4 extension fields (optional to preserve complete backward compatibility)
-  rulesResult?: RulesCalculationResult;
-  fixedRulesResult?: FixedRulesCalculationResult;
-  fixedEarnings?: number;
-  fixedDeductions?: number;
-  percentageEarnings?: number;
-  percentageDeductions?: number;
-
-  // Phase 4.11 Attendance Integration
-  attendanceSummary?: AttendanceSummary;
-
-  // Phase 4.12 Time Off Integration
-  timeOffSummary?: TimeOffSummary;
-
-  // Phase 4.13 Gross Salary & Phase 4.14 Total Deductions Integration
-  grossSalary?: number;
-  totalCalculatedDeductions?: number;
-
-  // Phase 4.15 Net Salary Integration
-  netSalary?: number;
-
-  // Phase 4.9 & 4.10 additions:
-  totalEarnings?: number;
-  earnings?: SalaryRuleContribution[];
-  deductions?: SalaryRuleContribution[];
-}
 
 /**
  * Context provided to rule evaluation functions.
@@ -1117,23 +1054,32 @@ export function isDeductionCategory(category: string): boolean {
 }
 
 /**
- * Type guard to check if an input is the normalized PayrollCalculationInput.
+ * Single shared helper for unpaid leave deduction calculation.
+ * Formula: roundMoney((basic / 30) * unpaidDays)
  */
-function isNormalizedInput(
-  input: PayrollCalculationInput | NormalizedPayrollCalculationInput
-): input is NormalizedPayrollCalculationInput {
-  return (
-    typeof input === 'object' &&
-    input !== null &&
-    'employee' in input &&
-    'contract' in input &&
-    'payrollPeriod' in input &&
-    typeof (input as any).employee === 'object' &&
-    typeof (input as any).contract === 'object'
-  );
+export function calculateUnpaidLeaveDeduction(basic: number, unpaidDays: number): number {
+  if (isNaN(basic) || basic <= 0 || isNaN(unpaidDays) || unpaidDays <= 0) return 0;
+  const dailyRate = basic / 30;
+  return Math.round(dailyRate * unpaidDays);
 }
 
-// ── Rule Contribution Evaluation (Phase 4.9 / 4.10) ───────────────────────────
+// ── Rule Contribution Evaluation (Shared Phase 4.6–4.10) ──────────────────────
+
+/**
+ * Calculates the contribution amount for a single FIXED salary rule.
+ */
+export function calculateFixedRule(
+  rule: NormalizedSalaryRuleInput | PayrollSalaryRule,
+  options?: { clampNegative?: boolean }
+): number {
+  const rawAmount = rule.amount !== null && rule.amount !== undefined ? Number(rule.amount) : 0;
+  if (isNaN(rawAmount) || !isFinite(rawAmount)) return 0;
+  if (rawAmount < 0) {
+    if (options?.clampNegative) return 0;
+    throw new Error(`Salary rule '${rule.code || rule.id}' amount must be a non-negative number.`);
+  }
+  return roundMoney(rawAmount);
+}
 
 export function calculateSalaryRuleContribution(
   rule: NormalizedSalaryRuleInput | PayrollSalaryRule,
@@ -1142,23 +1088,15 @@ export function calculateSalaryRuleContribution(
   const calcType = (rule.calculationType || (rule as any).calculation_type || '').trim().toUpperCase();
 
   if (calcType === 'FIXED') {
-    const rawAmount = rule.amount !== null && rule.amount !== undefined
-      ? (typeof rule.amount === 'number' ? rule.amount : parseFloat(String(rule.amount || '0')))
-      : 0;
-    if (isNaN(rawAmount) || rawAmount <= 0) return 0;
-    return roundMoney(rawAmount);
+    return calculateFixedRule(rule, { clampNegative: true });
   }
 
   if (calcType === 'PERCENTAGE') {
     const rawPct = rule.percentage !== null && rule.percentage !== undefined
-      ? (typeof rule.percentage === 'number' ? rule.percentage : parseFloat(String(rule.percentage || '0')))
+      ? Number(rule.percentage)
       : 0;
     if (isNaN(rawPct) || rawPct <= 0) return 0;
-
-    const base = context.baseWage;
-    if (base <= 0) return 0;
-    const rawContribution = (base * rawPct) / 100;
-    return roundMoney(rawContribution);
+    return calculateRulePercentageAmount(context.baseWage, rawPct, { clampNegative: true });
   }
 
   return 0;
@@ -1279,7 +1217,7 @@ export function processSalaryRules(
   };
 }
 
-// ── Payroll Engine Class ─────────────────────────────────────────────────────
+// ── Payroll Engine Class (Single Coherent Pipeline) ──────────────────────────
 
 export class PayrollEngine {
   public static orderSalaryRules = orderSalaryRules;
@@ -1301,171 +1239,163 @@ export class PayrollEngine {
   public static calculateEarnings = calculateEarnings;
   public static calculateDeductions = calculateDeductions;
   public static processSalaryRules = processSalaryRules;
+  public static calculateUnpaidLeaveDeduction = calculateUnpaidLeaveDeduction;
 
-  public static compute(
-    input: PayrollCalculationInput | NormalizedPayrollCalculationInput
-  ): CalculatedPayslip {
-    if (isNormalizedInput(input)) {
-      const employeeId = input.employee.employeeId;
-      const employeeName = input.employee.fullName;
-      const department = input.employee.department;
-      const monthlyWage = input.contract.wage;
-      const unpaidDays = input.timeOff?.summary?.approvedUnpaidDays || 0;
-      const structureId = input.salaryStructure?.structureId || input.contract.salaryStructureId || null;
-      const rules = input.salaryRules || [];
+  /**
+   * Deterministic payroll computation pipeline:
+   * 1. Resolve employee
+   * 2. Resolve contract & base wage
+   * 3. Resolve salary structure
+   * 4. Load & order active salary rules
+   * 5. Calculate fixed and percentage rules sequentially
+   * 6. Partition earnings and deductions
+   * 7. Apply attendance effects
+   * 8. Apply time-off / unpaid-leave effects
+   * 9. Calculate gross
+   * 10. Calculate total deductions
+   * 11. Calculate net salary
+   */
+  public static compute(input: PayrollCalculationInput): CalculatedPayslip {
+    // 1. Resolve Employee
+    const employeeId = input.employee?.employeeId ?? input.employeeId ?? '';
+    const employeeName = input.employee?.fullName ?? input.employeeName ?? '';
+    const department = input.employee?.department ?? input.department ?? '';
 
-      const ruleResult = processSalaryRules(rules, monthlyWage, structureId);
-      const hasRules = rules.length > 0;
+    // 2. Resolve Contract & Base Wage
+    const monthlyWage = input.contract?.wage ?? input.monthlyWage ?? 0;
 
-      let basic: number;
-      let hra: number;
-      let allowance: number;
-      let tax: number;
-      let otherDeductions: number;
-      let totalDeductions: number;
+    // 3. Resolve Salary Structure
+    const structureId =
+      input.salaryStructure?.structureId ??
+      input.contract?.salaryStructureId ??
+      input.salaryStructureId ??
+      null;
 
-      if (hasRules) {
-        const basicRule = ruleResult.earnings.find((r) => r.code === 'BASIC' || r.category === 'BASIC');
-        const hraRule = ruleResult.earnings.find((r) => r.code === 'HRA');
-        const taxRule = ruleResult.deductions.find((r) => r.code === 'TAX');
+    // 4. Resolve Period & Summaries
+    const period: PayrollPeriod | undefined = input.payrollPeriod
+      ? (typeof input.payrollPeriod === 'object' && 'periodStart' in input.payrollPeriod
+          ? { startDate: input.payrollPeriod.periodStart, endDate: input.payrollPeriod.periodEnd }
+          : input.payrollPeriod as PayrollPeriod)
+      : undefined;
 
-        basic = basicRule ? basicRule.amount : Math.round(monthlyWage * 0.60);
-        hra = hraRule ? hraRule.amount : Math.round(monthlyWage * 0.25);
-        allowance = roundMoney(
-          ruleResult.earnings
-            .filter((r) => r !== basicRule && r !== hraRule)
-            .reduce((sum, r) => sum + r.amount, 0)
-        );
-
-        if (allowance === 0 && ruleResult.totalEarnings > basic + hra) {
-          allowance = roundMoney(ruleResult.totalEarnings - basic - hra);
-        }
-
-        tax = taxRule ? taxRule.amount : Math.round(monthlyWage * 0.10);
-        otherDeductions = roundMoney(
-          ruleResult.deductions
-            .filter((r) => r !== taxRule)
-            .reduce((sum, r) => sum + r.amount, 0)
-        );
-
-        const dailyRate = basic / 30;
-        const unpaidLeaveDeduction = Math.round(dailyRate * unpaidDays);
-        totalDeductions = roundMoney(ruleResult.totalDeductions + unpaidLeaveDeduction);
-
-        const gross = monthlyWage;
-        const net = gross - totalDeductions;
-
-        return {
-          employeeId,
-          employeeName,
-          department,
-          basic,
-          hra,
-          allowance,
-          gross,
-          tax,
-          unpaidLeaveDeduction,
-          otherDeductions,
-          totalDeductions,
-          net,
-          totalEarnings: ruleResult.totalEarnings,
-          earnings: ruleResult.earnings,
-          deductions: ruleResult.deductions,
-        };
-      }
-
-      // Baseline fallback when no rules are passed
-      basic = Math.round(monthlyWage * 0.60);
-      hra = Math.round(monthlyWage * 0.25);
-      allowance = monthlyWage - basic - hra;
-      const gross = monthlyWage;
-      const dailyRate = basic / 30;
-      const unpaidLeaveDeduction = Math.round(dailyRate * unpaidDays);
-
-      tax = Math.round(gross * 0.10);
-      otherDeductions = Math.round(gross * 0.07);
-      totalDeductions = tax + otherDeductions + unpaidLeaveDeduction;
-
-      const net = gross - totalDeductions;
-
-      return {
-        employeeId,
-        employeeName,
-        department,
-        basic,
-        hra,
-        allowance,
-        gross,
-        tax,
-        unpaidLeaveDeduction,
-        otherDeductions,
-        totalDeductions,
-        net,
-        totalEarnings: 0,
-        earnings: [],
-        deductions: [],
-      };
+    // Attendance Summary
+    let attendanceSummary: any = input.attendance?.summary ?? input.attendanceSummary;
+    if (!attendanceSummary && input.attendanceRecords && Array.isArray(input.attendanceRecords) && period) {
+      attendanceSummary = summarizeAttendance(input.attendanceRecords, employeeId, period);
     }
 
-    // Flat / Legacy input processing (Pavan Phase 4.6–4.15 & legacy callers)
-    const flatInput = input as PayrollCalculationInput;
-    const basic = Math.round(flatInput.monthlyWage * 0.60);
-    const hra = Math.round(flatInput.monthlyWage * 0.25);
-    const allowance = flatInput.monthlyWage - basic - hra;
-    const gross = flatInput.monthlyWage;
-
-    let attendanceSummary = flatInput.attendanceSummary;
-    if (!attendanceSummary && flatInput.attendanceRecords && Array.isArray(flatInput.attendanceRecords)) {
-      attendanceSummary = summarizeAttendance(flatInput.attendanceRecords, flatInput.employeeId, flatInput.payrollPeriod);
+    // Time Off Summary
+    let timeOffSummary: any = input.timeOff?.summary ?? input.timeOffSummary;
+    if (!timeOffSummary && input.timeOffRecords && Array.isArray(input.timeOffRecords) && period) {
+      timeOffSummary = summarizeTimeOff(input.timeOffRecords, employeeId, period);
     }
 
-    let timeOffSummary = flatInput.timeOffSummary;
-    if (!timeOffSummary && flatInput.timeOffRecords && Array.isArray(flatInput.timeOffRecords)) {
-      timeOffSummary = summarizeTimeOff(flatInput.timeOffRecords, flatInput.employeeId, flatInput.payrollPeriod);
+    const unpaidDays = input.unpaidDays !== undefined
+      ? input.unpaidDays
+      : ((timeOffSummary as any)?.approvedUnpaidDays ?? (timeOffSummary as any)?.unpaidLeaveDays ?? 0);
+
+    // 5. Order & Calculate Salary Rules
+    const rawRules = (input.salaryRules && Array.isArray(input.salaryRules))
+      ? (input.salaryRules as PayrollSalaryRule[])
+      : [];
+    const orderedRules = orderSalaryRules(rawRules, structureId);
+    const rulesResult = calculateSalaryRules(orderedRules, {
+      salaryStructureId: structureId,
+      baseWage: monthlyWage,
+    });
+
+    const basicRule = rulesResult.contributions.find(
+      (r: any) => r.category === 'BASIC' || r.ruleCode === 'BASIC' || r.ruleCode === 'BASIC_SALARY'
+    );
+    const hraRule = rulesResult.contributions.find(
+      (r: any) => r.category === 'HRA' || r.ruleCode === 'HRA'
+    );
+    const taxRule = rulesResult.contributions.find(
+      (r: any) => r.category === 'TAX' || r.ruleCode === 'TAX' || r.category === 'INCOME_TAX' || r.ruleCode === 'INCOME_TAX'
+    );
+
+    const basic = basicRule ? basicRule.amount : 0;
+    const hra = hraRule ? hraRule.amount : 0;
+    const allowance = roundMoney(
+      rulesResult.earnings - (basicRule ? basicRule.amount : 0) - (hraRule ? hraRule.amount : 0)
+    );
+    const tax = taxRule ? taxRule.amount : 0;
+    const otherDeductions = roundMoney(
+      rulesResult.deductions - (taxRule ? taxRule.amount : 0)
+    );
+
+    // 6. Attendance & Unpaid Leave Deduction
+    const standardBasic = Math.round(monthlyWage * 0.60);
+    const unpaidLeaveDeduction = calculateUnpaidLeaveDeduction(standardBasic, unpaidDays);
+
+    // Gross Salary Calculation
+    let grossSalary: number;
+    if (basicRule && hraRule && rulesResult.earnings === monthlyWage) {
+      // Structure explicitly partitions monthly wage (e.g. baseline wage partitioning structure)
+      grossSalary = monthlyWage;
+    } else {
+      // Rule-driven earnings add to base wage (or base wage if no rules)
+      grossSalary = calculateGrossSalary(monthlyWage, rulesResult, { salaryStructureId: structureId });
+    }
+    const gross = monthlyWage;
+
+    // Total Deductions Calculation (Phase 4 rules + unpaid leave)
+    const totalCalculatedDeductions = calculateTotalDeductions(rulesResult, {
+      salaryStructureId: structureId,
+      unpaidLeaveDeduction,
+    });
+    const totalDeductions = totalCalculatedDeductions;
+    rulesResult.grossSalary = grossSalary;
+    rulesResult.totalDeductions = totalCalculatedDeductions;
+
+    // Net Salary Calculation
+    const netSalary = calculateNetSalary(grossSalary, totalCalculatedDeductions);
+    const net = netSalary;
+    rulesResult.netSalary = netSalary;
+
+    // 12. Warning derivation
+    let warning: string | undefined = undefined;
+    if (unpaidDays > 0) {
+      warning = `Unpaid leave deduction applied (${unpaidDays} day${unpaidDays > 1 ? 's' : ''})`;
     }
 
-    const unpaidDays = flatInput.unpaidDays !== undefined
-      ? flatInput.unpaidDays
-      : (timeOffSummary ? timeOffSummary.unpaidLeaveDays : 0);
+    // Partition contributions into typed SalaryRuleContribution arrays
+    const earningsContributions: SalaryRuleContribution[] = rulesResult
+      ? rulesResult.contributions
+          .filter((c: any) => c.categoryType === 'EARNING')
+          .map((c: any) => ({
+            ruleId: c.ruleId,
+            code: c.ruleCode,
+            name: c.ruleName,
+            category: c.category as SalaryRuleCategory,
+            calculationType: c.calculationType as SalaryRuleCalculationType,
+            sequence: c.sequence,
+            amount: c.amount,
+            percentage: c.percentage,
+            base: c.base,
+          }))
+      : [];
 
-    const dailyRate = basic / 30;
-    const unpaidLeaveDeduction = Math.round(dailyRate * unpaidDays);
-
-    const tax = Math.round(gross * 0.10);
-    const otherDeductions = Math.round(gross * 0.07);
-    const totalDeductions = tax + otherDeductions + unpaidLeaveDeduction;
-
-    const net = gross - totalDeductions;
-
-    let rulesResult: RulesCalculationResult | undefined = undefined;
-    let calculatedGrossSalary: number | undefined = undefined;
-    let calculatedTotalDeductions: number | undefined = undefined;
-    let calculatedNetSalary: number | undefined = undefined;
-
-    if (flatInput.salaryRules && Array.isArray(flatInput.salaryRules)) {
-      rulesResult = calculateSalaryRules(flatInput.salaryRules, {
-        salaryStructureId: flatInput.salaryStructureId,
-        baseWage: flatInput.monthlyWage,
-      });
-
-      calculatedGrossSalary = calculateGrossSalary(flatInput.monthlyWage, rulesResult, {
-        salaryStructureId: flatInput.salaryStructureId,
-      });
-      calculatedTotalDeductions = calculateTotalDeductions(rulesResult, {
-        salaryStructureId: flatInput.salaryStructureId,
-        unpaidLeaveDeduction,
-      });
-      rulesResult.grossSalary = calculatedGrossSalary;
-      rulesResult.totalDeductions = calculatedTotalDeductions;
-
-      calculatedNetSalary = calculateNetSalary(calculatedGrossSalary, calculatedTotalDeductions);
-      rulesResult.netSalary = calculatedNetSalary;
-    }
+    const deductionsContributions: SalaryRuleContribution[] = rulesResult
+      ? rulesResult.contributions
+          .filter((c: any) => c.categoryType === 'DEDUCTION')
+          .map((c: any) => ({
+            ruleId: c.ruleId,
+            code: c.ruleCode,
+            name: c.ruleName,
+            category: c.category as SalaryRuleCategory,
+            calculationType: c.calculationType as SalaryRuleCalculationType,
+            sequence: c.sequence,
+            amount: c.amount,
+            percentage: c.percentage,
+            base: c.base,
+          }))
+      : [];
 
     return {
-      employeeId: flatInput.employeeId,
-      employeeName: flatInput.employeeName,
-      department: flatInput.department,
+      employeeId,
+      employeeName,
+      department,
       basic,
       hra,
       allowance,
@@ -1475,24 +1405,32 @@ export class PayrollEngine {
       otherDeductions,
       totalDeductions,
       net,
-      totalEarnings: rulesResult?.earnings ?? 0,
-      earnings: [],
-      deductions: [],
-      ...(rulesResult
-        ? {
-            rulesResult,
-            fixedRulesResult: rulesResult,
-            fixedEarnings: rulesResult.fixedEarnings,
-            fixedDeductions: rulesResult.fixedDeductions,
-            percentageEarnings: rulesResult.percentageEarnings,
-            percentageDeductions: rulesResult.percentageDeductions,
-          }
-        : {}),
-      ...(attendanceSummary ? { attendanceSummary } : {}),
-      ...(timeOffSummary ? { timeOffSummary } : {}),
-      ...(calculatedGrossSalary !== undefined ? { grossSalary: calculatedGrossSalary } : {}),
-      ...(calculatedTotalDeductions !== undefined ? { totalCalculatedDeductions: calculatedTotalDeductions } : {}),
-      ...(calculatedNetSalary !== undefined ? { netSalary: calculatedNetSalary } : {}),
+      warning,
+
+      // Rule breakdown
+      totalEarnings: rulesResult ? rulesResult.earnings : 0,
+      earnings: earningsContributions,
+      deductions: deductionsContributions,
+
+      // Phase 4 calculation results
+      grossSalary,
+      totalCalculatedDeductions,
+      netSalary,
+
+      // Detailed summarization results
+      rulesResult,
+      fixedRulesResult: rulesResult,
+      fixedEarnings: rulesResult ? rulesResult.fixedEarnings : 0,
+      fixedDeductions: rulesResult ? rulesResult.fixedDeductions : 0,
+      percentageEarnings: rulesResult ? rulesResult.percentageEarnings : 0,
+      percentageDeductions: rulesResult ? rulesResult.percentageDeductions : 0,
+      attendanceSummary,
+      timeOffSummary,
+
+      // Explanatory normalized domain entities
+      employee: input.employee,
+      contract: input.contract,
+      salaryStructure: input.salaryStructure,
     };
   }
 }

@@ -30,6 +30,7 @@ import {
   type NormalizedTimeOffSummary,
   type NormalizedTimeOffInput,
   type PayrollCalculationInput,
+  type FullyNormalizedPayrollCalculationInput,
   type RawPayrollDomainData,
   type RawEmployeeData,
   type RawContractData,
@@ -700,7 +701,7 @@ export function normalizeTimeOff(
  *
  * Does not query any database. Receives raw data as input and produces normalized data.
  */
-export function normalizePayrollCalculationInput(data: RawPayrollDomainData): PayrollCalculationInput {
+export function normalizePayrollCalculationInput(data: RawPayrollDomainData): FullyNormalizedPayrollCalculationInput {
   if (!data || typeof data !== 'object') {
     throw new PayrollInputError('MISSING_EMPLOYEE', 'normalizePayrollCalculationInput requires a valid domain data object.');
   }
@@ -768,5 +769,29 @@ export function normalizePayrollCalculationInput(data: RawPayrollDomainData): Pa
     attendance,
     timeOff,
     payrollPeriod,
+    // Integrated convenience properties
+    employeeId: employee.employeeId,
+    employeeName: employee.fullName,
+    department: employee.department,
+    monthlyWage: contract.wage,
+    unpaidDays: timeOff.summary.approvedUnpaidDays,
+    overtimeHours: attendance.summary.overtimeHours,
+    salaryStructureId: salaryStructure ? salaryStructure.structureId : (contract.salaryStructureId || null),
+    attendanceSummary: {
+      totalRecords: attendance.records.length,
+      totalWorkedHours: attendance.summary.totalWorkedHours,
+      presentDays: attendance.summary.presentDays,
+      absentDays: attendance.summary.absentDays,
+      lateDays: attendance.summary.lateDays,
+      overtimeDays: attendance.summary.overtimeDays,
+      overtimeHours: attendance.summary.overtimeHours,
+    },
+    timeOffSummary: {
+      approvedLeaveDays: timeOff.summary.totalApprovedDays,
+      paidLeaveDays: timeOff.summary.approvedPaidDays,
+      unpaidLeaveDays: timeOff.summary.approvedUnpaidDays,
+    },
+    attendanceRecords: attendance.records,
+    timeOffRecords: timeOff.requests,
   };
 }

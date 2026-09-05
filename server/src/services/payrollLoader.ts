@@ -40,11 +40,19 @@ import {
   SalaryStructureRecord,
 } from '../repositories/salaryStructure.repository.js';
 import {
+  getAttendanceByEmployeeAndPeriod,
+} from '../repositories/attendance.repository.js';
+import {
+  getTimeOffByEmployeeAndPeriod,
+} from '../repositories/timeOff.repository.js';
+import {
   normalizePayrollCalculationInput,
+  normalizePayrollPeriod,
 } from './payrollNormalizer.js';
 import {
   PayrollInputError,
   type PayrollCalculationInput,
+  type FullyNormalizedPayrollCalculationInput,
   type RawPayrollDomainData,
 } from '../types/payroll.types.js';
 
@@ -65,7 +73,7 @@ export async function loadEmployeePayrollInput(
   employeeId: string,
   payrollPeriod: string | { startDate: string; endDate: string },
   salaryStructureId?: string | null
-): Promise<PayrollCalculationInput> {
+): Promise<FullyNormalizedPayrollCalculationInput> {
   const trimmedId = String(employeeId || '').trim();
   if (!trimmedId) {
     throw new PayrollInputError('MISSING_EMPLOYEE', 'Employee ID is required for payroll calculation.');
@@ -98,14 +106,36 @@ export async function loadEmployeePayrollInput(
     salaryRulesData = await getActiveSalaryRulesByStructureId(effectiveStructureId);
   }
 
+  // Hydrate attendance and time off records for the period if available
+  let attendanceRecords: any[] = [];
+  let timeOffRequests: any[] = [];
+  try {
+    const period = normalizePayrollPeriod(payrollPeriod);
+    const attList = await getAttendanceByEmployeeAndPeriod(employee.id, period.periodStart, period.periodEnd);
+    if (attList.length === 0 && (employee as any).empCode && (employee as any).empCode !== employee.id) {
+      attendanceRecords = await getAttendanceByEmployeeAndPeriod((employee as any).empCode, period.periodStart, period.periodEnd);
+    } else {
+      attendanceRecords = attList;
+    }
+
+    const toList = await getTimeOffByEmployeeAndPeriod(employee.id, period.periodStart, period.periodEnd, 'APPROVED');
+    if (toList.length === 0 && (employee as any).empCode && (employee as any).empCode !== employee.id) {
+      timeOffRequests = await getTimeOffByEmployeeAndPeriod((employee as any).empCode, period.periodStart, period.periodEnd, 'APPROVED');
+    } else {
+      timeOffRequests = toList;
+    }
+  } catch {
+    // Gracefully preserve empty arrays if period parsing or repo query fails
+  }
+
   const rawDomain: RawPayrollDomainData = {
     employee,
     contracts,
     payrollPeriod,
     salaryStructure: structureData,
     salaryRules: salaryRulesData,
-    attendanceRecords: [],
-    timeOffRequests: [],
+    attendanceRecords,
+    timeOffRequests,
   };
 
   return normalizePayrollCalculationInput(rawDomain);
@@ -124,10 +154,11 @@ export async function loadEmployeePayrollInput(
  */
 export async function loadPayrunPayrollInputs(
   options: LoadPayrunInputsOptions
-): Promise<PayrollCalculationInput[]> {
+): Promise<FullyNormalizedPayrollCalculationInput[]> {
   const { employeeIds, payrollPeriod, salaryStructureId } = options;
 
   let employeesToProcess: EmployeeRecord[] = [];
+  const calculationInputs: FullyNormalizedPayrollCalculationInput[] = [];
 
   if (employeeIds && Array.isArray(employeeIds) && employeeIds.length > 0) {
     for (const rawId of employeeIds) {
@@ -145,8 +176,6 @@ export async function loadPayrunPayrollInputs(
   } else {
     employeesToProcess = await getAllEmployees();
   }
-
-  const calculationInputs: PayrollCalculationInput[] = [];
 
   // Cache structure and active rule queries to avoid redundant DB queries across employees
   const structureCache = new Map<string, { id: string; code: string; name: string }>();
@@ -199,6 +228,27 @@ export async function loadPayrunPayrollInputs(
       salaryRulesData = await getRules(effectiveStructureId);
     }
 
+    let attendanceRecords: any[] = [];
+    let timeOffRequests: any[] = [];
+    try {
+      const period = normalizePayrollPeriod(payrollPeriod);
+      const attList = await getAttendanceByEmployeeAndPeriod(emp.id, period.periodStart, period.periodEnd);
+      if (attList.length === 0 && (emp as any).empCode && (emp as any).empCode !== emp.id) {
+        attendanceRecords = await getAttendanceByEmployeeAndPeriod((emp as any).empCode, period.periodStart, period.periodEnd);
+      } else {
+        attendanceRecords = attList;
+      }
+
+      const toList = await getTimeOffByEmployeeAndPeriod(emp.id, period.periodStart, period.periodEnd, 'APPROVED');
+      if (toList.length === 0 && (emp as any).empCode && (emp as any).empCode !== emp.id) {
+        timeOffRequests = await getTimeOffByEmployeeAndPeriod((emp as any).empCode, period.periodStart, period.periodEnd, 'APPROVED');
+      } else {
+        timeOffRequests = toList;
+      }
+    } catch {
+      // Gracefully preserve empty arrays if period parsing or repo query fails
+    }
+
     try {
       const rawDomain: RawPayrollDomainData = {
         employee: emp,
@@ -206,8 +256,8 @@ export async function loadPayrunPayrollInputs(
         payrollPeriod,
         salaryStructure: structureData,
         salaryRules: salaryRulesData,
-        attendanceRecords: [],
-        timeOffRequests: [],
+        attendanceRecords,
+        timeOffRequests,
       };
 
       const normalized = normalizePayrollCalculationInput(rawDomain);
