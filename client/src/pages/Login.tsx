@@ -21,8 +21,8 @@ interface LoginProps {
 export const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const { login, user, displayRole } = useAuth();
 
-  const [email, setEmail] = useState<string>('elena@company.com');
-  const [password, setPassword] = useState<string>('password123');
+  const [email, setEmail] = useState<string>('');
+  const [password, setPassword] = useState<string>('');
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -66,11 +66,6 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
     }
   };
 
-  const handleSelectDemoAccount = (demoEmail: string) => {
-    setEmail(demoEmail);
-    setPassword('password123');
-    setErrorMessage(null);
-  };
 
   return (
     <div className="login-page">
@@ -194,7 +189,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
                   href="#forgot" 
                   onClick={(e) => { 
                     e.preventDefault(); 
-                    alert('For demo evaluation, password for all demo accounts is: password123'); 
+                    alert('Please contact your administrator or IT department to reset your credentials.'); 
                   }} 
                   style={{ fontSize: '11px', color: 'var(--primary)', textDecoration: 'none' }}
                 >
@@ -267,59 +262,6 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
             </button>
           </form>
 
-          {/* Demo Persona Quick Selectors for Reviewers */}
-          <div style={{ marginTop: '20px', paddingTop: '16px', borderTop: '1px solid var(--slate-100)' }}>
-            <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--slate-400)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '8px' }}>
-              Quick Demo Personas (password: password123)
-            </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-              <button
-                type="button"
-                className="btn btn-secondary btn-sm"
-                style={{ fontSize: '11px', padding: '3px 8px' }}
-                onClick={() => handleSelectDemoAccount('elena@company.com')}
-                disabled={isLoading}
-              >
-                Elena (HR Payroll Mgr)
-              </button>
-              <button
-                type="button"
-                className="btn btn-secondary btn-sm"
-                style={{ fontSize: '11px', padding: '3px 8px' }}
-                onClick={() => handleSelectDemoAccount('sarah@company.com')}
-                disabled={isLoading}
-              >
-                Sarah (HR Mgr)
-              </button>
-              <button
-                type="button"
-                className="btn btn-secondary btn-sm"
-                style={{ fontSize: '11px', padding: '3px 8px' }}
-                onClick={() => handleSelectDemoAccount('alex@company.com')}
-                disabled={isLoading}
-              >
-                Alex (Payroll User)
-              </button>
-              <button
-                type="button"
-                className="btn btn-secondary btn-sm"
-                style={{ fontSize: '11px', padding: '3px 8px' }}
-                onClick={() => handleSelectDemoAccount('john@company.com')}
-                disabled={isLoading}
-              >
-                John (Employee)
-              </button>
-              <button
-                type="button"
-                className="btn btn-secondary btn-sm"
-                style={{ fontSize: '11px', padding: '3px 8px' }}
-                onClick={() => handleSelectDemoAccount('admin@company.com')}
-                disabled={isLoading}
-              >
-                Admin
-              </button>
-            </div>
-          </div>
 
           {/* SSO Footer */}
           <div style={{ marginTop: '16px', textAlign: 'center', fontSize: '11px', color: 'var(--slate-400)' }}>
