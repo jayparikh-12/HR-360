@@ -82,7 +82,8 @@ export interface TimeOffAggregationResult {
 // ── Employee Aggregation ─────────────────────────────────────────────────────
 
 export async function getEmployeeMetrics(
-  filters: DashboardFilterParams
+  filters: DashboardFilterParams,
+  dateRange?: DateRange
 ): Promise<EmployeeAggregationResult> {
   const whereClauses: string[] = ['1=1'];
   const params: unknown[] = [];
@@ -92,10 +93,13 @@ export async function getEmployeeMetrics(
     params.push(filters.department.trim());
   }
 
-  if (filters.employeeType && filters.employeeType.trim().toUpperCase() !== 'ALL') {
-    whereClauses.push('UPPER(e.employeeType) = UPPER(?)');
-    params.push(filters.employeeType.trim());
+  // Active/employment period semantics: employee must have joined on or before period end date
+  if (dateRange && dateRange.endDate) {
+    whereClauses.push('e.join_date <= ?');
+    params.push(dateRange.endDate);
   }
+
+  // Note: Employee Type filter is unavailable because the current domain model does not support it.
 
   const whereSql = whereClauses.join(' AND ');
 
@@ -133,20 +137,8 @@ export async function getEmployeeMetrics(
     byDepartment[String(dr.department)] = Number(dr.count) || 0;
   }
 
-  // Breakdown by employeeType
-  const typeSql = `
-    SELECT
-      COALESCE(e.employeeType, 'FULL_TIME') AS employeeType,
-      COUNT(e.id) AS count
-    FROM employees e
-    WHERE ${whereSql}
-    GROUP BY e.employeeType
-  `;
-  const typeRows = await executeQuery<RowDataPacket[]>(typeSql, params);
+  // Note: Employee Type is unavailable in current schema domain model.
   const byType: Record<string, number> = {};
-  for (const tr of typeRows) {
-    byType[String(tr.employeeType)] = Number(tr.count) || 0;
-  }
 
   return {
     total,
@@ -161,7 +153,8 @@ export async function getEmployeeMetrics(
 // ── Department Wages from Active Contracts ────────────────────────────────────
 
 export async function getDepartmentWages(
-  filters: DashboardFilterParams
+  filters: DashboardFilterParams,
+  dateRange?: DateRange
 ): Promise<Record<string, number>> {
   const whereClauses: string[] = ['1=1'];
   const params: unknown[] = [];
@@ -171,9 +164,9 @@ export async function getDepartmentWages(
     params.push(filters.department.trim());
   }
 
-  if (filters.employeeType && filters.employeeType.trim().toUpperCase() !== 'ALL') {
-    whereClauses.push('UPPER(e.employeeType) = UPPER(?)');
-    params.push(filters.employeeType.trim());
+  if (dateRange && dateRange.endDate) {
+    whereClauses.push('e.join_date <= ?');
+    params.push(dateRange.endDate);
   }
 
   const whereSql = whereClauses.join(' AND ');
@@ -265,10 +258,7 @@ export async function getPayrollMetrics(
     payslipParams.push(filters.department.trim());
   }
 
-  if (filters.employeeType && filters.employeeType.trim().toUpperCase() !== 'ALL') {
-    payslipWhereClauses.push('UPPER(e.employeeType) = UPPER(?)');
-    payslipParams.push(filters.employeeType.trim());
-  }
+  // Note: Employee Type filter unavailable because current domain model does not support it.
 
   const payslipWhereSql = payslipWhereClauses.join(' AND ');
 
@@ -313,10 +303,8 @@ export async function getPayrollMetrics(
   // Scoped latestPayrun representation
   let latestPayrun: PayrollAggregationResult['latestPayrun'] = null;
   if (targetPayrun) {
-    // If filtered by department or type, adjust payrun snapshot stats to the filtered scope
-    const isFiltered =
-      (filters.department && filters.department.trim().toUpperCase() !== 'ALL') ||
-      (filters.employeeType && filters.employeeType.trim().toUpperCase() !== 'ALL');
+    // If filtered by department, adjust payrun snapshot stats to the filtered scope
+    const isFiltered = filters.department && filters.department.trim().toUpperCase() !== 'ALL';
 
     latestPayrun = {
       id: String(targetPayrun.id),
@@ -361,10 +349,7 @@ export async function getAttendanceMetrics(
     params.push(filters.department.trim());
   }
 
-  if (filters.employeeType && filters.employeeType.trim().toUpperCase() !== 'ALL') {
-    whereClauses.push('UPPER(e.employeeType) = UPPER(?)');
-    params.push(filters.employeeType.trim());
-  }
+  // Note: Employee Type filter unavailable because current domain model does not support it.
 
   const whereSql = whereClauses.join(' AND ');
 
@@ -377,7 +362,7 @@ export async function getAttendanceMetrics(
       SUM(CASE WHEN a.status = 'OVERTIME' THEN 1 ELSE 0 END) AS overtime_count,
       SUM(CASE WHEN a.status = 'MISSING_CHECKOUT' OR (a.check_in IS NOT NULL AND a.check_out IS NULL) THEN 1 ELSE 0 END) AS missing_checkout_count
     FROM attendance_records a
-    LEFT JOIN employees e ON e.id = a.employee_id
+    JOIN employees e ON e.id = a.employee_id
     WHERE ${whereSql}
   `;
 
@@ -427,10 +412,7 @@ export async function getTimeOffMetrics(
     params.push(filters.department.trim());
   }
 
-  if (filters.employeeType && filters.employeeType.trim().toUpperCase() !== 'ALL') {
-    whereClauses.push('UPPER(e.employeeType) = UPPER(?)');
-    params.push(filters.employeeType.trim());
-  }
+  // Note: Employee Type filter unavailable because current domain model does not support it.
 
   const whereSql = whereClauses.join(' AND ');
 
@@ -443,7 +425,7 @@ export async function getTimeOffMetrics(
       COALESCE(SUM(t.duration_days), 0) AS total_days,
       COALESCE(SUM(CASE WHEN t.status = 'APPROVED' THEN t.duration_days ELSE 0 END), 0) AS approved_days
     FROM time_off_requests t
-    LEFT JOIN employees e ON e.id = t.employee_id
+    JOIN employees e ON e.id = t.employee_id
     WHERE ${whereSql}
   `;
 

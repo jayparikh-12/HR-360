@@ -179,11 +179,11 @@ export async function getDashboardSummary(
 
   // Execute database queries in parallel
   const [employees, payroll, attendance, timeOff, baseDeptWages] = await Promise.all([
-    getEmployeeMetrics(filters),
+    getEmployeeMetrics(filters, dateRange),
     getPayrollMetrics(filters, dateRange),
     getAttendanceMetrics(filters, dateRange),
     getTimeOffMetrics(filters, dateRange),
-    getDepartmentWages(filters),
+    getDepartmentWages(filters, dateRange),
   ]);
 
   // Combine department costs: prefer payslip gross costs; fallback to base contract wages

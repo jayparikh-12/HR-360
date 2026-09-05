@@ -251,8 +251,9 @@ router.get('/payruns/:id', authorize(PERMISSIONS.PAYRUN_READ), async (req: Reque
 // ── POST /api/payroll/payruns/create ──────────────────────────────────────────
 
 router.post('/payruns/create', authorize(PERMISSIONS.PAYRUN_CREATE), async (req: Request, res: Response): Promise<void> => {
-  const body = req.body || {};
-  const { name, period, salaryStructure, employeeIds, startDate, endDate, id: customId } = body;
+  try {
+    const body = req.body || {};
+    const { name, period, salaryStructure, employeeIds, startDate, endDate, id: customId } = body;
 
   // 1. Validate name
   if (!isNonEmptyString(name)) {
@@ -355,7 +356,6 @@ router.post('/payruns/create', authorize(PERMISSIONS.PAYRUN_CREATE), async (req:
     structureId = 'STR-001';
   }
 
-  try {
     // 7. Deterministic payroll engine calculation using Normalization Layer with Contract & Rule Loading
     const activeRules = structureId ? await getActiveSalaryRulesByStructureId(structureId) : [];
 
