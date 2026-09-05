@@ -1,8 +1,8 @@
 /**
  * PeoplePay360 — Working Schedule API Module
  *
- * Typed wrappers for /api/schedules endpoints.
- * Uses the shared apiFetch abstraction with Authorization bearer token.
+ * Centralized typed wrappers for /api/schedules endpoints.
+ * Automatically attaches Authorization: Bearer <token> via apiFetch.
  */
 
 import { apiFetch } from './client';
@@ -29,11 +29,13 @@ export interface ScheduleDetailResponse {
 export interface CreateSchedulePayload {
   name: string;
   workingHours: string;
+  weeklyHours?: number;
 }
 
 export const schedulesApi = {
   /**
-   * Fetch all working schedules from MySQL-backed API.
+   * Fetch all working schedules from MySQL.
+   * Returns an empty array if the table is empty.
    */
   async getAll(): Promise<ScheduleRecord[]> {
     const response = await apiFetch<ScheduleListResponse>('/api/schedules');

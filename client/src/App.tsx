@@ -46,11 +46,9 @@ const AppContent: React.FC = () => {
         ...(LOCAL_STAT_SHIMS[emp.id] ?? { attendanceRate: 0, leaveBalance: 0 }),
       }));
       setEmployees(merged);
-    } catch (err) {
+    } catch (err: any) {
       console.error('[App] Failed to load employees from API:', err);
-      setEmployeesError('Could not load employee data. Showing cached data.');
-      // Fallback: keep previously loaded employees (or initial data if first load)
-      setEmployees((prev) => (prev.length > 0 ? prev : initialEmployees));
+      setEmployeesError(err?.message || 'Could not load employee data from server.');
     } finally {
       setEmployeesLoading(false);
     }
@@ -125,24 +123,13 @@ const AppContent: React.FC = () => {
         );
       case 'employees':
         return (
-          <>
-            {employeesError && (
-              <div style={{ marginBottom: '12px', padding: '10px 14px', background: '#fef3c7', border: '1px solid #d97706', borderRadius: '8px', fontSize: '13px', color: '#92400e' }}>
-                ⚠️ {employeesError}
-              </div>
-            )}
-            {employeesLoading && employees.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--slate-400)', fontSize: '14px' }}>
-                Loading employees…
-              </div>
-            ) : (
-              <Employees
-                employees={employees}
-                onNavigateTab={(tab) => setCurrentTab(tab)}
-                onRefresh={fetchEmployees}
-              />
-            )}
-          </>
+          <Employees
+            employees={employees}
+            loading={employeesLoading}
+            error={employeesError}
+            onNavigateTab={(tab) => setCurrentTab(tab)}
+            onRefresh={fetchEmployees}
+          />
         );
       case 'payruns':
         return (
