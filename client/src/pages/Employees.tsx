@@ -19,7 +19,7 @@ import { ApiError } from '../api/client';
 interface EmployeesProps {
   employees: Employee[];
   onNavigateTab: (tab: string) => void;
-  onRefresh: () => void;
+  onRefresh?: () => void;
 }
 
 // ── Add Employee Form ─────────────────────────────────────────────────────────
@@ -295,11 +295,11 @@ export const Employees: React.FC<EmployeesProps> = ({ employees, onNavigateTab, 
   });
 
   const handleCreated = () => {
-    onRefresh();
+    onRefresh?.();
   };
 
   const handleUpdated = () => {
-    onRefresh();
+    onRefresh?.();
     setSelectedEmp(null); // Return to list so fresh data is visible
   };
 
