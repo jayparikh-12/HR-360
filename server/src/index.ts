@@ -10,12 +10,14 @@ const __dirname = path.dirname(__filename);
 // Explicitly load .env from server root
 dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
-
 import authRoutes from './routes/auth.routes.js';
 import employeeRoutes from './routes/employee.routes.js';
 import contractRoutes from './routes/contract.routes.js';
+import scheduleRoutes from './routes/schedules.routes.js';
 import attendanceRoutes from './routes/attendance.routes.js';
 import timeOffRoutes from './routes/timeOff.routes.js';
+import salaryStructureRoutes from './routes/salaryStructure.routes.js';
+import salaryRuleRoutes from './routes/salaryRule.routes.js';
 import payrollRoutes from './routes/payroll.routes.js';
 import { testDatabaseConnection } from './config/database.js';
 
@@ -45,8 +47,11 @@ app.get('/api/health', async (_req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/employees', employeeRoutes);
 app.use('/api/contracts', contractRoutes);
+app.use('/api/schedules', scheduleRoutes);
 app.use('/api/attendance', attendanceRoutes);
 app.use('/api/time-off', timeOffRoutes);
+app.use('/api/salary-structures', salaryStructureRoutes);
+app.use('/api/salary-rules', salaryRuleRoutes);
 app.use('/api/payroll', payrollRoutes);
 
 app.listen(PORT, async () => {
@@ -58,4 +63,3 @@ app.listen(PORT, async () => {
     console.error(`[Database] MySQL connection warning: ${dbResult.message}`);
   }
 });
-
