@@ -506,6 +506,8 @@ const Employee360Hub: React.FC<Employee360HubProps> = ({
   onNavigateTab: _onNavigateTab,
   onEmployeeUpdated,
 }) => {
+  const { displayRole } = useAuth();
+  const canManage = displayRole === 'Admin' || displayRole === 'HR Manager';
   const [employee, setEmployee] = useState<Employee | null>(null);
   const [hubData, setHubData] = useState<HubData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -723,13 +725,15 @@ const Employee360Hub: React.FC<Employee360HubProps> = ({
         >
           <RefreshCw size={13} className={loading ? 'spin' : ''} /> Refresh Hub
         </button>
-        <button
-          className="btn btn-secondary btn-sm"
-          onClick={() => setShowEditModal(true)}
-          style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '6px' }}
-        >
-          <Edit2 size={13} /> Edit Details
-        </button>
+        {canManage && (
+          <button
+            className="btn btn-secondary btn-sm"
+            onClick={() => setShowEditModal(true)}
+            style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '6px' }}
+          >
+            <Edit2 size={13} /> Edit Details
+          </button>
+        )}
       </div>
 
       {/* Profile Header Card */}

@@ -33,45 +33,80 @@ initialEmployees.forEach((e) => {
   LOCAL_STAT_SHIMS[e.id] = { attendanceRate: e.attendanceRate, leaveBalance: e.leaveBalance };
 });
 
-// Route → tab key mapping (used by Sidebar highlight)
-const PATH_TO_TAB: Record<string, string> = {
-  '/dashboard':        'dashboard',
-  '/employees':        'employees',
-  '/contracts':        'contracts',
-  '/schedules':        'schedules',
-  '/attendance':       'attendance',
-  '/time-off':         'time-off',
-  '/payruns':          'payruns',
-  '/payslips':         'payslips',
-  '/salary-rules':     'salary-rules',
-  '/settings':         'settings',
-};
+import { PATH_TO_TAB, TAB_TO_PATH, isTabAllowed } from './utils/routes';
+export { PATH_TO_TAB, TAB_TO_PATH, isTabAllowed };
 
-const TAB_TO_PATH: Record<string, string> = Object.fromEntries(
-  Object.entries(PATH_TO_TAB).map(([path, tab]) => [tab, path])
+// ── Session Restoration Loader ─────────────────────────────────────────────────
+
+export const SessionRestoreLoader: React.FC = () => (
+  <div
+    style={{
+      minHeight: '100vh',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: '#0f172a',
+      color: '#ffffff',
+      gap: '20px',
+    }}
+  >
+    <div
+      className="logo-box"
+      style={{
+        width: '52px',
+        height: '52px',
+        fontSize: '26px',
+        animation: 'pulse 1.8s ease-in-out infinite',
+      }}
+    />
+    <div style={{ textAlign: 'center' }}>
+      <div
+        style={{
+          fontSize: '20px',
+          fontWeight: 800,
+          letterSpacing: '-0.02em',
+          color: '#ffffff',
+        }}
+      >
+        PeoplePay360
+      </div>
+      <div
+        style={{
+          fontSize: '13px',
+          color: '#a5b4fc',
+          marginTop: '6px',
+          fontWeight: 500,
+        }}
+      >
+        Restoring secure session...
+      </div>
+    </div>
+  </div>
 );
 
-const isTabAllowed = (tab: string, role: UserRole): boolean => {
-  if (role === 'Admin') return true;
-  if (role === 'HR Manager') {
-    return ['dashboard', 'employees', 'contracts', 'schedules', 'attendance', 'time-off', 'payslips'].includes(tab);
+// ── Role-Based Route Guard ─────────────────────────────────────────────────────
+
+export const RoleRoute: React.FC<{ tab: string; children: React.ReactNode }> = ({
+  tab,
+  children,
+}) => {
+  const { displayRole } = useAuth();
+
+  if (!isTabAllowed(tab, displayRole)) {
+    return <Navigate to="/dashboard" replace />;
   }
-  if (role === 'HR Payroll Manager' || role === 'HR Payroll User') {
-    return ['dashboard', 'employees', 'contracts', 'attendance', 'payruns', 'payslips'].includes(tab);
-  }
-  if (role === 'Employee') {
-    return ['dashboard', 'attendance', 'time-off', 'payslips'].includes(tab);
-  }
-  return tab === 'dashboard';
+
+  return <>{children}</>;
 };
 
 // ── Protected Route wrapper ────────────────────────────────────────────────────
 
-const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated, isLoading } = useAuth();
   const location = useLocation();
 
-  if (isLoading) return null;
+  if (isLoading) return <SessionRestoreLoader />;
   if (!isAuthenticated) return <Navigate to="/login" state={{ from: location }} replace />;
   return <>{children}</>;
 };
@@ -130,7 +165,7 @@ const AppShell: React.FC = () => {
     }
   }, [isAuthenticated, displayRole, fetchEmployees, fetchPayruns]);
 
-  // Redirect to dashboard on logout
+  // Redirect to login on logout
   useEffect(() => {
     if (!isAuthenticated && !isLoading) {
       navigate('/login', { replace: true });
@@ -154,19 +189,7 @@ const AppShell: React.FC = () => {
   };
 
   if (isLoading) {
-    return (
-      <div style={{
-        minHeight: '100vh', display: 'flex', flexDirection: 'column',
-        alignItems: 'center', justifyContent: 'center',
-        backgroundColor: '#0f172a', color: '#ffffff', gap: '20px',
-      }}>
-        <div className="logo-box" style={{ width: '52px', height: '52px', fontSize: '26px', animation: 'pulse 1.8s ease-in-out infinite' }} />
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: '20px', fontWeight: 800, letterSpacing: '-0.02em', color: '#ffffff' }}>PeoplePay360</div>
-          <div style={{ fontSize: '13px', color: '#a5b4fc', marginTop: '6px', fontWeight: 500 }}>Restoring secure session...</div>
-        </div>
-      </div>
-    );
+    return <SessionRestoreLoader />;
   }
 
   return (
@@ -188,30 +211,54 @@ const AppShell: React.FC = () => {
               <Dashboard employees={employees} payruns={payruns} onNavigate={(tab) => navigate(TAB_TO_PATH[tab] ?? '/dashboard')} />
             } />
             <Route path="/employees" element={
-              <Employees
-                employees={employees}
-                loading={employeesLoading}
-                error={employeesError}
-                onNavigateTab={(tab) => navigate(TAB_TO_PATH[tab] ?? '/dashboard')}
-                onRefresh={fetchEmployees}
-              />
+              <RoleRoute tab="employees">
+                <Employees
+                  employees={employees}
+                  loading={employeesLoading}
+                  error={employeesError}
+                  onNavigateTab={(tab) => navigate(TAB_TO_PATH[tab] ?? '/dashboard')}
+                  onRefresh={fetchEmployees}
+                />
+              </RoleRoute>
             } />
             <Route path="/payruns" element={
-              <Payruns
-                payruns={payruns}
-                employees={employees}
-                onUpdatePayrun={handleUpdatePayrun}
-                activePayrunId={activePayrunId}
-                onSelectPayrun={setActivePayrunId}
-              />
+              <RoleRoute tab="payruns">
+                <Payruns
+                  payruns={payruns}
+                  employees={employees}
+                  onUpdatePayrun={handleUpdatePayrun}
+                  activePayrunId={activePayrunId}
+                  onSelectPayrun={setActivePayrunId}
+                />
+              </RoleRoute>
             } />
             <Route path="/payslips" element={<Payslips />} />
-            <Route path="/contracts"  element={<Contracts  onNavigateTab={(tab) => navigate(TAB_TO_PATH[tab] ?? '/dashboard')} />} />
-            <Route path="/schedules"  element={<Schedules  onNavigateTab={(tab) => navigate(TAB_TO_PATH[tab] ?? '/dashboard')} />} />
+            <Route path="/contracts" element={
+              <RoleRoute tab="contracts">
+                <Contracts onNavigateTab={(tab) => navigate(TAB_TO_PATH[tab] ?? '/dashboard')} />
+              </RoleRoute>
+            } />
+            <Route path="/schedules" element={
+              <RoleRoute tab="schedules">
+                <Schedules onNavigateTab={(tab) => navigate(TAB_TO_PATH[tab] ?? '/dashboard')} />
+              </RoleRoute>
+            } />
             <Route path="/attendance" element={<Attendance />} />
-            <Route path="/time-off"   element={<TimeOff />} />
-            <Route path="/salary-rules" element={<SalaryStructures onNavigateTab={(tab) => navigate(TAB_TO_PATH[tab] ?? '/dashboard')} />} />
-            <Route path="/settings"   element={<SalaryStructures onNavigateTab={(tab) => navigate(TAB_TO_PATH[tab] ?? '/dashboard')} />} />
+            <Route path="/time-off" element={
+              <RoleRoute tab="time-off">
+                <TimeOff />
+              </RoleRoute>
+            } />
+            <Route path="/salary-rules" element={
+              <RoleRoute tab="salary-rules">
+                <SalaryStructures onNavigateTab={(tab) => navigate(TAB_TO_PATH[tab] ?? '/dashboard')} />
+              </RoleRoute>
+            } />
+            <Route path="/settings" element={
+              <RoleRoute tab="settings">
+                <SalaryStructures onNavigateTab={(tab) => navigate(TAB_TO_PATH[tab] ?? '/dashboard')} />
+              </RoleRoute>
+            } />
             {/* Catch-all → dashboard */}
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>
@@ -223,17 +270,23 @@ const AppShell: React.FC = () => {
 
 // ── Root app with router ───────────────────────────────────────────────────────
 
-const AppRoutes: React.FC = () => {
-  const { isAuthenticated, isLoading } = useAuth();
+export const AppRoutes: React.FC = () => {
+  const { isAuthenticated, isLoading, displayRole } = useAuth();
+  const location = useLocation();
 
-  if (isLoading) return null;
+  if (isLoading) return <SessionRestoreLoader />;
+
+  // Respect return URL if provided, but verify role permissions
+  const targetPath = (location.state as any)?.from?.pathname;
+  const targetTab = targetPath ? PATH_TO_TAB[targetPath] : undefined;
+  const destination = targetTab && isTabAllowed(targetTab, displayRole) ? targetPath : '/dashboard';
 
   return (
     <Routes>
       {/* Public: Login */}
       <Route
         path="/login"
-        element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <Login />}
+        element={isAuthenticated ? <Navigate to={destination} replace /> : <Login />}
       />
       {/* Protected: everything else renders inside AppShell */}
       <Route
