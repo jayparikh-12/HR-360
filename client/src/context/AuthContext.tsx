@@ -1,66 +1,70 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
-import { 
-  authApi, 
-  getStoredToken, 
-  setStoredToken, 
-  clearStoredToken, 
-  type ApiUser 
-} from '../api/client';
-import { normalizeRole, toDisplayRole, type CanonicalRole } from '../utils/permissions';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  useRef,
+} from 'react';
+import { authApi } from '../services/api';
+import { authStorage } from '../services/authStorage';
+import type { User, AuthContextValue } from '../types/auth';
 import type { UserRole } from '../types';
+import { toDisplayRole } from '../utils/permissions';
 
-export interface AuthUser extends ApiUser {}
-
-export interface AuthContextType {
-  user: AuthUser | null;
-  token: string | null;
-  role: CanonicalRole | null;
+export interface ExtendedAuthContextValue extends AuthContextValue {
   displayRole: UserRole;
-  isAuthenticated: boolean;
-  isLoading: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  logout: () => void;
   setDisplayRole: (role: UserRole) => void;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+const AuthContext = createContext<ExtendedAuthContextValue | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<AuthUser | null>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [overrideDisplayRole, setOverrideDisplayRole] = useState<UserRole | null>(null);
 
-  // Initialize and validate session on mount
+  // Prevent concurrent login requests
+  const isLoggingInRef = useRef<boolean>(false);
+
+  // --------------------------------------------------------------------------
+  // Application Startup: Validate Token & Restore Session
+  // --------------------------------------------------------------------------
   useEffect(() => {
     let isMounted = true;
 
-    const restoreSession = async () => {
-      const storedToken = getStoredToken();
+    const initializeSession = async () => {
+      const storedToken = authStorage.getToken();
+
+      // If no token exists, immediately unauthenticate
       if (!storedToken) {
         if (isMounted) {
-          setIsLoading(false);
-          setIsAuthenticated(false);
           setUser(null);
           setToken(null);
+          setIsAuthenticated(false);
+          setIsLoading(false);
         }
         return;
       }
 
+      // Token exists: validate with backend /api/auth/me
       try {
-        // Validate with backend /api/auth/me
         const response = await authApi.getMe(storedToken);
+
         if (isMounted && response.success && response.user) {
           setUser(response.user);
           setToken(storedToken);
           setIsAuthenticated(true);
         } else {
-          throw new Error('Session invalid or expired');
+          throw new Error('Session invalid or unauthorized');
         }
-      } catch (error) {
-        console.warn('[AuthContext] Stored session invalid or expired. Resetting auth state.');
-        clearStoredToken();
+      } catch (err) {
+        // Token is invalid, malformed, or expired
+        console.warn('[AuthContext] Stored session validation failed:', err);
+        authStorage.clearToken();
         if (isMounted) {
           setUser(null);
           setToken(null);
@@ -73,70 +77,96 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     };
 
-    restoreSession();
+    initializeSession();
 
     return () => {
       isMounted = false;
     };
   }, []);
 
-  // Centralized Login
+  // --------------------------------------------------------------------------
+  // Login Implementation
+  // --------------------------------------------------------------------------
   const login = useCallback(async (email: string, password: string): Promise<void> => {
-    const response = await authApi.login(email, password);
-    if (!response.success || !response.token || !response.user) {
-      throw new Error(response.message || 'Authentication failed');
+    // Prevent duplicate concurrent submissions
+    if (isLoggingInRef.current) {
+      return;
     }
 
-    setStoredToken(response.token);
-    setToken(response.token);
-    setUser(response.user);
-    setOverrideDisplayRole(null); // Reset any previous preview override
-    setIsAuthenticated(true);
+    const normalizedEmail = email.trim().toLowerCase();
+    const cleanPassword = password.trim();
+
+    if (!normalizedEmail || !cleanPassword) {
+      throw new Error('Please provide both work email and password.');
+    }
+
+    isLoggingInRef.current = true;
+
+    try {
+      const response = await authApi.login(normalizedEmail, cleanPassword);
+
+      if (!response.success || !response.token || !response.user) {
+        throw new Error(response.message || 'Authentication failed. Please verify credentials.');
+      }
+
+      // Persist token safely
+      authStorage.setToken(response.token);
+
+      // Update centralized auth state
+      setToken(response.token);
+      setUser(response.user);
+      setOverrideDisplayRole(null);
+      setIsAuthenticated(true);
+    } catch (err) {
+      // Re-throw without destroying any active session accidentally
+      throw err;
+    } finally {
+      isLoggingInRef.current = false;
+    }
   }, []);
 
-  // Centralized Logout
+  // --------------------------------------------------------------------------
+  // Logout Implementation
+  // --------------------------------------------------------------------------
   const logout = useCallback(() => {
-    clearStoredToken();
+    authStorage.clearToken();
     setToken(null);
     setUser(null);
     setOverrideDisplayRole(null);
     setIsAuthenticated(false);
   }, []);
 
-  // Derived role values
-  const role: CanonicalRole | null = useMemo(() => {
-    return user ? normalizeRole(user.role) : null;
-  }, [user]);
-
+  // --------------------------------------------------------------------------
+  // Role display integration for UI continuity
+  // --------------------------------------------------------------------------
   const displayRole: UserRole = useMemo(() => {
     if (overrideDisplayRole) return overrideDisplayRole;
     if (user?.role) return toDisplayRole(user.role);
     return 'HR Payroll Manager';
   }, [user, overrideDisplayRole]);
 
-  const setDisplayRole = useCallback((newRole: UserRole) => {
-    setOverrideDisplayRole(newRole);
+  const setDisplayRole = useCallback((role: UserRole) => {
+    setOverrideDisplayRole(role);
   }, []);
 
-  const contextValue = useMemo(
+  const value: ExtendedAuthContextValue = useMemo(
     () => ({
       user,
       token,
-      role,
-      displayRole,
       isAuthenticated,
       isLoading,
       login,
       logout,
+      displayRole,
       setDisplayRole,
     }),
-    [user, token, role, displayRole, isAuthenticated, isLoading, login, logout, setDisplayRole]
+    [user, token, isAuthenticated, isLoading, login, logout, displayRole, setDisplayRole]
   );
 
-  return <AuthContext.Provider value={contextValue}>{children}</AuthContext.Provider>;
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
-export const useAuth = (): AuthContextType => {
+export const useAuth = (): ExtendedAuthContextValue => {
   const context = useContext(AuthContext);
   if (!context) {
     throw new Error('useAuth must be used within an AuthProvider');
