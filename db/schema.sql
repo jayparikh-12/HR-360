@@ -79,7 +79,8 @@ CREATE TABLE IF NOT EXISTS contracts (
         ON DELETE RESTRICT
         ON UPDATE CASCADE,
     CONSTRAINT chk_contracts_dates CHECK (end_date IS NULL OR end_date >= start_date),
-    CONSTRAINT chk_contracts_wage CHECK (wage >= 0)
+    CONSTRAINT chk_contracts_wage CHECK (wage >= 0),
+    INDEX idx_contracts_emp_status (employee_id, status)
 );
 
 -- 6. Attendance Table (In BCNF: Candidate key is {id})
@@ -97,7 +98,8 @@ CREATE TABLE IF NOT EXISTS attendance_records (
         ON UPDATE CASCADE,
     CONSTRAINT chk_attendance_worked_hours CHECK (worked_hours >= 0),
     INDEX idx_attendance_emp_date (employee_id, date),
-    INDEX idx_attendance_date (date)
+    INDEX idx_attendance_date (date),
+    INDEX idx_attendance_date_status (date, status)
 );
 
 -- 7. Time Off Requests Table (In BCNF: Candidate key is {id})
@@ -116,7 +118,8 @@ CREATE TABLE IF NOT EXISTS time_off_requests (
         ON UPDATE CASCADE,
     CONSTRAINT chk_time_off_dates CHECK (end_date >= start_date),
     INDEX idx_time_off_emp_status (employee_id, status),
-    INDEX idx_time_off_dates (start_date, end_date)
+    INDEX idx_time_off_dates (start_date, end_date),
+    INDEX idx_time_off_status (status)
 );
 
 -- 8. Payruns Table (In BCNF: Candidate key is {id})
@@ -139,7 +142,8 @@ CREATE TABLE IF NOT EXISTS payruns (
         REFERENCES salary_structures(id)
         ON DELETE SET NULL
         ON UPDATE CASCADE,
-    INDEX idx_payruns_period_status (period, status)
+    INDEX idx_payruns_period_status (period, status),
+    INDEX idx_payruns_status (status)
 );
 
 -- 9. Payslips Table (In BCNF: Candidate keys are {id}, {payrun_id, employee_id})
@@ -177,5 +181,6 @@ CREATE TABLE IF NOT EXISTS payslips (
         REFERENCES employees(id)
         ON DELETE RESTRICT
         ON UPDATE CASCADE,
-    INDEX idx_payslips_employee_period (employee_id, period_start)
+    INDEX idx_payslips_employee_period (employee_id, period_start),
+    INDEX idx_payslips_status (status)
 );

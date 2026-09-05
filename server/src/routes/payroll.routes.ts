@@ -200,12 +200,54 @@ async function updatePayslipStatuses(payrunId: string, status: string) {
 router.get('/payruns', authorize(PERMISSIONS.PAYRUN_READ), async (_req: Request, res: Response): Promise<void> => {
   try {
     const payruns = await getAllPayruns();
-    const enriched = await Promise.all(
-      payruns.map(async (pr) => ({
-        ...pr,
-        payslips: await getPayslipsForPayrun(pr.id),
-      }))
-    );
+    if (!payruns || payruns.length === 0) {
+      res.json({ success: true, data: [] });
+      return;
+    }
+
+    // Eliminate N+1 query: Fetch all payslips across payruns in a single batch query
+    const payrunIds = payruns.map((pr) => pr.id);
+    const allSnapshots = await PayrollSnapshotService.getSnapshotsForPayrunIds(payrunIds);
+
+    // Group snapshots by payrunId in-memory O(M)
+    const snapshotsByPayrunId = new Map<string, any[]>();
+    for (const s of allSnapshots) {
+      let list = snapshotsByPayrunId.get(s.payrunId);
+      if (!list) {
+        list = [];
+        snapshotsByPayrunId.set(s.payrunId, list);
+      }
+      list.push({
+        id: s.id,
+        payrunId: s.payrunId,
+        employeeId: s.employeeId,
+        employeeName: s.employeeName,
+        department: s.department,
+        basic: s.basic,
+        hra: s.hra,
+        allowance: s.allowance,
+        gross: s.gross,
+        tax: s.tax,
+        otherDeductions: s.otherDeductions,
+        net: s.net,
+        status: s.status || 'DRAFT',
+        warning: s.warning || undefined,
+        periodStart: s.periodStart || undefined,
+        periodEnd: s.periodEnd || undefined,
+        contractWage: s.contractWage || undefined,
+        earningsBreakdown: s.earningsBreakdown || [],
+        deductionsBreakdown: s.deductionsBreakdown || [],
+        calculationSnapshot: s.calculationSnapshot || undefined,
+        calculationTimestamp: s.calculationTimestamp,
+        calculationVersion: s.calculationVersion,
+      });
+    }
+
+    const enriched = payruns.map((pr) => ({
+      ...pr,
+      payslips: snapshotsByPayrunId.get(pr.id) || [],
+    }));
+
     res.json({ success: true, data: enriched });
   } catch (err) {
     console.error('[Payroll API] Failed to list payruns:', err instanceof Error ? err.message : err);

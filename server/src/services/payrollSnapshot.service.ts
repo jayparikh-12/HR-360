@@ -30,6 +30,7 @@ import {
   createOrUpdatePayrollSnapshot,
   getPayrollSnapshotById,
   getPayrollSnapshotsByPayrun,
+  getPayrollSnapshotsByPayrunIds,
   getPayrollHistoryByEmployee,
   findExistingSnapshot,
   type PayrollSnapshotRecord,
@@ -332,6 +333,13 @@ export class PayrollSnapshotService {
    */
   public static async getSnapshotsForPayrun(payrunId: string): Promise<PayrollSnapshotRecord[]> {
     return getPayrollSnapshotsByPayrun(payrunId);
+  }
+
+  /**
+   * Retrieves snapshots for multiple Payruns in a single batch query (eliminates N+1).
+   */
+  public static async getSnapshotsForPayrunIds(payrunIds: string[]): Promise<PayrollSnapshotRecord[]> {
+    return getPayrollSnapshotsByPayrunIds(payrunIds);
   }
 
   /**

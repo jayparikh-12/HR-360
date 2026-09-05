@@ -387,6 +387,18 @@ export async function getPayrollSnapshotsByPayrun(payrunId: string): Promise<Pay
 }
 
 /**
+ * Retrieves all snapshots belonging to multiple payrun batches in a single query.
+ * Eliminates N+1 queries when loading payrun lists.
+ */
+export async function getPayrollSnapshotsByPayrunIds(payrunIds: string[]): Promise<PayrollSnapshotRecord[]> {
+  if (!payrunIds || payrunIds.length === 0) return [];
+  const placeholders = payrunIds.map(() => '?').join(', ');
+  const sql = `${SNAPSHOT_SELECT} WHERE p.payrun_id IN (${placeholders}) ORDER BY COALESCE(e.name, p.employee_id) ASC`;
+  const rows = await executeQuery<RawPayslipSnapshotRow[]>(sql, payrunIds);
+  return rows.map(mapRowToSnapshot);
+}
+
+/**
  * Retrieves historical payroll snapshots for an employee in reverse chronological order.
  */
 export async function getPayrollHistoryByEmployee(employeeId: string): Promise<PayrollSnapshotRecord[]> {
