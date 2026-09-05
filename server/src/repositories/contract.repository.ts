@@ -144,12 +144,12 @@ const CONTRACT_SELECT = `
     c.start_date,
     c.end_date,
     c.status,
-    TRIM(CONCAT(COALESCE(e.firstName, ''), ' ', COALESCE(e.lastName, ''))) AS name,
+    COALESCE(e.name, c.employee_id) AS name,
     e.department,
-    e.jobPosition AS position
+    e.position AS position
   FROM contracts c
   LEFT JOIN employees e
-    ON (e.id = c.employee_id COLLATE utf8mb4_unicode_ci OR e.empCode = c.employee_id COLLATE utf8mb4_unicode_ci)
+    ON e.id = c.employee_id
 `;
 
 // ── Repository Functions ─────────────────────────────────────────────────────
@@ -209,16 +209,16 @@ export async function getActiveContractByEmployeeId(employeeId: string): Promise
 export async function findEmployeeByIdOrCode(identifier: string): Promise<EmployeeLookupResult | null> {
   const trimmed = identifier.trim();
   const sql = `
-    SELECT id, TRIM(CONCAT(COALESCE(firstName, ''), ' ', COALESCE(lastName, ''))) AS name
+    SELECT id, name
     FROM employees
-    WHERE id = ? OR empCode = ? OR empCode = REPLACE(?, '-', '')
+    WHERE id = ?
     LIMIT 1
   `;
   interface SimpleEmpRow extends RowDataPacket {
     id: string;
     name: string;
   }
-  const rows = await executeQuery<SimpleEmpRow[]>(sql, [trimmed, trimmed, trimmed]);
+  const rows = await executeQuery<SimpleEmpRow[]>(sql, [trimmed]);
   if (!rows || rows.length === 0) return null;
   return {
     id: rows[0].id,

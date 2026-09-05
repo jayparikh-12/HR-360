@@ -222,7 +222,6 @@ const AppShell: React.FC = () => {
 
 const AppRoutes: React.FC = () => {
   const { isAuthenticated, isLoading } = useAuth();
-  const location = useLocation();
 
   if (isLoading) return null;
 
