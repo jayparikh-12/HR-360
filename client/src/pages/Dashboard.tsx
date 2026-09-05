@@ -16,7 +16,7 @@ interface DashboardProps {
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({ employees, payruns, onNavigate }) => {
-  const latestPayrun = payruns[0];
+  const latestPayrun = payruns.find((p) => p.id === 'PR-2026-09') || payruns[0];
   const totalCost = employees.reduce((acc, e) => acc + e.wage, 0);
 
   // Group by department

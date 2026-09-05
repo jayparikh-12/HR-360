@@ -11,6 +11,7 @@ import {
   Loader2
 } from 'lucide-react';
 import type { Payrun, PayslipItem, Employee } from '../types';
+import { initialPayruns } from '../data';
 import { payrollApi } from '../api/payroll';
 import { ApiError } from '../api/client';
 import { useAuth } from '../context/AuthContext';
@@ -19,14 +20,36 @@ interface PayrunsProps {
   payruns: Payrun[];
   employees: Employee[];
   onUpdatePayrun: (updated: Payrun) => void;
+  activePayrunId?: string | null;
+  onSelectPayrun?: (id: string) => void;
 }
 
-export const Payruns: React.FC<PayrunsProps> = ({ payruns, employees, onUpdatePayrun }) => {
+const getDefaultPayrun = (runs: Payrun[]): Payrun | undefined => {
+  if (!runs || runs.length === 0) return undefined;
+  return runs.find((p) => p.id === 'PR-2026-09') || runs[runs.length - 1] || runs[0];
+};
+
+export const Payruns: React.FC<PayrunsProps> = ({ 
+  payruns, 
+  employees, 
+  onUpdatePayrun,
+  activePayrunId,
+  onSelectPayrun
+}) => {
   const { displayRole } = useAuth();
   const canValidateAndPay = displayRole === 'Admin' || displayRole === 'HR Payroll Manager';
   const canCreatePayrun = displayRole === 'Admin' || displayRole === 'HR Payroll Manager' || displayRole === 'HR Payroll User';
 
-  const [activePayrun, setActivePayrun] = useState<Payrun>(payruns[0]);
+  // Determine initial active payrun: preserve activePayrunId in same session if valid, otherwise baseline default
+  const resolveInitialPayrun = (): Payrun => {
+    if (activePayrunId) {
+      const match = payruns.find((p) => p.id === activePayrunId);
+      if (match) return match;
+    }
+    return getDefaultPayrun(payruns) || initialPayruns[0];
+  };
+
+  const [activePayrun, setActivePayrun] = useState<Payrun>(resolveInitialPayrun);
   const [selectedPayslip, setSelectedPayslip] = useState<PayslipItem | null>(null);
   const [wizardOpen, setWizardOpen] = useState(false);
   const [wizardStep, setWizardStep] = useState(1);
@@ -43,12 +66,18 @@ export const Payruns: React.FC<PayrunsProps> = ({ payruns, employees, onUpdatePa
         if (!isMounted || !backendRuns || backendRuns.length === 0) return;
 
         setActivePayrun((prev) => {
-          const match = backendRuns.find((pr) => pr.id === prev.id) || backendRuns[0];
+          let match: Payrun | undefined;
+          if (activePayrunId) {
+            match = backendRuns.find((pr) => pr.id === activePayrunId);
+          }
+          if (!match) {
+            match = getDefaultPayrun(backendRuns) || backendRuns[0];
+          }
           if (!match) return prev;
 
           const mergedPayslips = (match.payslips && match.payslips.length > 0)
             ? match.payslips
-            : prev.payslips.map((p) => ({ ...p, status: match.status }));
+            : (prev?.payslips || []).map((p) => ({ ...p, status: match!.status }));
 
           const enriched: Payrun = {
             ...prev,
@@ -68,7 +97,7 @@ export const Payruns: React.FC<PayrunsProps> = ({ payruns, employees, onUpdatePa
     return () => {
       isMounted = false;
     };
-  }, [onUpdatePayrun]);
+  }, [activePayrunId, onUpdatePayrun]);
 
   // Validate Payrun via backend API (PATCH /api/payroll/payruns/:id/validate)
   const handleValidate = async () => {
@@ -91,6 +120,7 @@ export const Payruns: React.FC<PayrunsProps> = ({ payruns, employees, onUpdatePa
 
       setActivePayrun(newActive);
       onUpdatePayrun(newActive);
+      onSelectPayrun?.(newActive.id);
     } catch (err: any) {
       console.error('[Payruns] Validate failed:', err);
       const msg = err instanceof ApiError ? err.message : (err?.message || 'Failed to validate payrun. Please try again.');
@@ -121,6 +151,7 @@ export const Payruns: React.FC<PayrunsProps> = ({ payruns, employees, onUpdatePa
 
       setActivePayrun(newActive);
       onUpdatePayrun(newActive);
+      onSelectPayrun?.(newActive.id);
     } catch (err: any) {
       console.error('[Payruns] Payment failed:', err);
       const msg = err instanceof ApiError ? err.message : (err?.message || 'Failed to process payment. Please try again.');
@@ -140,6 +171,7 @@ export const Payruns: React.FC<PayrunsProps> = ({ payruns, employees, onUpdatePa
     };
     setActivePayrun(updated);
     onUpdatePayrun(updated);
+    onSelectPayrun?.(updated.id);
   };
 
   // Complete wizard
@@ -184,6 +216,7 @@ export const Payruns: React.FC<PayrunsProps> = ({ payruns, employees, onUpdatePa
 
     setActivePayrun(newRun);
     onUpdatePayrun(newRun);
+    onSelectPayrun?.(newRun.id);
     setWizardOpen(false);
     setWizardStep(1);
   };
@@ -273,7 +306,36 @@ export const Payruns: React.FC<PayrunsProps> = ({ payruns, employees, onUpdatePa
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <h2 style={{ fontSize: '18px', fontWeight: 700 }}>{activePayrun.name}</h2>
+              {payruns.length > 1 ? (
+                <select
+                  aria-label="Select Payrun"
+                  className="form-input"
+                  style={{
+                    width: 'auto',
+                    fontWeight: 700,
+                    fontSize: '18px',
+                    padding: '4px 10px',
+                    height: 'auto',
+                    cursor: 'pointer',
+                  }}
+                  value={activePayrun.id}
+                  onChange={(e) => {
+                    const found = payruns.find((p) => p.id === e.target.value);
+                    if (found) {
+                      setActivePayrun(found);
+                      onSelectPayrun?.(found.id);
+                    }
+                  }}
+                >
+                  {payruns.map((pr) => (
+                    <option key={pr.id} value={pr.id}>
+                      {pr.name} ({pr.period})
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <h2 style={{ fontSize: '18px', fontWeight: 700 }}>{activePayrun.name}</h2>
+              )}
               <span className={`badge ${activePayrun.status === 'PAID' ? 'badge-success' : activePayrun.status === 'VALIDATED' ? 'badge-info' : 'badge-warning'}`}>
                 {activePayrun.status}
               </span>

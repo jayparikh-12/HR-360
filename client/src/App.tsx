@@ -45,6 +45,7 @@ const isTabAllowed = (tab: string, role: UserRole): boolean => {
 const AppContent: React.FC = () => {
   const { isAuthenticated, isLoading, user, displayRole, logout } = useAuth();
   const [currentTab, setCurrentTab] = useState<string>('dashboard');
+  const [activePayrunId, setActivePayrunId] = useState<string | null>(null);
 
   // ── Employee state (MySQL-backed, Phase 2.2) ────────────────────────────────
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -84,6 +85,15 @@ const AppContent: React.FC = () => {
     }
   }, []);
 
+  // Session Boundary: Reset transient UI state upon logout/unauthenticated
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setCurrentTab('dashboard');
+      setActivePayrunId(null);
+      setPayruns([]);
+    }
+  }, [isAuthenticated]);
+
   // Fetch employees and payruns when the user authenticates (scoped by role permission)
   useEffect(() => {
     if (isAuthenticated) {
@@ -104,7 +114,14 @@ const AppContent: React.FC = () => {
   }, [isAuthenticated, currentTab, displayRole]);
 
   const handleUpdatePayrun = (updated: Payrun) => {
-    setPayruns((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+    setPayruns((prev) => {
+      const exists = prev.some((p) => p.id === updated.id);
+      if (exists) {
+        return prev.map((p) => (p.id === updated.id ? updated : p));
+      }
+      return [updated, ...prev];
+    });
+    setActivePayrunId(updated.id);
   };
 
   // 1. Initial loading: Render subtle splash screen to eliminate UI flicker
@@ -176,6 +193,8 @@ const AppContent: React.FC = () => {
             payruns={payruns}
             employees={employees}
             onUpdatePayrun={handleUpdatePayrun}
+            activePayrunId={activePayrunId}
+            onSelectPayrun={setActivePayrunId}
           />
         );
       case 'attendance':
