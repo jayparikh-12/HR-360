@@ -16,7 +16,6 @@ import {
 } from 'lucide-react';
 import type { Employee, Payrun } from '../types';
 import { dashboardApi, type DashboardMetrics, type DashboardFilters } from '../api/dashboard';
-import { employeesApi } from '../api/employees';
 import { formatCurrency } from '../utils/formatters';
 import { 
   PayrollTrendChart, 
@@ -49,7 +48,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
 
   const [availableDepartments, setAvailableDepartments] = useState<string[]>([]);
   const [availablePeriods, setAvailablePeriods] = useState<string[]>([]);
-  const [hasBackendEmployeeType, setHasBackendEmployeeType] = useState<boolean>(false);
 
   // ── Data Fetching ───────────────────────────────────────────────────────────
   const fetchDashboardData = useCallback(async (isBackgroundRefresh = false) => {
@@ -81,16 +79,17 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
     fetchDashboardData();
   }, [fetchDashboardData]);
 
-  // Load filter options dynamically from live records once
+  // Load filter options dynamically from live database aggregation
   useEffect(() => {
-    dashboardApi.getDepartments().then(setAvailableDepartments).catch(() => {});
-    dashboardApi.getPeriods().then(setAvailablePeriods).catch(() => {});
-    employeesApi.getAll()
-      .then((list) => {
-        const hasType = list.some((e: any) => Boolean(e.employeeType));
-        setHasBackendEmployeeType(hasType);
+    dashboardApi.getFilterOptions()
+      .then((opts) => {
+        if (opts.departments?.length) setAvailableDepartments(opts.departments);
+        if (opts.periods?.length) setAvailablePeriods(opts.periods);
       })
-      .catch(() => {});
+      .catch(() => {
+        dashboardApi.getDepartments().then(setAvailableDepartments).catch(() => {});
+        dashboardApi.getPeriods().then(setAvailablePeriods).catch(() => {});
+      });
   }, []);
 
   const handleFilterChange = (key: keyof DashboardFilters, value: string) => {
@@ -237,12 +236,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                 padding: '6px 10px', 
                 height: 'auto', 
                 minWidth: '150px',
-                opacity: hasBackendEmployeeType ? 1 : 0.75 
               }}
               value={filters.employeeType || 'ALL'}
               onChange={(e) => handleFilterChange('employeeType', e.target.value)}
-              disabled={loading || !hasBackendEmployeeType}
-              title={hasBackendEmployeeType ? 'Filter by Employee Type' : 'Employee Type filter is pending backend API projection'}
+              disabled={loading && !metrics}
+              title="Filter by Employee Type"
               aria-label="Filter by Employee Type"
             >
               <option value="ALL">All Employee Types</option>
@@ -250,14 +248,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
               <option value="PART_TIME">Part-Time</option>
               <option value="CONTRACT">Contract</option>
             </select>
-            {!hasBackendEmployeeType && (
-              <span 
-                style={{ fontSize: '11px', color: 'var(--slate-400)', fontStyle: 'italic' }}
-                title="The employeeType column exists in MySQL, but current /api/employees endpoint does not project it to client"
-              >
-                (Pending API)
-              </span>
-            )}
           </div>
 
           {/* Reset button if any filter is active */}
@@ -307,8 +297,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
         </div>
       )}
 
-      {/* Loading Skeleton View (Maintains Grid Layout) */}
-      {loading && (
+      {/* Initial Loading Skeleton View (Only on initial mount when metrics not yet loaded) */}
+      {loading && !metrics && (
         <>
           <div className="grid-4">
             {[1, 2, 3, 4, 5, 6].map((i) => (
@@ -327,8 +317,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
       )}
 
       {/* Fully Dynamic 6-Card KPI Grid (Live Backend Values) */}
-      {!loading && metrics && (
-        <div className="grid-4">
+      {metrics && (
+        <div className="grid-4" style={{ opacity: loading ? 0.75 : 1, transition: 'opacity 0.2s ease' }}>
           {/* Card 1: Gross Payroll */}
           <div className="card">
             <div className="metric-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -478,8 +468,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
         </div>
       )}
 
-      {/* Visual Analytics & Operational Sections (Phase 6.3) */}
-      {!loading && metrics && (metrics.totalEmployees > 0 || metrics.latestPayrun) && (
+      {/* Visual Analytics & Operational Sections (Phase 6.3 - 6.5) */}
+      {metrics && (metrics.totalEmployees > 0 || metrics.latestPayrun) && (
         <>
           {/* Requirement 1: Payroll Trend Analytics Chart */}
           <PayrollTrendChart
@@ -490,7 +480,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
           />
 
           {/* Requirements 2 & 3: Payrun Status Lifecycle & Department Allocation Breakdown */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '20px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 360px), 1fr))', gap: '20px' }}>
             <PayrollStatusChart
               statusCounts={metrics.statusCounts || { draft: 0, computed: 0, validated: 0, paid: 0 }}
               totalPayruns={
@@ -509,14 +499,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
               departmentCosts={metrics.departmentCosts || {}}
               totalPayrollCost={metrics.totalPayrollCost || 0}
               selectedDepartment={filters.department}
-              onSelectDepartment={(dept) => handleFilterChange('department', dept)}
+              onSelectDepartment={(dept) => handleFilterChange('department', filters.department === dept ? 'ALL' : dept)}
               onViewStaff={() => onNavigate('employees')}
               loading={loading}
             />
           </div>
 
           {/* Phase 6.5: Attendance & Time-Off Visual Analytics */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '20px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 360px), 1fr))', gap: '20px' }}>
             <AttendanceAnalytics
               analytics={metrics.attendanceAnalytics}
               loading={loading}

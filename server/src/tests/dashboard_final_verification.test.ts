@@ -129,7 +129,7 @@ test('PeoplePay360 — Phase 6.6 Final Dashboard Verification Suite', async () =
   }
 
   // ── Setup: Seed rich, multi-dimensional test records ────────────────────────
-  const seedPrefix = 'P66_FINAL_';
+  const seedPrefix = 'PR-ZZZ-P66-';
   try {
     // 1. Ensure working schedules
     await executeQuery(`
@@ -161,10 +161,10 @@ test('PeoplePay360 — Phase 6.6 Final Dashboard Verification Suite', async () =
     // Emp 2: Quantum Engineering, PT
     // Emp 3: Operations, FT
     await executeQuery(`
-      INSERT INTO employees (id, name, email, department, position, join_date, status) VALUES
-      ('${seedPrefix}EMP1', 'Diana Prince', 'diana.p66@internal.com', 'Quantum Engineering', 'Lead Architect', '2026-01-01', 'ACTIVE'),
-      ('${seedPrefix}EMP2', 'Clark Kent', 'clark.p66@internal.com', 'Quantum Engineering', 'Staff Writer', '2026-02-01', 'ACTIVE'),
-      ('${seedPrefix}EMP3', 'Bruce Wayne', 'bruce.p66@internal.com', 'Operations', 'Director', '2026-03-01', 'ACTIVE')
+      INSERT INTO employees (id, empCode, firstName, lastName, email, department, jobPosition, createdAt, status) VALUES
+      ('${seedPrefix}EMP1', '${seedPrefix}C1', 'Diana', 'Prince', 'diana.p66@internal.com', 'Quantum Engineering', 'Lead Architect', '2026-01-01', 'ACTIVE'),
+      ('${seedPrefix}EMP2', '${seedPrefix}C2', 'Clark', 'Kent', 'clark.p66@internal.com', 'Quantum Engineering', 'Staff Writer', '2026-02-01', 'ACTIVE'),
+      ('${seedPrefix}EMP3', '${seedPrefix}C3', 'Bruce', 'Wayne', 'bruce.p66@internal.com', 'Operations', 'Director', '2026-03-01', 'ACTIVE')
     `);
 
     // 4. Contracts:

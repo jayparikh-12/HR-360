@@ -757,8 +757,9 @@ export function calculateStatusCounts(payruns: Payrun[]): PayrunStatusCounts {
 export const dashboardApi = {
   /**
    * Fetches Dashboard Metrics.
-   * First tries the dedicated backend endpoint; if not yet available,
-   * aggregates live data from core database endpoints with zero mock data.
+   * Directly consumes the dedicated backend endpoint (/api/dashboard);
+   * if unavailable or in offline mode, gracefully aggregates live data
+   * from core database endpoints with zero mock data.
    */
   async getMetrics(filters?: DashboardFilters): Promise<DashboardMetrics> {
     const params = new URLSearchParams();
@@ -770,52 +771,40 @@ export const dashboardApi = {
 
     // 1. Try dedicated dashboard endpoint (Phase 6 backend)
     try {
-      const [dashResponse, payruns, attendance, timeOff, employees] = await Promise.all([
-        apiFetch<any>(`/api/dashboard${queryString}`),
-        payrollApi.getAll().catch(() => []),
-        attendanceApi.getAll().catch(() => []),
-        timeOffApi.getAll().catch(() => []),
-        employeesApi.getAll().catch(() => []),
-      ]);
+      const dashResponse = await apiFetch<any>(`/api/dashboard${queryString}`);
 
       if (dashResponse && dashResponse.success && dashResponse.data) {
         const backendData = dashResponse.data;
-        const trends = calculateTrends(payruns, filters);
+        const trends = backendData.trends || backendData.payrollTrend || [];
         const statusCounts: PayrunStatusCounts =
-          backendData.payroll?.statusCounts ||
           backendData.statusCounts ||
-          calculateStatusCounts(payruns);
+          backendData.payroll?.statusCounts || { draft: 0, computed: 0, validated: 0, paid: 0, total: 0 };
 
-        const attendanceAnalytics =
-          backendData.attendanceAnalytics ||
-          calculateAttendanceAnalytics(attendance, employees, filters);
-
-        const timeOffAnalytics =
-          backendData.timeOffAnalytics ||
-          calculateTimeOffAnalytics(timeOff, employees, filters);
+        const departmentCosts: Record<string, number> =
+          backendData.departmentCosts ||
+          backendData.payroll?.departmentCosts ||
+          {};
 
         return {
           ...backendData,
           statusCounts,
           trends,
-          departmentCosts: backendData.departmentCosts || backendData.payroll?.departmentCosts || {},
-          attendanceAnalytics,
-          timeOffAnalytics,
+          departmentCosts,
+          alerts: backendData.alerts || [],
+          attendanceAnalytics: backendData.attendanceAnalytics,
+          timeOffAnalytics: backendData.timeOffAnalytics,
+          isPendingBackendAggregation: false,
         };
       }
     } catch (err) {
-      // If 404 or backend route not yet added, proceed to live aggregation
-      if (err instanceof ApiError && err.statusCode === 404) {
-        // Fall back to live aggregation below
-      } else {
-        // If it's a 401/403 or network error, rethrow
-        if (err instanceof ApiError && (err.statusCode === 401 || err.statusCode === 403 || err.statusCode === 0)) {
-          throw err;
-        }
+      // If 401/403 (unauthorized/forbidden) or network error, rethrow so UI can handle
+      if (err instanceof ApiError && (err.statusCode === 401 || err.statusCode === 403 || err.statusCode === 0)) {
+        throw err;
       }
+      // If 404 or backend route not yet ready, proceed to live aggregation fallback below
     }
 
-    // 2. Aggregate from live backend endpoints
+    // 2. Fallback: Aggregate from live backend endpoints
     const [employees, payruns, attendance, timeOff] = await Promise.all([
       employeesApi.getAll().catch(() => []),
       payrollApi.getAll().catch(() => []),
@@ -826,6 +815,39 @@ export const dashboardApi = {
     const metrics = aggregateLiveMetrics(employees, payruns, attendance, timeOff, filters);
     metrics.isPendingBackendAggregation = true;
     return metrics;
+  },
+
+  /**
+   * Fetches distinct filter options directly from backend MySQL aggregation.
+   */
+  async getFilterOptions(): Promise<{
+    departments: string[];
+    periods: string[];
+    employeeTypes: string[];
+  }> {
+    try {
+      const res = await apiFetch<any>('/api/dashboard/filters');
+      if (res && res.success && res.data) {
+        return {
+          departments: res.data.departments || [],
+          periods: res.data.periods || [],
+          employeeTypes: res.data.employeeTypes || ['FULL_TIME', 'PART_TIME', 'CONTRACT'],
+        };
+      }
+    } catch {
+      // Graceful fallback to client queries
+    }
+
+    const [departments, periods] = await Promise.all([
+      this.getDepartments(),
+      this.getPeriods(),
+    ]);
+
+    return {
+      departments,
+      periods,
+      employeeTypes: ['FULL_TIME', 'PART_TIME', 'CONTRACT'],
+    };
   },
 
   /**
@@ -858,6 +880,21 @@ export const dashboardApi = {
    * Dedicated helper to retrieve operational alerts and insights with optional filters.
    */
   async getAlerts(filters?: DashboardFilters): Promise<DashboardAlert[]> {
+    const params = new URLSearchParams();
+    if (filters?.period && filters.period !== 'ALL') params.set('period', filters.period);
+    if (filters?.department && filters.department !== 'ALL') params.set('department', filters.department);
+    if (filters?.employeeType && filters.employeeType !== 'ALL') params.set('employeeType', filters.employeeType);
+    const queryString = params.toString() ? `?${params.toString()}` : '';
+
+    try {
+      const res = await apiFetch<any>(`/api/dashboard/alerts${queryString}`);
+      if (res && res.success && res.data?.alerts) {
+        return res.data.alerts;
+      }
+    } catch {
+      // Fallback to getMetrics
+    }
+
     const metrics = await this.getMetrics(filters);
     return metrics.alerts || [];
   },
@@ -866,6 +903,21 @@ export const dashboardApi = {
    * Dedicated helper to retrieve attendance analytics with optional filters.
    */
   async getAttendanceAnalytics(filters?: DashboardFilters): Promise<AttendanceAnalyticsData> {
+    const params = new URLSearchParams();
+    if (filters?.period && filters.period !== 'ALL') params.set('period', filters.period);
+    if (filters?.department && filters.department !== 'ALL') params.set('department', filters.department);
+    if (filters?.employeeType && filters.employeeType !== 'ALL') params.set('employeeType', filters.employeeType);
+    const queryString = params.toString() ? `?${params.toString()}` : '';
+
+    try {
+      const res = await apiFetch<any>(`/api/dashboard/attendance-analytics${queryString}`);
+      if (res && res.success && res.data) {
+        return res.data;
+      }
+    } catch {
+      // Fallback to getMetrics
+    }
+
     const metrics = await this.getMetrics(filters);
     return (
       metrics.attendanceAnalytics || {
@@ -882,6 +934,21 @@ export const dashboardApi = {
    * Dedicated helper to retrieve time-off analytics with optional filters.
    */
   async getTimeOffAnalytics(filters?: DashboardFilters): Promise<TimeOffAnalyticsData> {
+    const params = new URLSearchParams();
+    if (filters?.period && filters.period !== 'ALL') params.set('period', filters.period);
+    if (filters?.department && filters.department !== 'ALL') params.set('department', filters.department);
+    if (filters?.employeeType && filters.employeeType !== 'ALL') params.set('employeeType', filters.employeeType);
+    const queryString = params.toString() ? `?${params.toString()}` : '';
+
+    try {
+      const res = await apiFetch<any>(`/api/dashboard/time-off-analytics${queryString}`);
+      if (res && res.success && res.data) {
+        return res.data;
+      }
+    } catch {
+      // Fallback to getMetrics
+    }
+
     const metrics = await this.getMetrics(filters);
     return (
       metrics.timeOffAnalytics || {
