@@ -960,7 +960,7 @@ export function summarizeTimeOff(
     if (!rec || typeof rec !== 'object') continue;
 
     const empId = String(rec.employeeId ?? rec.employee_id ?? '').trim();
-    if (empId !== employeeId) continue;
+    if (empId && empId !== employeeId) continue;
 
     // Status check: only APPROVED requests are included
     const statusUpper = String(rec.status ?? '').trim().toUpperCase();

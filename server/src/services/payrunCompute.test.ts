@@ -74,11 +74,11 @@ describe('PHASE 5.2 — Payrun Compute Workflow', () => {
       futureContractEmpId,
     ]);
 
-    // Insert a TERMINATED employee fixture to test exclusion
+    // Insert an INACTIVE employee fixture to test exclusion
     await executeQuery(
-      `INSERT INTO employees (id, name, email, department, position, status, join_date, bank_account)
-       VALUES (?, ?, ?, ?, ?, 'TERMINATED', '2023-01-01', '•••• 9999')`,
-      [terminatedEmpId, `Terminated User ${testSuffix}`, `term_${testSuffix}@company.com`, 'Engineering', 'Former Engineer']
+      `INSERT INTO employees (id, empCode, firstName, lastName, email, department, jobPosition, status, bankAccountNo)
+       VALUES (?, ?, 'Terminated', ?, ?, 'Engineering', 'Former Engineer', 'INACTIVE', '•••• 9999')`,
+      [terminatedEmpId, terminatedEmpId, `User ${testSuffix}`, `term_${testSuffix}@company.com`]
     );
     await executeQuery(
       `INSERT INTO contracts (id, employee_id, salary_structure_id, working_schedule_id, wage, start_date, status)
@@ -88,9 +88,9 @@ describe('PHASE 5.2 — Payrun Compute Workflow', () => {
 
     // Insert an ACTIVE employee whose contract is FUTURE (starts 2027-01-01, outside 2026-09)
     await executeQuery(
-      `INSERT INTO employees (id, name, email, department, position, status, join_date, bank_account)
-       VALUES (?, ?, ?, ?, ?, 'ACTIVE', '2026-12-01', '•••• 8888')`,
-      [futureContractEmpId, `Future Hire ${testSuffix}`, `future_${testSuffix}@company.com`, 'Product', 'Future PM']
+      `INSERT INTO employees (id, empCode, firstName, lastName, email, department, jobPosition, status, bankAccountNo)
+       VALUES (?, ?, 'Future', ?, ?, 'Product', 'Future PM', 'ACTIVE', '•••• 8888')`,
+      [futureContractEmpId, futureContractEmpId, `Hire ${testSuffix}`, `future_${testSuffix}@company.com`]
     );
     await executeQuery(
       `INSERT INTO contracts (id, employee_id, salary_structure_id, working_schedule_id, wage, start_date, status)
@@ -385,6 +385,13 @@ describe('PHASE 5.2 — Payrun Compute Workflow', () => {
     const input = preparePayrollCalculationInput({
       employee: { id: 'EMP-999', name: 'Determinism Check', department: 'QA', wage: 10000 },
       period: { startDate: '2026-09-01', endDate: '2026-09-30' },
+      salaryRules: [
+        { id: 'RUL-01', code: 'BASIC', name: 'Basic Salary', sequence: 1, category: 'BASIC', calculationType: 'PERCENTAGE', percentage: 60 },
+        { id: 'RUL-02', code: 'HRA', name: 'House Rent Allowance', sequence: 2, category: 'ALLOWANCE', calculationType: 'PERCENTAGE', percentage: 25 },
+        { id: 'RUL-03', code: 'ALLOWANCE', name: 'Special Allowance', sequence: 3, category: 'ALLOWANCE', calculationType: 'PERCENTAGE', percentage: 15 },
+        { id: 'RUL-04', code: 'TAX', name: 'Income Tax', sequence: 4, category: 'DEDUCTION', calculationType: 'PERCENTAGE', percentage: 10 },
+        { id: 'RUL-05', code: 'PF', name: 'Social Security / PF', sequence: 5, category: 'DEDUCTION', calculationType: 'PERCENTAGE', percentage: 7 },
+      ],
     });
 
     const result = PayrollEngine.compute(input.input);

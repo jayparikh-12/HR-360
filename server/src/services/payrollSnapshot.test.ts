@@ -33,6 +33,14 @@ describe('PHASE 5.1 — Payroll Calculation Snapshot & Payslip Persistence', () 
   const empA = 'EMP-001'; // John Doe
   const empB = 'EMP-002'; // Maya Lin
 
+  const standardRules = [
+    { id: 'RUL-01', code: 'BASIC', name: 'Basic Salary', sequence: 1, category: 'BASIC', calculationType: 'PERCENTAGE', percentage: 60 },
+    { id: 'RUL-02', code: 'HRA', name: 'House Rent Allowance', sequence: 2, category: 'ALLOWANCE', calculationType: 'PERCENTAGE', percentage: 25 },
+    { id: 'RUL-03', code: 'ALLOWANCE', name: 'Special Allowance', sequence: 3, category: 'ALLOWANCE', calculationType: 'PERCENTAGE', percentage: 15 },
+    { id: 'RUL-04', code: 'TAX', name: 'Income Tax', sequence: 4, category: 'DEDUCTION', calculationType: 'PERCENTAGE', percentage: 10 },
+    { id: 'RUL-05', code: 'PF', name: 'Social Security / PF', sequence: 5, category: 'DEDUCTION', calculationType: 'PERCENTAGE', percentage: 7 },
+  ];
+
   before(async () => {
     // Clean up any stale records from previous aborted runs
     await executeQuery('DELETE FROM payslips WHERE payrun_id = ?', [testPayrunId]);
@@ -64,6 +72,7 @@ describe('PHASE 5.1 — Payroll Calculation Snapshot & Payslip Persistence', () 
       employeeName: 'John Doe',
       department: 'Engineering',
       monthlyWage: 6500,
+      salaryRules: standardRules,
     });
 
     const persisted = await PayrollSnapshotService.persistSnapshot({
@@ -141,6 +150,7 @@ describe('PHASE 5.1 — Payroll Calculation Snapshot & Payslip Persistence', () 
       employeeName: 'Maya Lin',
       department: 'Product',
       monthlyWage: 7200,
+      salaryRules: standardRules,
     });
 
     await PayrollSnapshotService.persistSnapshot({
@@ -187,6 +197,7 @@ describe('PHASE 5.1 — Payroll Calculation Snapshot & Payslip Persistence', () 
       employeeName: 'John Doe',
       department: 'Engineering',
       monthlyWage: 99999, // Attempted altered wage
+      salaryRules: standardRules,
     });
 
     await assert.rejects(

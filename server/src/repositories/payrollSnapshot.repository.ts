@@ -134,12 +134,19 @@ function num(v: number | string | null | undefined): number {
 }
 
 function mapRowToSnapshot(row: RawPayslipSnapshotRow): PayrollSnapshotRecord {
+  const calcSnapshot = parseSafeJson<Record<string, unknown> | null>(row.calculation_snapshot, null);
+  const snapshotEmp = (calcSnapshot as any)?.employee;
+
   return {
     id: row.id,
     payrunId: row.payrun_id,
     employeeId: row.employee_id,
-    employeeName: row.employee_name ? String(row.employee_name).trim() : row.employee_id,
-    department: row.department ? String(row.department).trim() : 'General',
+    employeeName: row.employee_name && String(row.employee_name).trim().length > 0
+      ? String(row.employee_name).trim()
+      : (snapshotEmp?.name ? String(snapshotEmp.name).trim() : row.employee_id),
+    department: row.department && String(row.department).trim().length > 0
+      ? String(row.department).trim()
+      : (snapshotEmp?.department ? String(snapshotEmp.department).trim() : 'General'),
     periodStart: formatDate(row.period_start),
     periodEnd: formatDate(row.period_end),
     contractWage: num(row.contract_wage),

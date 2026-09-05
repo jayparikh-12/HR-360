@@ -170,19 +170,21 @@ export function preparePayrollCalculationInput(params: PreparePayrollInputParams
     totalDays: 30,
   };
 
-  const canonicalRules: NormalizedSalaryRuleInput[] = (salaryRules || []).map((r) => ({
-    ruleId: r.id,
-    structureId: r.salaryStructureId || r.structureId || r.structure_id || null,
-    name: r.name,
-    code: r.code,
-    sequence: typeof r.sequence === 'number' ? r.sequence : parseInt(String(r.sequence), 10) || 0,
-    category: (r.category.toUpperCase() as any),
-    calculationType: ((r.calculationType || r.calculation_type || 'FIXED').toUpperCase() as any),
-    amount: r.amount !== undefined && r.amount !== null ? Number(r.amount) : null,
-    percentage: r.percentage !== undefined && r.percentage !== null ? Number(r.percentage) : null,
-    formula: r.formula || null,
-    id: r.id,
-  }));
+  const canonicalRules: NormalizedSalaryRuleInput[] | undefined = salaryRules !== undefined
+    ? salaryRules.map((r) => ({
+        ruleId: r.id,
+        structureId: r.salaryStructureId || r.structureId || r.structure_id || null,
+        name: r.name,
+        code: r.code,
+        sequence: typeof r.sequence === 'number' ? r.sequence : parseInt(String(r.sequence), 10) || 0,
+        category: (r.category.toUpperCase() as any),
+        calculationType: ((r.calculationType || r.calculation_type || 'FIXED').toUpperCase() as any),
+        amount: r.amount !== undefined && r.amount !== null ? Number(r.amount) : undefined,
+        percentage: r.percentage !== undefined && r.percentage !== null ? Number(r.percentage) : undefined,
+        formula: r.formula ?? undefined,
+        id: r.id,
+      }))
+    : undefined;
 
   const canonicalAttendance: NormalizedAttendanceInput = {
     records: attendanceRecords.map((a) => ({
