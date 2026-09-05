@@ -17,6 +17,8 @@ import {
 import type { Employee, Payrun } from '../types';
 import { dashboardApi, type DashboardMetrics, type DashboardFilters } from '../api/dashboard';
 import { formatCurrency } from '../utils/formatters';
+import { useAuth } from '../context/AuthContext';
+import { isTabAllowed } from '../utils/routes';
 import { 
   PayrollTrendChart, 
   PayrollStatusChart, 
@@ -33,6 +35,9 @@ interface DashboardProps {
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
+  const { displayRole } = useAuth();
+  const canAccessPayruns = isTabAllowed('payruns', displayRole);
+
   // ── State Management ────────────────────────────────────────────────────────
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -74,13 +79,18 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
     }
   }, [filters]);
 
-  // Fetch when filters change or on initial mount
+  // Fetch when filters change or on initial mount (management roles only)
   useEffect(() => {
+    if (displayRole === 'Employee') {
+      setLoading(false);
+      return;
+    }
     fetchDashboardData();
-  }, [fetchDashboardData]);
+  }, [fetchDashboardData, displayRole]);
 
   // Load filter options dynamically from live database aggregation
   useEffect(() => {
+    if (displayRole === 'Employee') return;
     dashboardApi.getFilterOptions()
       .then((opts) => {
         if (opts.departments?.length) setAvailableDepartments(opts.departments);
@@ -90,7 +100,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
         dashboardApi.getDepartments().then(setAvailableDepartments).catch(() => {});
         dashboardApi.getPeriods().then(setAvailablePeriods).catch(() => {});
       });
-  }, []);
+  }, [displayRole]);
 
   const handleFilterChange = (key: keyof DashboardFilters, value: string) => {
     setFilters((prev) => ({
@@ -127,6 +137,80 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
         return <span className="badge badge-info">{status || 'READY'}</span>;
     }
   };
+
+  // ── Employee Self-Service Hub View ──────────────────────────────────────────
+  if (displayRole === 'Employee') {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        <div className="page-header">
+          <div>
+            <h1 className="page-title">Employee Self-Service Portal</h1>
+            <p className="page-desc">
+              Welcome to PeoplePay360. Access your personal attendance, time-off requests, and payslip history.
+            </p>
+          </div>
+        </div>
+
+        <div className="card" style={{ padding: '24px' }}>
+          <h2 style={{ fontSize: '16px', fontWeight: 700, marginBottom: '8px', color: 'var(--slate-800)' }}>
+            Quick Actions
+          </h2>
+          <p style={{ fontSize: '13px', color: 'var(--slate-500)', marginBottom: '20px' }}>
+            Executive financial metrics and company-wide payroll runs are restricted to management roles. Use the quick links below to access your personal employee records:
+          </p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px' }}>
+            <div
+              className="card"
+              style={{ cursor: 'pointer', border: '1px solid var(--slate-200)', transition: 'transform 0.15s ease' }}
+              onClick={() => onNavigate('attendance')}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
+                <div style={{ padding: '8px', borderRadius: '8px', background: '#eff6ff', color: 'var(--primary)' }}>
+                  <Users size={18} />
+                </div>
+                <div style={{ fontWeight: 700, fontSize: '14px' }}>Daily Attendance</div>
+              </div>
+              <p style={{ fontSize: '12px', color: 'var(--slate-500)' }}>
+                Perform your daily clock-in / clock-out and review your attendance logs.
+              </p>
+            </div>
+
+            <div
+              className="card"
+              style={{ cursor: 'pointer', border: '1px solid var(--slate-200)', transition: 'transform 0.15s ease' }}
+              onClick={() => onNavigate('time-off')}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
+                <div style={{ padding: '8px', borderRadius: '8px', background: '#fef3c7', color: '#b45309' }}>
+                  <Calendar size={18} />
+                </div>
+                <div style={{ fontWeight: 700, fontSize: '14px' }}>Time Off & Leave</div>
+              </div>
+              <p style={{ fontSize: '12px', color: 'var(--slate-500)' }}>
+                Submit new leave requests, check remaining balance, and track approval status.
+              </p>
+            </div>
+
+            <div
+              className="card"
+              style={{ cursor: 'pointer', border: '1px solid var(--slate-200)', transition: 'transform 0.15s ease' }}
+              onClick={() => onNavigate('payslips')}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
+                <div style={{ padding: '8px', borderRadius: '8px', background: '#ecfdf5', color: '#047857' }}>
+                  <CreditCard size={18} />
+                </div>
+                <div style={{ fontWeight: 700, fontSize: '14px' }}>My Payslips</div>
+              </div>
+              <p style={{ fontSize: '12px', color: 'var(--slate-500)' }}>
+                Inspect your historical payslip vouchers and earnings breakdowns.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
@@ -165,10 +249,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
           </button>
 
           {/* Quick Payrun Navigation */}
-          <button className="btn btn-primary" onClick={() => onNavigate('payruns')}>
-            <Play size={14} />
-            <span>Launch Payrun Workflow</span>
-          </button>
+          {canAccessPayruns && (
+            <button className="btn btn-primary" onClick={() => onNavigate('payruns')}>
+              <Play size={14} />
+              <span>Launch Payrun Workflow</span>
+            </button>
+          )}
         </div>
       </div>
 
