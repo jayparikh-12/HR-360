@@ -2,8 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { TokenPayload } from '../types/auth.types.js';
 import { findUserById, toSafeUser } from '../models/user.model.js';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'peoplepay360-hackathon-jwt-secret-2026';
+import { JWT_SECRET, JWT_VERIFY_OPTIONS } from '../config/jwt.config.js';
 
 /**
  * Authentication middleware that verifies JWT bearer tokens.
@@ -33,7 +32,7 @@ export function authenticateToken(req: Request, res: Response, next: NextFunctio
 
     const token = parts[1].trim();
 
-    jwt.verify(token, JWT_SECRET, (err, decoded) => {
+    jwt.verify(token, JWT_SECRET, JWT_VERIFY_OPTIONS, (err, decoded) => {
       if (err || !decoded || typeof decoded !== 'object') {
         res.status(401).json({ success: false, message: 'Unauthorized' });
         return;

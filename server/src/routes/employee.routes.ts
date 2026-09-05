@@ -16,13 +16,15 @@
 
 import { Router, Request, Response } from 'express';
 import { authenticateToken } from '../middleware/auth.middleware.js';
-import { authorize } from '../middleware/authorize.js';
+import { authorize, requireAdmin } from '../middleware/authorize.js';
 import { PERMISSIONS } from '../types/rbac.js';
+import { roleHasPermission } from '../config/permissions.js';
 import {
   getAllEmployees,
   getEmployeeById,
   createEmployee,
   updateEmployee,
+  deleteEmployee,
   type CreateEmployeeInput,
   type UpdateEmployeeInput,
 } from '../repositories/employee.repository.js';
@@ -72,7 +74,7 @@ router.get('/:id', async (req: Request, res: Response): Promise<void> => {
 
   // Allow if user is inspecting their own profile or holds EMPLOYEE_READ permission
   const isSelf = req.user?.employeeId && req.user.employeeId === sanitizedId;
-  const isManagerOrAdmin = req.user?.role && req.user.role !== 'Employee';
+  const isManagerOrAdmin = req.user?.role && roleHasPermission(req.user.role, PERMISSIONS.EMPLOYEE_READ);
   if (!isSelf && !isManagerOrAdmin) {
     res.status(403).json({ success: false, message: 'Forbidden: Insufficient permission to view employee record.' });
     return;
@@ -95,8 +97,8 @@ router.get('/:id', async (req: Request, res: Response): Promise<void> => {
 });
 
 // ── POST /api/employees ───────────────────────────────────────────────────────
-
-router.post('/', authorize(PERMISSIONS.EMPLOYEE_WRITE), async (req: Request, res: Response): Promise<void> => {
+// Strictly restricted to Administrators per Requirement 4
+router.post('/', requireAdmin, async (req: Request, res: Response): Promise<void> => {
 
   const body = req.body as Partial<CreateEmployeeInput>;
 
@@ -262,6 +264,34 @@ router.patch('/:id', authorize(PERMISSIONS.EMPLOYEE_WRITE), async (req: Request,
     res.status(500).json({
       success: false,
       message: 'Unable to update employee record. Please try again.',
+    });
+  }
+});
+
+// ── DELETE /api/employees/:id ─────────────────────────────────────────────────
+// Strictly restricted to Administrators per Requirement 4
+router.delete('/:id', requireAdmin, async (req: Request, res: Response): Promise<void> => {
+  const { id } = req.params;
+
+  if (!id || typeof id !== 'string' || id.trim().length === 0) {
+    res.status(400).json({ success: false, message: 'Invalid employee ID.' });
+    return;
+  }
+
+  const sanitizedId = id.trim().slice(0, 191);
+
+  try {
+    const deleted = await deleteEmployee(sanitizedId);
+    if (!deleted) {
+      res.status(404).json({ success: false, message: 'Employee not found.' });
+      return;
+    }
+    res.json({ success: true, message: 'Employee successfully removed.' });
+  } catch (err) {
+    console.error('[Employee API] Failed to delete employee:', err instanceof Error ? err.message : err);
+    res.status(500).json({
+      success: false,
+      message: 'Unable to remove employee record. Please try again.',
     });
   }
 });

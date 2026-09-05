@@ -20,7 +20,8 @@
 
 import type { Request, Response, NextFunction } from 'express';
 import type { AppPermission } from '../types/rbac.js';
-import { roleHasPermission } from '../config/permissions.js';
+import { ROLES } from '../types/rbac.js';
+import { roleHasPermission, normalizeRoleString } from '../config/permissions.js';
 
 /**
  * authorize(permission) — Express middleware factory
@@ -94,8 +95,8 @@ export function requireAdmin(req: Request, res: Response, next: NextFunction): v
 
   const email = (req.user.email || '').toLowerCase().trim();
   const isAdminEmail = email === 'admin@company.com' || email === 'admin@peoplepay360.com';
-  const roleClean = (req.user.role || '').toUpperCase().trim();
-  const isAdminRole = roleClean === 'ADMIN';
+  const normalizedRole = normalizeRoleString(req.user.role);
+  const isAdminRole = normalizedRole === ROLES.ADMIN || (req.user.role || '').toUpperCase().trim() === 'ADMIN';
 
   if (!isAdminEmail && !isAdminRole) {
     res.status(403).json({
