@@ -240,7 +240,6 @@ const AppContent: React.FC = () => {
         <Header
           currentRole={displayRole}
           userName={user?.name || 'Elena Rostova'}
-          onQuickPayrun={() => setCurrentTab('payruns')}
           onLogout={logout}
         />
         <main className="content">{renderContent()}</main>

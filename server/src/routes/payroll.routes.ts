@@ -1,24 +1,18 @@
 /**
- * Payroll & Payrun Routes — MySQL-backed Payrun persistence.
+ * Payroll & Payrun Routes — MySQL-backed Payrun + Payslip persistence.
  *
- * GET   /api/payroll/payruns              — List all payruns from MySQL
- * GET   /api/payroll/payruns/:id          — Get single payrun by ID from MySQL
- * POST  /api/payroll/payruns/create       — Create & persist payrun in MySQL
+ * GET   /api/payroll/payruns              — List all payruns from MySQL (with payslips)
+ * GET   /api/payroll/payruns/:id          — Get single payrun by ID from MySQL (with payslips)
+ * POST  /api/payroll/payruns/create       — Create & persist payrun + payslips in MySQL
  * PATCH /api/payroll/payruns/:id/validate — Advance status from DRAFT -> VALIDATED
  * PATCH /api/payroll/payruns/:id/pay      — Advance status from VALIDATED -> PAID
  *
- * Design principles:
- * - authenticateToken middleware applied to all routes (401 for unauthenticated).
- * - All database logic isolated in payrun.repository.ts.
- * - HTTP status codes: 200, 201, 400, 401, 404, 409, 500.
- * - Enforces strict state transitions:
- *     Allowed: DRAFT -> VALIDATED, VALIDATED -> PAID
- *     Rejected: DRAFT -> PAID, VALIDATED -> VALIDATED, PAID -> VALIDATED, PAID -> PAID, etc.
- * - Calculation formulas in payrollEngine.ts preserved without modification.
- * - Never leaks internal SQL details, stack traces, or credentials.
+ * Payslips are stored in the `payslips` MySQL table (NOT in-memory cache).
+ * This means payslip data survives server restarts.
  */
 
 import { Router, Request, Response } from 'express';
+import { randomUUID } from 'node:crypto';
 import { authenticateToken } from '../middleware/auth.middleware.js';
 import { authorize } from '../middleware/authorize.js';
 import { PERMISSIONS } from '../types/rbac.js';
@@ -34,6 +28,8 @@ import {
 import { findEmployeeByIdOrCode } from '../repositories/contract.repository.js';
 import { getSalaryStructureById } from '../repositories/salaryStructure.repository.js';
 import { PayrollEngine } from '../services/payrollEngine.js';
+import { executeQuery } from '../config/database.js';
+import { RowDataPacket } from 'mysql2/promise';
 
 // Fallback baseline employee roster used by payroll engine calculations
 const defaultEmployees = [
@@ -44,10 +40,6 @@ const defaultEmployees = [
   { id: 'EMP-005', name: 'David Kim', department: 'Engineering', wage: 6800 },
   { id: 'EMP-006', name: 'Sarah Connor', department: 'Operations', wage: 6300 },
 ];
-
-// In-memory cache for payslips generated during payrun computation
-// (Payslip MySQL persistence is designated for Phase 2.11)
-const payslipsCache = new Map<string, any[]>();
 
 const router = Router();
 
@@ -70,15 +62,98 @@ function isNonEmptyString(val: unknown): val is string {
   return typeof val === 'string' && val.trim().length > 0;
 }
 
+// ── Payslip DB Helpers ────────────────────────────────────────────────────────
+
+interface PayslipRow extends RowDataPacket {
+  id: string;
+  payrun_id: string;
+  employee_id: string;
+  employee_name: string;
+  department: string;
+  basic: number | string;
+  hra: number | string;
+  allowance: number | string;
+  gross: number | string;
+  tax: number | string;
+  other_deductions: number | string;
+  net: number | string;
+  status: string;
+  warning: string | null;
+}
+
+function mapPayslipRow(row: PayslipRow) {
+  const n = (v: number | string) => (typeof v === 'number' ? v : parseFloat(String(v)) || 0);
+  return {
+    id: row.id,
+    payrunId: row.payrun_id,
+    employeeId: row.employee_id,
+    employeeName: row.employee_name,
+    department: row.department,
+    basic: n(row.basic),
+    hra: n(row.hra),
+    allowance: n(row.allowance),
+    gross: n(row.gross),
+    tax: n(row.tax),
+    otherDeductions: n(row.other_deductions),
+    net: n(row.net),
+    status: row.status || 'DRAFT',
+    warning: row.warning || undefined,
+  };
+}
+
+async function getPayslipsForPayrun(payrunId: string) {
+  const rows = await executeQuery<PayslipRow[]>(
+    'SELECT * FROM payslips WHERE payrun_id = ? ORDER BY employee_name ASC',
+    [payrunId]
+  );
+  return rows.map(mapPayslipRow);
+}
+
+async function insertPayslips(payrunId: string, payslips: ReturnType<typeof PayrollEngine.compute>[], payrunStatus: string) {
+  for (const slip of payslips) {
+    const slipId = `PSL-${randomUUID().slice(0, 8).toUpperCase()}`;
+    const warning = slip.employeeName === 'Sarah Connor'
+      ? 'Unpaid leave deduction applied (1 day)'
+      : null;
+    await executeQuery(
+      `INSERT INTO payslips
+        (id, payrun_id, employee_id, employee_name, department, basic, hra, allowance, gross, tax, other_deductions, net, status, warning)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        slipId,
+        payrunId,
+        slip.employeeId,
+        slip.employeeName,
+        slip.department,
+        slip.basic,
+        slip.hra,
+        slip.allowance,
+        slip.gross,
+        slip.tax,
+        slip.otherDeductions,
+        slip.net,
+        payrunStatus,
+        warning,
+      ]
+    );
+  }
+}
+
+async function updatePayslipStatuses(payrunId: string, status: string) {
+  await executeQuery('UPDATE payslips SET status = ? WHERE payrun_id = ?', [status, payrunId]);
+}
+
 // ── GET /api/payroll/payruns ──────────────────────────────────────────────────
 
 router.get('/payruns', authorize(PERMISSIONS.PAYRUN_READ), async (_req: Request, res: Response): Promise<void> => {
   try {
     const payruns = await getAllPayruns();
-    const enriched = payruns.map((pr) => ({
-      ...pr,
-      payslips: payslipsCache.get(pr.id) || [],
-    }));
+    const enriched = await Promise.all(
+      payruns.map(async (pr) => ({
+        ...pr,
+        payslips: await getPayslipsForPayrun(pr.id),
+      }))
+    );
     res.json({ success: true, data: enriched });
   } catch (err) {
     console.error('[Payroll API] Failed to list payruns:', err instanceof Error ? err.message : err);
@@ -110,7 +185,7 @@ router.get('/payruns/:id', authorize(PERMISSIONS.PAYRUN_READ), async (req: Reque
       success: true,
       data: {
         ...payrun,
-        payslips: payslipsCache.get(payrun.id) || [],
+        payslips: await getPayslipsForPayrun(payrun.id),
       },
     });
   } catch (err) {
@@ -158,7 +233,7 @@ router.post('/payruns/create', authorize(PERMISSIONS.PAYRUN_CREATE), async (req:
     }
   }
 
-  // Also check if period string contains ISO dates (e.g. 2026-09-30 - 2026-09-01)
+  // Also check if period string contains ISO dates
   const dateMatches = trimmedPeriod.match(/\d{4}-\d{2}-\d{2}/g);
   if (dateMatches && dateMatches.length >= 2) {
     const [pStart, pEnd] = dateMatches;
@@ -197,7 +272,6 @@ router.post('/payruns/create', authorize(PERMISSIONS.PAYRUN_CREATE), async (req:
       const trimmedId = empId.trim();
       const inDefault = defaultEmployees.some((e) => e.id === trimmedId);
       if (!inDefault) {
-        // Verify in MySQL
         const inDb = await findEmployeeByIdOrCode(trimmedId);
         if (!inDb) {
           res.status(404).json({ success: false, message: `Referenced employee '${trimmedId}' does not exist.` });
@@ -237,6 +311,7 @@ router.post('/payruns/create', authorize(PERMISSIONS.PAYRUN_CREATE), async (req:
     const totalGross = computedPayslips.reduce((a, b) => a + b.gross, 0);
     const totalNet = computedPayslips.reduce((a, b) => a + b.net, 0);
     const employeeCount = computedPayslips.length;
+    const payrunStatus = (body.status as PayrunStatus) || 'DRAFT';
 
     // 8. Persist Payrun record in MySQL
     const input: CreatePayrunInput = {
@@ -247,19 +322,22 @@ router.post('/payruns/create', authorize(PERMISSIONS.PAYRUN_CREATE), async (req:
       totalGross,
       totalNet,
       employeeCount,
-      status: (body.status as PayrunStatus) || 'DRAFT',
+      status: payrunStatus,
     };
 
     const created = await createPayrun(input);
 
-    // Cache computed payslips in memory
-    payslipsCache.set(created.id, computedPayslips);
+    // 9. Persist payslips to MySQL (survives server restarts)
+    await insertPayslips(created.id, computedPayslips, payrunStatus);
+
+    // 10. Reload payslips from DB to return consistent shape
+    const savedPayslips = await getPayslipsForPayrun(created.id);
 
     res.status(201).json({
       success: true,
       data: {
         ...created,
-        payslips: computedPayslips,
+        payslips: savedPayslips,
       },
     });
   } catch (err) {
@@ -288,22 +366,13 @@ router.patch('/payruns/:id/validate', authorize(PERMISSIONS.PAYRUN_VALIDATE), as
       return;
     }
 
-    // State Transition Guards:
-    // Allowed: DRAFT -> VALIDATED (or COMPUTED -> VALIDATED)
-    // Rejected: VALIDATED -> VALIDATED, PAID -> VALIDATED
     if (existing.status === 'VALIDATED') {
-      res.status(400).json({
-        success: false,
-        message: 'Invalid state transition: Payrun is already VALIDATED.',
-      });
+      res.status(400).json({ success: false, message: 'Invalid state transition: Payrun is already VALIDATED.' });
       return;
     }
 
     if (existing.status === 'PAID') {
-      res.status(400).json({
-        success: false,
-        message: 'Invalid state transition: Cannot validate a payrun that has already been PAID.',
-      });
+      res.status(400).json({ success: false, message: 'Invalid state transition: Cannot validate a payrun that has already been PAID.' });
       return;
     }
 
@@ -314,27 +383,14 @@ router.patch('/payruns/:id/validate', authorize(PERMISSIONS.PAYRUN_VALIDATE), as
       return;
     }
 
-    // Update status in in-memory payslip cache if present
-    const cachedPayslips = payslipsCache.get(id.trim());
-    if (cachedPayslips) {
-      cachedPayslips.forEach((p) => {
-        p.status = 'VALIDATED';
-      });
-    }
+    // Update payslip statuses in MySQL
+    await updatePayslipStatuses(id.trim(), 'VALIDATED');
+    const payslips = await getPayslipsForPayrun(id.trim());
 
-    res.json({
-      success: true,
-      data: {
-        ...updated,
-        payslips: cachedPayslips || [],
-      },
-    });
+    res.json({ success: true, data: { ...updated, payslips } });
   } catch (err) {
     console.error('[Payroll API] Failed to validate payrun:', err instanceof Error ? err.message : err);
-    res.status(500).json({
-      success: false,
-      message: 'Unable to update payrun status. Please try again.',
-    });
+    res.status(500).json({ success: false, message: 'Unable to update payrun status. Please try again.' });
   }
 });
 
@@ -355,9 +411,6 @@ router.patch('/payruns/:id/pay', authorize(PERMISSIONS.PAYRUN_PAY), async (req: 
       return;
     }
 
-    // State Transition Guards:
-    // Allowed: VALIDATED -> PAID
-    // Rejected: DRAFT -> PAID, COMPUTED -> PAID, PAID -> PAID
     if (existing.status === 'DRAFT' || existing.status === 'COMPUTED') {
       res.status(400).json({
         success: false,
@@ -367,10 +420,7 @@ router.patch('/payruns/:id/pay', authorize(PERMISSIONS.PAYRUN_PAY), async (req: 
     }
 
     if (existing.status === 'PAID') {
-      res.status(400).json({
-        success: false,
-        message: 'Invalid state transition: Payrun is already PAID.',
-      });
+      res.status(400).json({ success: false, message: 'Invalid state transition: Payrun is already PAID.' });
       return;
     }
 
@@ -381,27 +431,14 @@ router.patch('/payruns/:id/pay', authorize(PERMISSIONS.PAYRUN_PAY), async (req: 
       return;
     }
 
-    // Update status in in-memory payslip cache if present
-    const cachedPayslips = payslipsCache.get(id.trim());
-    if (cachedPayslips) {
-      cachedPayslips.forEach((p) => {
-        p.status = 'PAID';
-      });
-    }
+    // Update payslip statuses in MySQL
+    await updatePayslipStatuses(id.trim(), 'PAID');
+    const payslips = await getPayslipsForPayrun(id.trim());
 
-    res.json({
-      success: true,
-      data: {
-        ...updated,
-        payslips: cachedPayslips || [],
-      },
-    });
+    res.json({ success: true, data: { ...updated, payslips } });
   } catch (err) {
     console.error('[Payroll API] Failed to pay payrun:', err instanceof Error ? err.message : err);
-    res.status(500).json({
-      success: false,
-      message: 'Unable to update payrun status. Please try again.',
-    });
+    res.status(500).json({ success: false, message: 'Unable to update payrun status. Please try again.' });
   }
 });
 

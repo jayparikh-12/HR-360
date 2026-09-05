@@ -1,7 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { 
   Search, 
-  Plus, 
   LogOut, 
   Sun, 
   Moon, 
@@ -20,7 +19,6 @@ interface HeaderProps {
   currentRole: UserRole;
   userName: string;
   onRoleChange?: (role: UserRole) => void;
-  onQuickPayrun: () => void;
   onLogout: () => void;
 }
 
@@ -39,7 +37,6 @@ interface RoleProfile {
 export const Header: React.FC<HeaderProps> = ({ 
   currentRole, 
   userName, 
-  onQuickPayrun,
   onLogout
 }) => {
   const { theme, toggleTheme } = useTheme();
@@ -47,8 +44,6 @@ export const Header: React.FC<HeaderProps> = ({
 
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const closeTimeoutRef = useRef<any>(null);
-
-  const canRunPayroll = currentRole === 'Admin' || currentRole === 'HR Payroll Manager' || currentRole === 'HR Payroll User';
 
   const handleMouseEnter = () => {
     if (closeTimeoutRef.current) {
@@ -160,13 +155,7 @@ export const Header: React.FC<HeaderProps> = ({
           <span>Sep 2026 Cycle</span>
         </div>
 
-        {/* Quick Action - Only for Payroll Roles */}
-        {canRunPayroll && (
-          <button className="btn btn-primary btn-sm" onClick={onQuickPayrun}>
-            <Plus size={14} />
-            <span>Run Payroll</span>
-          </button>
-        )}
+
 
         {/* Authenticated Role Badge */}
         <div 
