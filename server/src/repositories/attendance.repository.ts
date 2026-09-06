@@ -265,7 +265,7 @@ export async function findEmployeeByIdOrCode(identifier: string): Promise<Employ
   const sql = `
     SELECT id, name, department
     FROM employees
-    WHERE id = ?
+    WHERE id = ? OR LOWER(email) = LOWER(?)
     LIMIT 1
   `;
   interface SimpleEmpRow extends RowDataPacket {
@@ -273,7 +273,7 @@ export async function findEmployeeByIdOrCode(identifier: string): Promise<Employ
     name: string;
     department?: string;
   }
-  const rows = await executeQuery<SimpleEmpRow[]>(sql, [trimmed]);
+  const rows = await executeQuery<SimpleEmpRow[]>(sql, [trimmed, trimmed]);
   if (!rows || rows.length === 0) return null;
   return {
     id: rows[0].id,

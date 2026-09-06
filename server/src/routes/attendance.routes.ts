@@ -114,7 +114,14 @@ router.post('/check-in', async (req: Request, res: Response): Promise<void> => {
   const body = req.body || {};
 
   // Support employeeId from body or authenticated user context
-  const employeeIdInput = body.employeeId || body.employee_id || req.user?.employeeId;
+  let employeeIdInput = body.employeeId || body.employee_id || req.user?.employeeId;
+
+  if (!isNonEmptyString(employeeIdInput) && req.user?.email) {
+    const matchedEmp = await findEmployeeByIdOrCode(req.user.email);
+    if (matchedEmp) {
+      employeeIdInput = matchedEmp.id;
+    }
+  }
 
   if (!isNonEmptyString(employeeIdInput)) {
     res.status(400).json({ success: false, message: 'employeeId is required.' });
@@ -192,7 +199,14 @@ router.post('/check-out', async (req: Request, res: Response): Promise<void> => 
   const body = req.body || {};
 
   const recordIdInput = body.recordId || body.id;
-  const employeeIdInput = body.employeeId || body.employee_id || req.user?.employeeId;
+  let employeeIdInput = body.employeeId || body.employee_id || req.user?.employeeId;
+
+  if (!isNonEmptyString(employeeIdInput) && !isNonEmptyString(recordIdInput) && req.user?.email) {
+    const matchedEmp = await findEmployeeByIdOrCode(req.user.email);
+    if (matchedEmp) {
+      employeeIdInput = matchedEmp.id;
+    }
+  }
 
   if (!isNonEmptyString(recordIdInput) && !isNonEmptyString(employeeIdInput)) {
     res.status(400).json({

@@ -14,6 +14,7 @@ export const DEMO_USERS: UserAccount[] = [
     email: 'admin@company.com',
     aliases: ['admin@peoplepay360.com'],
     role: 'Admin',
+    employeeId: '86499840-52d7-4230-b860-1f90b9b71b2d',
     password: 'password123',
   },
   {

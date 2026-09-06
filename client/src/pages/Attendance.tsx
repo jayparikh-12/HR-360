@@ -5,6 +5,8 @@ import { attendanceApi } from '../api/attendance';
 import { ApiError } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 
+import { employeesApi } from '../api/employees';
+
 interface AttendanceProps {
   attendanceRecords?: AttendanceRecord[];
   onAddRecord?: (record: AttendanceRecord) => void;
@@ -18,21 +20,46 @@ export const Attendance: React.FC<AttendanceProps> = ({ onAddRecord }) => {
   const [error, setError] = useState<string | null>(null);
   const [isCheckedIn, setIsCheckedIn] = useState<boolean>(false);
   const [activeRecord, setActiveRecord] = useState<AttendanceRecord | null>(null);
+  const [resolvedEmployeeId, setResolvedEmployeeId] = useState<string | undefined>(
+    () => user?.employeeId || (user?.id?.startsWith('EMP-') ? user.id : undefined)
+  );
 
   const todayStr = new Date().toISOString().split('T')[0];
 
-  const syncActiveState = useCallback((fetchedRecords: AttendanceRecord[]) => {
-    // Determine if current user has an open active check-in using their canonical employee ID
-    const empId = user?.employeeId || (user?.id?.startsWith('EMP-') ? user.id : undefined);
-    if (!empId) {
-      setIsCheckedIn(false);
-      setActiveRecord(null);
-      return;
+  // Resolve employee ID for Admin or unlinked users via directory lookup
+  useEffect(() => {
+    if (resolvedEmployeeId) return;
+
+    let isMounted = true;
+    async function resolveEmployee() {
+      if (!user?.email) return;
+      try {
+        const emps = await employeesApi.getAll();
+        const matched = emps.find(
+          (e) =>
+            e.email?.toLowerCase() === user.email.toLowerCase() ||
+            (user.name && e.name?.toLowerCase() === user.name.toLowerCase())
+        );
+        if (matched && isMounted) {
+          setResolvedEmployeeId(matched.id);
+        }
+      } catch (_e) {
+        // Continue gracefully
+      }
     }
+    resolveEmployee();
+    return () => {
+      isMounted = false;
+    };
+  }, [user, resolvedEmployeeId]);
+
+  const syncActiveState = useCallback((fetchedRecords: AttendanceRecord[], activeEmpId?: string) => {
+    const empId = activeEmpId || resolvedEmployeeId || user?.employeeId || (user?.id?.startsWith('EMP-') ? user.id : undefined);
 
     const active = fetchedRecords.find(
       (r) =>
-        r.employeeId === empId &&
+        ((empId && r.employeeId === empId) ||
+          (user?.name && r.employeeName?.trim().toLowerCase() === user.name.trim().toLowerCase())) &&
         r.status !== 'ABSENT' &&
         r.checkIn &&
         r.checkIn !== '—' &&
@@ -46,15 +73,15 @@ export const Attendance: React.FC<AttendanceProps> = ({ onAddRecord }) => {
       setIsCheckedIn(false);
       setActiveRecord(null);
     }
-  }, [user]);
+  }, [user, resolvedEmployeeId]);
 
-  const loadAttendance = useCallback(async () => {
+  const loadAttendance = useCallback(async (activeEmpId?: string) => {
     setLoading(true);
     setError(null);
     try {
       const data = await attendanceApi.getAll();
       setRecords(data);
-      syncActiveState(data);
+      syncActiveState(data, activeEmpId);
     } catch (err) {
       console.error('[Attendance Page] Failed to fetch records:', err instanceof Error ? err.message : String(err));
       setError(err instanceof ApiError ? err.message : 'Unable to load attendance records. Please try again.');
@@ -88,9 +115,27 @@ export const Attendance: React.FC<AttendanceProps> = ({ onAddRecord }) => {
   const handleToggleCheck = async () => {
     if (submitting) return;
 
-    const empId = user?.employeeId || (user?.id?.startsWith('EMP-') ? user.id : undefined);
+    let empId = resolvedEmployeeId || user?.employeeId || (user?.id?.startsWith('EMP-') ? user.id : undefined);
+
+    if (!empId && user?.email) {
+      try {
+        const emps = await employeesApi.getAll();
+        const matched = emps.find(
+          (e) =>
+            e.email?.toLowerCase() === user.email.toLowerCase() ||
+            (user.name && e.name?.toLowerCase() === user.name.toLowerCase())
+        );
+        if (matched) {
+          empId = matched.id;
+          setResolvedEmployeeId(matched.id);
+        }
+      } catch (_e) {
+        // Continue
+      }
+    }
+
     if (!empId) {
-      setError('Clock-in / clock-out is designated for staff employee profiles. This administrator account oversees organization-wide attendance records below.');
+      setError('No employee profile is linked to this account. Please link an employee profile in the directory to enable self check-in.');
       return;
     }
 
@@ -107,7 +152,7 @@ export const Attendance: React.FC<AttendanceProps> = ({ onAddRecord }) => {
           checkIn: currentTime,
           date: currentDate,
         });
-        await loadAttendance();
+        await loadAttendance(empId);
         onAddRecord?.(created);
       } else {
         // Clock Out with exact system time
@@ -117,7 +162,7 @@ export const Attendance: React.FC<AttendanceProps> = ({ onAddRecord }) => {
           employeeId: empId,
           checkOut: currentTime,
         });
-        await loadAttendance();
+        await loadAttendance(empId);
       }
     } catch (err) {
       console.error('[Attendance Action] Error toggling check state:', err instanceof Error ? err.message : String(err));
@@ -162,7 +207,7 @@ export const Attendance: React.FC<AttendanceProps> = ({ onAddRecord }) => {
         <div style={{ display: 'flex', gap: '10px' }}>
           <button
             className="btn btn-secondary btn-sm"
-            onClick={loadAttendance}
+            onClick={() => loadAttendance()}
             disabled={loading}
             style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
             title="Refresh attendance from database"

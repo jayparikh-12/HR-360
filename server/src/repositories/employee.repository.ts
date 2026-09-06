@@ -163,19 +163,19 @@ function mapRowToRecord(row: EmployeeRow): EmployeeRecord {
 const EMPLOYEE_SELECT = `
   SELECT
     e.id,
-    e.id AS empCode,
+    COALESCE(e.empCode, e.id) AS empCode,
     e.name,
     e.email,
     e.department,
-    e.position,
+    COALESCE(e.position, e.jobPosition) AS position,
     e.gender,
     e.dateOfBirth AS date_of_birth,
     e.status,
-    COALESCE(ws.name, 'Standard 40h') AS working_schedule,
-    e.bank_name,
-    e.bank_account,
-    e.join_date,
-    e.created_at,
+    COALESCE(ws.name, e.workingSchedule, 'Standard 40h') AS working_schedule,
+    e.bankName AS bank_name,
+    e.bankAccountNo AS bank_account,
+    e.createdAt AS join_date,
+    e.createdAt AS created_at,
     c.id AS active_contract_id,
     c.wage AS wage
   FROM employees e
@@ -239,7 +239,6 @@ export async function createEmployee(input: CreateEmployeeInput): Promise<Employ
   if (!firstName) firstName = 'Employee';
   if (!lastName) lastName = 'Staff';
 
-  const fullName = (input.name || `${firstName} ${lastName}`).trim();
   const position = (input.jobPosition || input.position || 'Staff').trim();
   const department = (input.department || 'General').trim();
   const rawStatus = (input.status || 'ACTIVE').trim().toUpperCase();
@@ -254,24 +253,37 @@ export async function createEmployee(input: CreateEmployeeInput): Promise<Employ
       throw new Error(`INVALID_DOB: ${dobValidation.error}`);
     }
   }
-  const joinDate = input.joinDate ? input.joinDate.trim() : new Date().toISOString().split('T')[0];
+  const now = new Date();
+  const createdAt = input.joinDate ? new Date(input.joinDate) : now;
+  const empCode = input.empCode?.trim() || id;
+  const schedule = input.workingSchedule?.trim() || 'Standard 40h';
 
   await executeQuery<ResultSetHeader>(
     `INSERT INTO employees
-       (id, name, email, department, position, gender, dateOfBirth, status, join_date, bank_name, bank_account)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (id, empCode, firstName, lastName, email, phone, department, jobPosition,
+        gender, dateOfBirth, employeeType, status, workingSchedule, managerId, bankName, bankAccountNo,
+        ifscRouting, createdAt, updatedAt)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       id,
-      fullName,
+      empCode,
+      firstName,
+      lastName,
       input.email.trim().toLowerCase(),
+      input.phone?.trim() ?? null,
       department,
       position,
       gender,
       dateOfBirth,
+      input.employeeType ?? 'FULL_TIME',
       dbStatus,
-      joinDate,
+      schedule,
+      input.managerId?.trim() ?? null,
       bankName,
       bankAccount,
+      input.ifscRouting?.trim() ?? null,
+      createdAt,
+      now,
     ]
   );
 
@@ -298,15 +310,19 @@ export async function updateEmployee(
   const setClauses: string[] = [];
   const values: unknown[] = [];
 
-  // Handle name update
-  if (input.name !== undefined) {
-    setClauses.push('name = ?');
-    values.push(input.name.trim());
-  } else if (input.firstName !== undefined || input.lastName !== undefined) {
-    const fn = input.firstName !== undefined ? input.firstName.trim() : '';
-    const ln = input.lastName !== undefined ? input.lastName.trim() : '';
-    setClauses.push('name = ?');
-    values.push(`${fn} ${ln}`.trim() || existing.name);
+  // Handle name update: update firstName and lastName
+  if (input.firstName !== undefined) {
+    setClauses.push('firstName = ?');
+    values.push(input.firstName.trim());
+  }
+  if (input.lastName !== undefined) {
+    setClauses.push('lastName = ?');
+    values.push(input.lastName.trim());
+  }
+  if (input.name !== undefined && input.firstName === undefined && input.lastName === undefined) {
+    const parts = input.name.trim().split(/\s+/);
+    setClauses.push('firstName = ?', 'lastName = ?');
+    values.push(parts[0] || 'Employee', parts.slice(1).join(' ') || parts[0] || 'Staff');
   }
 
   if (input.department !== undefined) {
@@ -316,7 +332,7 @@ export async function updateEmployee(
 
   const pos = input.jobPosition || input.position;
   if (pos !== undefined) {
-    setClauses.push('position = ?');
+    setClauses.push('jobPosition = ?');
     values.push(pos.trim());
   }
 
@@ -346,14 +362,19 @@ export async function updateEmployee(
     values.push(s === 'TERMINATED' || s === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE');
   }
 
+  if (input.workingSchedule !== undefined) {
+    setClauses.push('workingSchedule = ?');
+    values.push(input.workingSchedule ? input.workingSchedule.trim() : null);
+  }
+
   if (input.bankName !== undefined) {
-    setClauses.push('bank_name = ?');
+    setClauses.push('bankName = ?');
     values.push(input.bankName ? input.bankName.trim() : null);
   }
 
   const bank = input.bankAccountNo || input.bankAccount;
   if (bank !== undefined) {
-    setClauses.push('bank_account = ?');
+    setClauses.push('bankAccountNo = ?');
     values.push(bank ? bank.trim() : null);
   }
 
@@ -363,11 +384,14 @@ export async function updateEmployee(
   }
 
   if (input.joinDate !== undefined && input.joinDate) {
-    setClauses.push('join_date = ?');
-    values.push(input.joinDate.trim());
+    setClauses.push('createdAt = ?');
+    values.push(new Date(input.joinDate));
   }
 
   if (setClauses.length === 0) return existing;
+
+  setClauses.push('updatedAt = ?');
+  values.push(new Date());
 
   values.push(existing.id);
 
