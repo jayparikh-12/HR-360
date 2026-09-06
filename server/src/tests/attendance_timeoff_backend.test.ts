@@ -136,10 +136,10 @@ test('PeoplePay360 — Phase 6.5 Attendance & Time-Off Analytics Backend Verific
 
     if (employees.length === 0) {
       await executeQuery(
-        `INSERT INTO employees (id, name, email, department, position, join_date, created_at) VALUES 
-         (?, 'Alice Dev', 'alice.test@peoplepay360.internal', 'Engineering', 'Developer', '2026-01-01', '2026-01-01'),
-         (?, 'Bob Ops', 'bob.test@peoplepay360.internal', 'Operations', 'Coordinator', '2026-01-01', '2026-01-01')`,
-        [emp1Id, emp2Id]
+        `INSERT INTO employees (id, empCode, firstName, lastName, email, department, jobPosition, createdAt) VALUES 
+         (?, ?, 'Alice', 'Dev', 'alice.test@peoplepay360.internal', 'Engineering', 'Developer', '2026-01-01'),
+         (?, ?, 'Bob', 'Ops', 'bob.test@peoplepay360.internal', 'Operations', 'Coordinator', '2026-01-01')`,
+        [emp1Id, emp1Id, emp2Id, emp2Id]
       );
     }
 

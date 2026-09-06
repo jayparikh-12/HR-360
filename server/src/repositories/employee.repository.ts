@@ -163,19 +163,19 @@ function mapRowToRecord(row: EmployeeRow): EmployeeRecord {
 const EMPLOYEE_SELECT = `
   SELECT
     e.id,
-    e.id AS empCode,
+    COALESCE(e.empCode, e.id) AS empCode,
     e.name,
     e.email,
     e.department,
-    e.position,
+    COALESCE(e.position, e.jobPosition, 'Staff') AS position,
     e.gender,
     e.dateOfBirth AS date_of_birth,
     e.status,
-    COALESCE(ws.name, 'Standard 40h') AS working_schedule,
-    e.bank_name,
-    e.bank_account,
-    e.join_date,
-    e.created_at,
+    COALESCE(ws.name, e.workingSchedule, 'Standard 40h') AS working_schedule,
+    e.bankName AS bank_name,
+    e.bankAccountNo AS bank_account,
+    e.createdAt AS join_date,
+    e.createdAt AS created_at,
     c.id AS active_contract_id,
     c.wage AS wage
   FROM employees e
@@ -228,6 +228,7 @@ export async function createEmployee(input: CreateEmployeeInput): Promise<Employ
   if (conflict) throw new Error('DUPLICATE_EMAIL');
 
   const id = input.id?.trim() || randomUUID();
+  const empCode = input.empCode?.trim() || id;
 
   let firstName = (input.firstName || '').trim();
   let lastName = (input.lastName || '').trim();
@@ -239,7 +240,6 @@ export async function createEmployee(input: CreateEmployeeInput): Promise<Employ
   if (!firstName) firstName = 'Employee';
   if (!lastName) lastName = 'Staff';
 
-  const fullName = (input.name || `${firstName} ${lastName}`).trim();
   const position = (input.jobPosition || input.position || 'Staff').trim();
   const department = (input.department || 'General').trim();
   const rawStatus = (input.status || 'ACTIVE').trim().toUpperCase();
@@ -254,24 +254,37 @@ export async function createEmployee(input: CreateEmployeeInput): Promise<Employ
       throw new Error(`INVALID_DOB: ${dobValidation.error}`);
     }
   }
-  const joinDate = input.joinDate ? input.joinDate.trim() : new Date().toISOString().split('T')[0];
+  const joinDateRaw = input.joinDate ? input.joinDate.trim() : new Date().toISOString().split('T')[0];
+  const createdAtVal = joinDateRaw.includes('T') ? joinDateRaw.replace('T', ' ').slice(0, 19) : `${joinDateRaw} 00:00:00`;
+  const employeeType = input.employeeType || 'FULL_TIME';
+  const workingSchedule = input.workingSchedule?.trim() || 'Standard 40h';
+  const phone = input.phone?.trim() || null;
+  const managerId = input.managerId?.trim() || null;
+  const ifscRouting = input.ifscRouting?.trim() || null;
 
   await executeQuery<ResultSetHeader>(
     `INSERT INTO employees
-       (id, name, email, department, position, gender, dateOfBirth, status, join_date, bank_name, bank_account)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (id, empCode, firstName, lastName, email, department, jobPosition, gender, dateOfBirth, employeeType, status, workingSchedule, bankName, bankAccountNo, phone, managerId, ifscRouting, createdAt)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       id,
-      fullName,
+      empCode,
+      firstName,
+      lastName,
       input.email.trim().toLowerCase(),
       department,
       position,
       gender,
       dateOfBirth,
+      employeeType,
       dbStatus,
-      joinDate,
+      workingSchedule,
       bankName,
       bankAccount,
+      phone,
+      managerId,
+      ifscRouting,
+      createdAtVal,
     ]
   );
 
@@ -298,15 +311,22 @@ export async function updateEmployee(
   const setClauses: string[] = [];
   const values: unknown[] = [];
 
-  // Handle name update
+  // Handle name update (update real columns firstName and lastName, since name is virtual)
   if (input.name !== undefined) {
-    setClauses.push('name = ?');
-    values.push(input.name.trim());
-  } else if (input.firstName !== undefined || input.lastName !== undefined) {
-    const fn = input.firstName !== undefined ? input.firstName.trim() : '';
-    const ln = input.lastName !== undefined ? input.lastName.trim() : '';
-    setClauses.push('name = ?');
-    values.push(`${fn} ${ln}`.trim() || existing.name);
+    const parts = input.name.trim().split(/\s+/);
+    const fn = parts[0] || 'Employee';
+    const ln = parts.slice(1).join(' ') || fn;
+    setClauses.push('firstName = ?', 'lastName = ?');
+    values.push(fn, ln);
+  } else {
+    if (input.firstName !== undefined) {
+      setClauses.push('firstName = ?');
+      values.push(input.firstName.trim());
+    }
+    if (input.lastName !== undefined) {
+      setClauses.push('lastName = ?');
+      values.push(input.lastName.trim());
+    }
   }
 
   if (input.department !== undefined) {
@@ -316,7 +336,7 @@ export async function updateEmployee(
 
   const pos = input.jobPosition || input.position;
   if (pos !== undefined) {
-    setClauses.push('position = ?');
+    setClauses.push('jobPosition = ?');
     values.push(pos.trim());
   }
 
@@ -347,14 +367,24 @@ export async function updateEmployee(
   }
 
   if (input.bankName !== undefined) {
-    setClauses.push('bank_name = ?');
+    setClauses.push('bankName = ?');
     values.push(input.bankName ? input.bankName.trim() : null);
   }
 
   const bank = input.bankAccountNo || input.bankAccount;
   if (bank !== undefined) {
-    setClauses.push('bank_account = ?');
+    setClauses.push('bankAccountNo = ?');
     values.push(bank ? bank.trim() : null);
+  }
+
+  if (input.phone !== undefined) {
+    setClauses.push('phone = ?');
+    values.push(input.phone ? input.phone.trim() : null);
+  }
+
+  if (input.workingSchedule !== undefined) {
+    setClauses.push('workingSchedule = ?');
+    values.push(input.workingSchedule ? input.workingSchedule.trim() : null);
   }
 
   if (input.email !== undefined) {
@@ -363,8 +393,11 @@ export async function updateEmployee(
   }
 
   if (input.joinDate !== undefined && input.joinDate) {
-    setClauses.push('join_date = ?');
-    values.push(input.joinDate.trim());
+    const joinDateStr = input.joinDate.trim().includes('T')
+      ? input.joinDate.trim().replace('T', ' ').slice(0, 19)
+      : `${input.joinDate.trim()} 00:00:00`;
+    setClauses.push('createdAt = ?');
+    values.push(joinDateStr);
   }
 
   if (setClauses.length === 0) return existing;
