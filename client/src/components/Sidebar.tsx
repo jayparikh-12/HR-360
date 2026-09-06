@@ -8,7 +8,9 @@ import {
   FileText, 
   Settings,
   Sparkles,
-  CreditCard
+  CreditCard,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -16,9 +18,17 @@ interface SidebarProps {
   currentTab: string;
   onSelectTab: (tab: string) => void;
   employeeCount?: number;
+  isCollapsed?: boolean;
+  onToggleCollapse?: () => void;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onSelectTab, employeeCount }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ 
+  currentTab, 
+  onSelectTab, 
+  employeeCount,
+  isCollapsed = false,
+  onToggleCollapse
+}) => {
   const { displayRole } = useAuth();
 
   const isAdmin = displayRole === 'Admin';
@@ -38,16 +48,32 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onSelectTab, emplo
   const countBadge = employeeCount !== undefined && employeeCount !== null ? employeeCount : 6;
 
   return (
-    <aside className="sidebar">
+    <aside className={`sidebar ${isCollapsed ? 'collapsed' : ''}`} aria-label="Main sidebar navigation">
       {/* Brand Header */}
-      <div className="sidebar-header">
-        <div className="logo-box">P</div>
-        <div style={{ display: 'flex', flexDirection: 'column' }}>
-          <div className="logo-text">PeoplePay360</div>
-          <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--primary)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
-            HR-360 Platform
-          </span>
+      <div className="sidebar-header" style={{ justifyContent: isCollapsed ? 'center' : 'space-between', padding: isCollapsed ? '0 10px' : '0 16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div className="logo-box" title="PeoplePay360 Platform">P</div>
+          {!isCollapsed && (
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <div className="logo-text">PeoplePay360</div>
+              <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--primary)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+                HR-360 Platform
+              </span>
+            </div>
+          )}
         </div>
+        {onToggleCollapse && (
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm sidebar-toggle-btn"
+            onClick={onToggleCollapse}
+            title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            style={{ padding: '6px', minWidth: '28px', height: '28px', borderRadius: '6px' }}
+          >
+            {isCollapsed ? <ChevronRight size={15} /> : <ChevronLeft size={15} />}
+          </button>
+        )}
       </div>
 
       {/* Menu */}
@@ -60,6 +86,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onSelectTab, emplo
               <button
                 className={`nav-link ${currentTab === 'dashboard' ? 'active' : ''}`}
                 onClick={() => onSelectTab('dashboard')}
+                title="Dashboard"
+                aria-label="Dashboard"
               >
                 <div className="nav-link-left">
                   <LayoutDashboard size={17} />
@@ -79,6 +107,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onSelectTab, emplo
                 <button
                   className={`nav-link ${currentTab === 'employees' ? 'active' : ''}`}
                   onClick={() => onSelectTab('employees')}
+                  title="Employees"
+                  aria-label="Employees"
                 >
                   <div className="nav-link-left">
                     <Users size={17} />
@@ -93,6 +123,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onSelectTab, emplo
                 <button
                   className={`nav-link ${currentTab === 'contracts' ? 'active' : ''}`}
                   onClick={() => onSelectTab('contracts')}
+                  title="Contracts"
+                  aria-label="Contracts"
                 >
                   <div className="nav-link-left">
                     <FileText size={17} />
@@ -106,6 +138,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onSelectTab, emplo
                 <button
                   className={`nav-link ${currentTab === 'schedules' ? 'active' : ''}`}
                   onClick={() => onSelectTab('schedules')}
+                  title="Working Schedules"
+                  aria-label="Working Schedules"
                 >
                   <div className="nav-link-left">
                     <Clock size={17} />
@@ -119,6 +153,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onSelectTab, emplo
                 <button
                   className={`nav-link ${currentTab === 'attendance' ? 'active' : ''}`}
                   onClick={() => onSelectTab('attendance')}
+                  title="Attendance"
+                  aria-label="Attendance"
                 >
                   <div className="nav-link-left">
                     <Clock size={17} />
@@ -132,6 +168,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onSelectTab, emplo
                 <button
                   className={`nav-link ${currentTab === 'time-off' ? 'active' : ''}`}
                   onClick={() => onSelectTab('time-off')}
+                  title="Time Off"
+                  aria-label="Time Off"
                 >
                   <div className="nav-link-left">
                     <Palmtree size={17} />
@@ -145,6 +183,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onSelectTab, emplo
               <button
                 className={`nav-link ${currentTab === 'payslips' ? 'active' : ''}`}
                 onClick={() => onSelectTab('payslips')}
+                title={isEmployee ? 'My Payslips' : 'Payslips'}
+                aria-label={isEmployee ? 'My Payslips' : 'Payslips'}
               >
                 <div className="nav-link-left">
                   <CreditCard size={17} />
@@ -164,6 +204,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onSelectTab, emplo
                 <button
                   className={`nav-link ${currentTab === 'payruns' ? 'active' : ''}`}
                   onClick={() => onSelectTab('payruns')}
+                  title="Payruns & Payslips"
+                  aria-label="Payruns & Payslips"
                 >
                   <div className="nav-link-left">
                     <PlayCircle size={17} />
@@ -185,6 +227,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onSelectTab, emplo
                 <button
                   className={`nav-link ${currentTab === 'salary-rules' || currentTab === 'salary-structures' ? 'active' : ''}`}
                   onClick={() => onSelectTab('salary-rules')}
+                  title="Salary Rules"
+                  aria-label="Salary Rules"
                 >
                   <div className="nav-link-left">
                     <FileText size={17} />
@@ -196,6 +240,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onSelectTab, emplo
                 <button
                   className={`nav-link ${currentTab === 'settings' ? 'active' : ''}`}
                   onClick={() => alert('Administrator System Settings & Role-Based Access Control.')}
+                  title="Settings"
+                  aria-label="Settings"
                 >
                   <div className="nav-link-left">
                     <Settings size={17} />
@@ -209,12 +255,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onSelectTab, emplo
       </div>
 
       {/* Footer live mode */}
-      <div style={{ padding: '14px 20px', borderTop: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <Sparkles size={14} color="#10b981" />
-          <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)' }}>Hackathon Live</span>
-        </div>
-        <span style={{ fontSize: '10px', padding: '2px 7px', borderRadius: '999px', background: 'var(--primary-light)', color: 'var(--primary)', fontWeight: 700 }}>
+      <div style={{ padding: isCollapsed ? '14px 10px' : '14px 20px', borderTop: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: isCollapsed ? 'center' : 'space-between' }}>
+        {!isCollapsed && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Sparkles size={14} color="#10b981" />
+            <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)' }}>Enterprise</span>
+          </div>
+        )}
+        <span style={{ fontSize: '10px', padding: '2px 7px', borderRadius: '999px', background: 'var(--primary-light)', color: 'var(--primary)', fontWeight: 700 }} title="PeoplePay360 ERP v2.4">
           v2.4
         </span>
       </div>
