@@ -18,14 +18,14 @@ export const UnauthorizedPage: React.FC = () => {
   return (
     <ErrorPage
       statusCode={401}
-      badgeText="Session Expired"
+      badgeText="Session Required"
       badgeType="warning"
       icon={<LockKeyhole size={36} />}
       title="Authentication Required"
-      message="Your session has expired or you are not currently signed in. Please sign in with your credentials to access this enterprise workspace."
-      detail="For organizational data security, sessions automatically expire after periods of inactivity."
+      message="Authentication is needed to access this resource. Your session may have expired or you have not yet logged in."
+      detail="For organizational data security, valid credentials must be authenticated before accessing PeoplePay360."
       primaryAction={{
-        label: 'Sign In to Continue',
+        label: 'Sign In',
         variant: 'primary',
         icon: <LogIn size={16} />,
         onClick: handleSignIn,

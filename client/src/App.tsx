@@ -41,8 +41,7 @@ initialEmployees.forEach((e) => {
   LOCAL_STAT_SHIMS[e.id] = { attendanceRate: e.attendanceRate, leaveBalance: e.leaveBalance };
 });
 
-import { PATH_TO_TAB, TAB_TO_PATH, isTabAllowed } from './utils/routes';
-export { PATH_TO_TAB, TAB_TO_PATH, isTabAllowed };
+import { PATH_TO_TAB, TAB_TO_PATH, isTabAllowed, getDefaultWorkspacePath } from './utils/routes';
 
 // ── Session Restoration Loader ─────────────────────────────────────────────────
 
@@ -82,7 +81,7 @@ export const SessionRestoreLoader: React.FC = () => (
       <div
         style={{
           fontSize: '13px',
-          color: '#a5b4fc',
+          color: '#5eead4',
           marginTop: '6px',
           fontWeight: 500,
         }}
@@ -102,7 +101,7 @@ export const RoleRoute: React.FC<{ tab: string; children: React.ReactNode }> = (
   const { displayRole } = useAuth();
 
   if (!isTabAllowed(tab, displayRole)) {
-    return <ForbiddenPage />;
+    return <Navigate to="/forbidden" replace />;
   }
 
   return <>{children}</>;
@@ -115,7 +114,7 @@ export const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ childr
   const location = useLocation();
 
   if (isLoading) return <SessionRestoreLoader />;
-  if (!isAuthenticated) return <Navigate to="/401" state={{ from: location }} replace />;
+  if (!isAuthenticated) return <Navigate to="/unauthorized" state={{ from: location }} replace />;
   return <>{children}</>;
 };
 
@@ -272,12 +271,8 @@ const AppShell: React.FC = () => {
               </RoleRoute>
             } />
 
-            {/* Dedicated in-shell error routes */}
-            <Route path="/403" element={<ForbiddenPage />} />
-            <Route path="/500" element={<ServerErrorPage />} />
-
-            {/* Catch-all unknown routes inside shell */}
-            <Route path="*" element={<NotFoundPage />} />
+            {/* Catch-all unknown routes inside shell escape to standalone /not-found */}
+            <Route path="*" element={<Navigate to="/not-found" replace />} />
           </Routes>
         </main>
       </div>
@@ -296,7 +291,9 @@ export const AppRoutes: React.FC = () => {
   // Respect return URL if provided, but verify role permissions
   const targetPath = (location.state as any)?.from?.pathname;
   const targetTab = targetPath ? PATH_TO_TAB[targetPath] : undefined;
-  const destination = targetTab && isTabAllowed(targetTab, displayRole) ? targetPath : '/dashboard';
+  const destination = targetTab && isTabAllowed(targetTab, displayRole)
+    ? targetPath
+    : getDefaultWorkspacePath(displayRole, isAuthenticated);
 
   return (
     <Routes>
@@ -316,21 +313,32 @@ export const AppRoutes: React.FC = () => {
         element={isAuthenticated ? <Navigate to={destination} replace /> : <Login />}
       />
 
-      {/* Dedicated Error Pages */}
-      <Route path="/401" element={<UnauthorizedPage />} />
-      <Route path="/403" element={<ForbiddenPage />} />
-      <Route path="/404" element={<NotFoundPage />} />
-      <Route path="/500" element={<ServerErrorPage />} />
+      {/* Standalone Error Routes (NO APP LAYOUT / SHELL) */}
+      <Route path="/unauthorized" element={<UnauthorizedPage />} />
+      <Route path="/forbidden" element={<ForbiddenPage />} />
+      <Route path="/not-found" element={<NotFoundPage />} />
+      <Route path="/server-error" element={<ServerErrorPage />} />
 
-      {/* Protected: everything else renders inside AppShell */}
-      <Route
-        path="/*"
-        element={
-          <ProtectedRoute>
-            <AppShell />
-          </ProtectedRoute>
-        }
-      />
+      {/* HTTP Status Code Aliases Redirecting to Named Routes */}
+      <Route path="/401" element={<Navigate to="/unauthorized" replace />} />
+      <Route path="/403" element={<Navigate to="/forbidden" replace />} />
+      <Route path="/404" element={<Navigate to="/not-found" replace />} />
+      <Route path="/500" element={<Navigate to="/server-error" replace />} />
+
+      {/* Authenticated ERP Application Routes (Protected inside AppLayout) */}
+      <Route path="/dashboard" element={<ProtectedRoute><AppShell /></ProtectedRoute>} />
+      <Route path="/employees" element={<ProtectedRoute><AppShell /></ProtectedRoute>} />
+      <Route path="/payruns" element={<ProtectedRoute><AppShell /></ProtectedRoute>} />
+      <Route path="/payslips" element={<ProtectedRoute><AppShell /></ProtectedRoute>} />
+      <Route path="/contracts" element={<ProtectedRoute><AppShell /></ProtectedRoute>} />
+      <Route path="/schedules" element={<ProtectedRoute><AppShell /></ProtectedRoute>} />
+      <Route path="/attendance" element={<ProtectedRoute><AppShell /></ProtectedRoute>} />
+      <Route path="/time-off" element={<ProtectedRoute><AppShell /></ProtectedRoute>} />
+      <Route path="/salary-rules" element={<ProtectedRoute><AppShell /></ProtectedRoute>} />
+      <Route path="/settings" element={<ProtectedRoute><AppShell /></ProtectedRoute>} />
+
+      {/* Unknown root routes outside AppLayout navigate to standalone /not-found */}
+      <Route path="*" element={<Navigate to="/not-found" replace />} />
     </Routes>
   );
 };

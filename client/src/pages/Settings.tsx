@@ -188,7 +188,7 @@ export const Settings: React.FC<SettingsProps> = ({ onNavigateTab }) => {
             style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
             title={`Switch to ${theme === 'dark' ? 'Light' : 'Dark'} Mode`}
           >
-            {theme === 'dark' ? <Sun size={14} color="#f59e0b" /> : <Moon size={14} color="#6366f1" />}
+            {theme === 'dark' ? <Sun size={14} color="#f59e0b" /> : <Moon size={14} color="#0f766e" />}
             <span>{theme === 'dark' ? 'Light Theme' : 'Dark Theme'}</span>
           </button>
         </div>
@@ -654,7 +654,7 @@ export const Settings: React.FC<SettingsProps> = ({ onNavigateTab }) => {
                 onClick={toggleTheme}
                 style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
               >
-                {theme === 'dark' ? <Sun size={14} color="#f59e0b" /> : <Moon size={14} color="#6366f1" />}
+                {theme === 'dark' ? <Sun size={14} color="#f59e0b" /> : <Moon size={14} color="#0f766e" />}
                 <span>Toggle {theme === 'dark' ? 'Light' : 'Dark'} Appearance</span>
               </button>
 

@@ -50,8 +50,8 @@ export const TimeOffAnalytics: React.FC<TimeOffAnalyticsProps> = ({
     if (t.includes('annual') || t.includes('paid')) return '#059669'; // Green
     if (t.includes('sick')) return '#dc2626'; // Red
     if (t.includes('unpaid')) return '#d97706'; // Amber
-    if (t.includes('maternity') || t.includes('paternity')) return '#7c3aed'; // Purple
-    const palette = ['#4f46e5', '#0284c7', '#0d9488', '#ea580c'];
+    if (t.includes('maternity') || t.includes('paternity')) return '#0891b2'; // Cyan
+    const palette = ['#0f766e', '#0284c7', '#0d9488', '#ea580c'];
     return palette[idx % palette.length];
   };
 
@@ -176,7 +176,7 @@ export const TimeOffAnalytics: React.FC<TimeOffAnalyticsProps> = ({
             </div>
 
             {/* Total Days Volume */}
-            <div style={{ padding: '10px 12px', background: 'rgba(79, 70, 229, 0.08)', border: '1px solid rgba(79, 70, 229, 0.2)', borderRadius: 'var(--radius)' }}>
+            <div style={{ padding: '10px 12px', background: 'var(--primary-light)', border: '1px solid var(--primary-border)', borderRadius: 'var(--radius)' }}>
               <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '4px' }}>
                 <Briefcase size={12} />
                 <span>Total Days</span>

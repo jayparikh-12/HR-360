@@ -3,10 +3,12 @@ import { ShieldAlert, ArrowLeft, LayoutDashboard } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { ErrorPage } from './ErrorPage';
 import { useAuth } from '../../context/AuthContext';
+import { getDefaultWorkspacePath } from '../../utils/routes';
 
 export const ForbiddenPage: React.FC = () => {
   const navigate = useNavigate();
-  const { displayRole, user } = useAuth();
+  const { displayRole, user, isAuthenticated } = useAuth();
+  const workspacePath = getDefaultWorkspacePath(displayRole, isAuthenticated);
 
   return (
     <ErrorPage
@@ -14,14 +16,14 @@ export const ForbiddenPage: React.FC = () => {
       badgeText="Access Restricted"
       badgeType="danger"
       icon={<ShieldAlert size={36} />}
-      title="Permission Denied"
-      message="You do not have the required enterprise permissions to access this resource or perform this action."
-      detail={`Current active role: ${displayRole}${user?.email ? ` (${user.email})` : ''}. If you believe you should have access, please request role escalation from your administrator.`}
+      title="Access Restricted"
+      message="You do not have the required enterprise permissions to access this module or resource."
+      detail={`Active authenticated role: ${displayRole}${user?.email ? ` (${user.email})` : ''}. If you require access, please request role escalation from your PeoplePay360 administrator.`}
       primaryAction={{
-        label: 'Return to Dashboard',
+        label: 'Return to Workspace',
         variant: 'primary',
         icon: <LayoutDashboard size={16} />,
-        onClick: () => navigate('/dashboard'),
+        onClick: () => navigate(workspacePath),
       }}
       secondaryAction={{
         label: 'Go Back',

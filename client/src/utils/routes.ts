@@ -34,3 +34,27 @@ export const isTabAllowed = (tab: string, role: UserRole): boolean => {
   }
   return tab === 'dashboard';
 };
+
+/**
+ * Resolves the primary workspace landing route for a user based on their active role.
+ * Avoids hardcoding /dashboard if role lacks dashboard access.
+ */
+export const getDefaultWorkspacePath = (role?: UserRole | string | null, isAuthenticated?: boolean): string => {
+  if (isAuthenticated === false || !role) {
+    return '/login';
+  }
+  if (isTabAllowed('dashboard', role as UserRole)) {
+    return '/dashboard';
+  }
+  if (isTabAllowed('attendance', role as UserRole)) {
+    return '/attendance';
+  }
+  if (isTabAllowed('employees', role as UserRole)) {
+    return '/employees';
+  }
+  if (isTabAllowed('payslips', role as UserRole)) {
+    return '/payslips';
+  }
+  return '/dashboard';
+};
+

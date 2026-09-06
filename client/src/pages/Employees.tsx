@@ -1712,11 +1712,11 @@ export const Employees: React.FC<EmployeesProps> = ({
                   ) : (
                     filtered.map((emp, index) => {
                       const colorStyles = [
-                        { bg: 'rgba(79, 70, 229, 0.12)', color: '#4f46e5' },
+                        { bg: 'rgba(15, 118, 110, 0.12)', color: '#0f766e' },
                         { bg: 'rgba(16, 185, 129, 0.12)', color: '#059669' },
                         { bg: 'rgba(217, 119, 6, 0.12)', color: '#d97706' },
                         { bg: 'rgba(2, 132, 199, 0.12)', color: '#0284c7' },
-                        { bg: 'rgba(124, 58, 237, 0.12)', color: '#7c3aed' },
+                        { bg: 'rgba(14, 116, 144, 0.12)', color: '#0e7490' },
                         { bg: 'rgba(225, 29, 72, 0.12)', color: '#e11d48' },
                       ];
                       const avatarStyle = colorStyles[index % colorStyles.length];

@@ -18,6 +18,8 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
 import {
   ApiError,
   apiFetch,
@@ -25,7 +27,7 @@ import {
   getDefaultErrorMessage,
   sanitizeErrorMessage,
 } from '../api/client';
-import { isTabAllowed } from '../utils/routes';
+import { isTabAllowed, getDefaultWorkspacePath } from '../utils/routes';
 import type { UserRole } from '../types';
 
 test('PEOPLEPAY360 — DEDICATED ERROR ARCHITECTURE & PAGES SUITE', async (t) => {
@@ -231,4 +233,152 @@ test('PEOPLEPAY360 — DEDICATED ERROR ARCHITECTURE & PAGES SUITE', async (t) =>
       assert.equal(isTabAllowed('employees', 'HR Payroll User'), true);
     });
   });
+
+  // ── 4. Standalone Error Routing & Layout Separation Architecture ───────────
+  await t.test('4. Standalone Error Routing & Layout Separation Architecture', async (st) => {
+    const appTsx = fs.readFileSync(path.resolve(process.cwd(), 'client/src/App.tsx'), 'utf-8');
+
+    await st.test('4.1 Dedicated routes (/unauthorized, /forbidden, /not-found, /server-error) exist at root Routes level', () => {
+      assert.ok(appTsx.includes('path="/unauthorized"'), 'Must have /unauthorized route at root');
+      assert.ok(appTsx.includes('path="/forbidden"'), 'Must have /forbidden route at root');
+      assert.ok(appTsx.includes('path="/not-found"'), 'Must have /not-found route at root');
+      assert.ok(appTsx.includes('path="/server-error"'), 'Must have /server-error route at root');
+
+      // Verify they render dedicated error components directly
+      const appRoutesSection = appTsx.substring(appTsx.indexOf('const AppRoutes: React.FC'));
+      assert.ok(appRoutesSection.includes('<Route path="/unauthorized" element={<UnauthorizedPage />} />'));
+      assert.ok(appRoutesSection.includes('<Route path="/forbidden" element={<ForbiddenPage />} />'));
+      assert.ok(appRoutesSection.includes('<Route path="/not-found" element={<NotFoundPage />} />'));
+      assert.ok(appRoutesSection.includes('<Route path="/server-error" element={<ServerErrorPage />} />'));
+    });
+
+    await st.test('4.2 AppLayout / AppShell does NOT render error pages inside shell', () => {
+      const appShellSection = appTsx.substring(
+        appTsx.indexOf('export const AppShell'),
+        appTsx.indexOf('const AppRoutes')
+      );
+      assert.ok(!appShellSection.includes('<UnauthorizedPage'), 'AppShell must not render UnauthorizedPage inside shell');
+      assert.ok(!appShellSection.includes('<ForbiddenPage'), 'AppShell must not render ForbiddenPage inside shell');
+      assert.ok(!appShellSection.includes('<ServerErrorPage'), 'AppShell must not render ServerErrorPage inside shell');
+      assert.ok(!appShellSection.includes('<NotFoundPage'), 'AppShell must not render NotFoundPage inside shell');
+      assert.ok(appShellSection.includes('path="*" element={<Navigate to="/not-found" replace />}'), 'AppShell catch-all must route out to /not-found');
+    });
+
+    await st.test('4.3 ErrorPage does not render Sidebar, Header, Breadcrumbs or ERP shell', () => {
+      const errorPage = fs.readFileSync(path.resolve(process.cwd(), 'client/src/pages/errors/ErrorPage.tsx'), 'utf-8');
+      assert.ok(!errorPage.includes('<Sidebar'), 'ErrorPage must not render Sidebar');
+      assert.ok(!errorPage.includes('<Header'), 'ErrorPage must not render Header');
+      assert.ok(!errorPage.includes('import { Sidebar }'), 'ErrorPage must not import Sidebar');
+      assert.ok(!errorPage.includes('import { Header }'), 'ErrorPage must not import Header');
+      assert.ok(errorPage.includes('minHeight: \'100vh\''), 'ErrorPage renders full-viewport layout');
+      assert.ok(errorPage.includes('getDefaultWorkspacePath'), 'ErrorPage resolves role-appropriate workspace path');
+    });
+
+    await st.test('4.4 Global ErrorBoundary renders ServerErrorPage standalone outside AppShell', () => {
+      const errorBoundary = fs.readFileSync(path.resolve(process.cwd(), 'client/src/components/common/ErrorBoundary.tsx'), 'utf-8');
+      assert.ok(errorBoundary.includes('<ServerErrorPage'), 'ErrorBoundary renders ServerErrorPage');
+      assert.ok(!errorBoundary.includes('<AppShell'), 'ErrorBoundary does NOT wrap inside AppShell');
+      assert.ok(!errorBoundary.includes('<Sidebar'), 'ErrorBoundary does NOT render Sidebar');
+
+      // Wraps whole AppRoutes in App.tsx
+      assert.ok(appTsx.includes('<ErrorBoundary>'), 'App.tsx wraps AppRoutes in ErrorBoundary');
+    });
+  });
+
+  // ── 5. Error Pages Specific Actions & Contracts ───────────────────────────
+  await t.test('5. Error Pages Specific Actions & Contracts', async (st) => {
+    await st.test('5.1 401 Unauthorized page provides explicit Sign In action', () => {
+      const unauth = fs.readFileSync(path.resolve(process.cwd(), 'client/src/pages/errors/UnauthorizedPage.tsx'), 'utf-8');
+      assert.ok(unauth.includes('badgeText="Session Required"'), '401 has Session Required badge');
+      assert.ok(unauth.includes('label: \'Sign In\''), '401 provides explicit Sign In action');
+      assert.ok(!unauth.includes('alert('), '401 does not use alert()');
+    });
+
+    await st.test('5.2 403 Forbidden page provides Return to Workspace and Go Back without logging out', () => {
+      const forbidden = fs.readFileSync(path.resolve(process.cwd(), 'client/src/pages/errors/ForbiddenPage.tsx'), 'utf-8');
+      assert.ok(forbidden.includes('badgeText="Access Restricted"'), '403 has Access Restricted badge');
+      assert.ok(forbidden.includes('label: \'Return to Workspace\''), '403 has Return to Workspace action');
+      assert.ok(forbidden.includes('label: \'Go Back\''), '403 has Go Back action');
+      assert.ok(!forbidden.includes('logout()'), '403 does not log out user');
+    });
+
+    await st.test('5.3 404 Not Found page provides Return to Workspace and Go Back', () => {
+      const notFound = fs.readFileSync(path.resolve(process.cwd(), 'client/src/pages/errors/NotFoundPage.tsx'), 'utf-8');
+      assert.ok(notFound.includes('badgeText="Page Not Found"'), '404 has Page Not Found badge');
+      assert.ok(notFound.includes('label: \'Return to Workspace\''), '404 has Return to Workspace action');
+      assert.ok(notFound.includes('label: \'Go Back\''), '404 has Go Back action');
+    });
+
+    await st.test('5.4 500 Server Error page provides Try Again and Return to Workspace with zero leak', () => {
+      const serverError = fs.readFileSync(path.resolve(process.cwd(), 'client/src/pages/errors/ServerErrorPage.tsx'), 'utf-8');
+      assert.ok(serverError.includes('badgeText="Something Went Wrong"'), '500 has Something Went Wrong badge');
+      assert.ok(serverError.includes('label: \'Try Again\''), '500 has Try Again action');
+      assert.ok(serverError.includes('label: \'Return to Workspace\''), '500 has Return to Workspace action');
+      assert.ok(!serverError.includes('stack'), '500 does not expose stack traces');
+    });
+  });
+
+  // ── 6. Safe Role-Based Workspace Routing (getDefaultWorkspacePath) ─────────
+  await t.test('6. Safe Role-Based Workspace Routing (getDefaultWorkspacePath)', async (st) => {
+    await st.test('6.1 Admin and HR Payroll Manager route to /dashboard', () => {
+      assert.equal(getDefaultWorkspacePath('Admin', true), '/dashboard');
+      assert.equal(getDefaultWorkspacePath('HR Payroll Manager', true), '/dashboard');
+    });
+
+    await st.test('6.2 Unauthenticated user safely routes to /login', () => {
+      assert.equal(getDefaultWorkspacePath(null, false), '/login');
+      assert.equal(getDefaultWorkspacePath(undefined, false), '/login');
+      assert.equal(getDefaultWorkspacePath('Employee', false), '/login');
+    });
+
+    await st.test('6.3 Role check fallback avoids broken routes', () => {
+      assert.equal(getDefaultWorkspacePath('Employee', true), '/dashboard');
+    });
+  });
+
+  // ── 7. Global Color Theme System: Deep Teal Palette ───────────────────────
+  await t.test('7. Global Color Theme System: Deep Teal Palette', async (st) => {
+    const css = fs.readFileSync(path.resolve(process.cwd(), 'client/src/App.css'), 'utf-8');
+
+    await st.test('7.1 Deep Teal CSS tokens configured in :root and dark mode', () => {
+      assert.ok(css.includes('--primary: #0f766e;'), 'Primary is Deep Teal #0f766e in light mode');
+      assert.ok(css.includes('--primary-light: rgba(15, 118, 110, 0.08);'), 'Primary light is rgba(15, 118, 110, 0.08)');
+      assert.ok(css.includes('--primary-border: rgba(15, 118, 110, 0.2);'), 'Primary border is rgba(15, 118, 110, 0.2)');
+      assert.ok(css.includes('--primary: #14b8a6;'), 'Primary is #14b8a6 in dark mode');
+      assert.ok(css.includes('background: linear-gradient(135deg, #0f766e 0%, #0d9488 100%);'), 'Brand logo uses teal gradient');
+    });
+
+    await st.test('7.2 Zero legacy dominant purple/indigo hexes in App.css', () => {
+      const legacyHexes = ['#4f46e5', '#6366f1', '#4338ca', '#7c3aed', '#6d28d9'];
+      for (const hex of legacyHexes) {
+        assert.ok(!css.includes(hex), `App.css must not contain legacy color ${hex}`);
+      }
+    });
+
+    await st.test('7.3 Zero legacy purple hexes across core UI components', () => {
+      const files = [
+        'client/src/pages/Landing.tsx',
+        'client/src/pages/Login.tsx',
+        'client/src/pages/Employees.tsx',
+        'client/src/pages/SalaryStructures.tsx',
+        'client/src/pages/Settings.tsx',
+        'client/src/components/Header.tsx',
+        'client/src/components/DetailedPayslipModal.tsx',
+        'client/src/components/dashboard/AttendanceAnalytics.tsx',
+        'client/src/components/dashboard/PayrollBreakdownChart.tsx',
+        'client/src/components/dashboard/PayrollStatusChart.tsx',
+        'client/src/components/dashboard/PayrollTrendChart.tsx',
+        'client/src/components/dashboard/TimeOffAnalytics.tsx',
+      ];
+      const legacyHexes = ['#4f46e5', '#6366f1', '#4338ca', '#7c3aed', '#6d28d9'];
+
+      for (const file of files) {
+        const content = fs.readFileSync(path.resolve(process.cwd(), file), 'utf-8');
+        for (const hex of legacyHexes) {
+          assert.ok(!content.includes(hex), `${file} must not contain legacy color ${hex}`);
+        }
+      }
+    });
+  });
 });
+
