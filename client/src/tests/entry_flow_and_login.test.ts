@@ -196,4 +196,23 @@ test('PEOPLEPAY360 — DIRECT ENTRY FLOW & LOGIN REDESIGN SUITE', async (t) => {
       assert.strictEqual(getDefaultWorkspacePath('Employee', true), '/dashboard');
     });
   });
+
+  // ── 5. Descendant Route Architecture & No 404 Bounce ──────────────────────
+  await t.test('5. Descendant Route Architecture & No 404 Bounce', async (st) => {
+    await st.test('5.1 AppShell is rendered under a wildcard path "/*" in AppRoutes', () => {
+      assert.ok(
+        appTsx.includes('path="/*"') && appTsx.includes('<ProtectedRoute>\n            <AppShell />\n          </ProtectedRoute>') ||
+        appTsx.includes('path="/*"') && appTsx.includes('<ProtectedRoute>\r\n            <AppShell />\r\n          </ProtectedRoute>'),
+        'AppRoutes must render AppShell using path="/*" so nested routes in AppShell match correctly'
+      );
+    });
+
+    await st.test('5.2 ProtectedRoute redirects unauthenticated access to /login directly', () => {
+      assert.ok(
+        appTsx.includes('if (!isAuthenticated) return <Navigate to="/login" state={{ from: location }} replace />;'),
+        'ProtectedRoute must redirect to /login directly with return state'
+      );
+    });
+  });
 });
+
