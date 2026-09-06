@@ -9,6 +9,14 @@ import crypto from 'node:crypto';
  */
 export const DEMO_USERS: UserAccount[] = [
   {
+    id: 'USR-999',
+    name: 'System Administrator',
+    email: 'admin@company.com',
+    aliases: ['admin@peoplepay360.com'],
+    role: 'Admin',
+    password: 'password123',
+  },
+  {
     id: 'USR-004',
     name: 'Elena Rostova',
     email: 'elena@company.com',

@@ -226,8 +226,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
               fontWeight: 700, 
               justifyContent: 'center', 
               gap: '8px',
-              borderRadius: '10px',
-              marginTop: '16px'
+              borderRadius: '10px'
             }}
             disabled={isLoading}
           >
