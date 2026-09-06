@@ -55,11 +55,11 @@ async function run() {
       console.log('Seeding users table...');
       await rootConn.query(`
         INSERT INTO users (id, name, email, password, role, employee_id) VALUES
-        ('USR-999', 'System Administrator', 'admin@company.com', 'password123', 'Admin', NULL),
-        ('USR-004', 'Elena Rostova', 'elena@company.com', 'password123', 'HR Payroll Manager', 'EMP-004'),
-        ('USR-006', 'Sarah Connor', 'sarah@company.com', 'password123', 'HR Manager', 'EMP-006'),
-        ('USR-003', 'Alex Rivera', 'alex@company.com', 'password123', 'HR Payroll User', 'EMP-003'),
-        ('USR-001', 'John Doe', 'john.doe@company.com', 'password123', 'Employee', 'EMP-001')
+        ('USR-999', 'System Administrator', 'admin@company.com', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', 'Admin', NULL),
+        ('USR-004', 'Elena Rostova', 'elena@company.com', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', 'HR Payroll Manager', 'EMP-004'),
+        ('USR-006', 'Sarah Connor', 'sarah@company.com', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', 'HR Manager', 'EMP-006'),
+        ('USR-003', 'Alex Rivera', 'alex@company.com', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', 'HR Payroll User', 'EMP-003'),
+        ('USR-001', 'John Doe', 'john.doe@company.com', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', 'Employee', 'EMP-001')
       `);
       console.log('Users seeded successfully.');
     }

@@ -22,8 +22,8 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const { login, user, displayRole } = useAuth();
   const { theme, toggleTheme } = useTheme();
 
-  const [email, setEmail] = useState<string>('admin@company.com');
-  const [password, setPassword] = useState<string>('password123');
+  const [email, setEmail] = useState<string>('');
+  const [password, setPassword] = useState<string>('');
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);

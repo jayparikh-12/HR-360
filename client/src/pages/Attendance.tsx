@@ -88,9 +88,9 @@ export const Attendance: React.FC<AttendanceProps> = ({ onAddRecord }) => {
   const handleToggleCheck = async () => {
     if (submitting) return;
 
-    const empId = user?.employeeId || (user?.id?.startsWith('EMP-') ? user.id : user?.id);
+    const empId = user?.employeeId || (user?.id?.startsWith('EMP-') ? user.id : undefined);
     if (!empId) {
-      setError('No employee account linked to this user profile.');
+      setError('Clock-in / clock-out is designated for staff employee profiles. This administrator account oversees organization-wide attendance records below.');
       return;
     }
 

@@ -22,6 +22,7 @@ import { TimeOff } from './pages/TimeOff';
 import { Contracts } from './pages/Contracts';
 import { Schedules } from './pages/Schedules';
 import { SalaryStructures } from './pages/SalaryStructures';
+import { Settings } from './pages/Settings';
 import {
   UnauthorizedPage,
   ForbiddenPage,
@@ -268,7 +269,7 @@ const AppShell: React.FC = () => {
             } />
             <Route path="/settings" element={
               <RoleRoute tab="settings">
-                <SalaryStructures onNavigateTab={(tab) => navigate(TAB_TO_PATH[tab] ?? '/dashboard')} />
+                <Settings onNavigateTab={(tab) => navigate(TAB_TO_PATH[tab] ?? '/dashboard')} />
               </RoleRoute>
             } />
 

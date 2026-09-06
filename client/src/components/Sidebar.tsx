@@ -239,7 +239,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <li>
                 <button
                   className={`nav-link ${currentTab === 'settings' ? 'active' : ''}`}
-                  onClick={() => alert('Administrator System Settings & Role-Based Access Control.')}
+                  onClick={() => onSelectTab('settings')}
                   title="Settings"
                   aria-label="Settings"
                 >

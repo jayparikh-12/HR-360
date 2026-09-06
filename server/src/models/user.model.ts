@@ -198,12 +198,7 @@ export function findUserById(id: string): UserAccount | null {
 export async function verifyPassword(account: UserAccount, candidatePassword: string): Promise<boolean> {
   if (!account || !candidatePassword) return false;
 
-  // Direct match or test suite compatibility
-  if (account.password === candidatePassword || candidatePassword === 'Password@123') {
-    return true;
-  }
-
-  // SHA-256 hash match if stored password is a hex hash
+  // SHA-256 hash match against stored password hash
   try {
     const hash = crypto.createHash('sha256').update(candidatePassword).digest('hex');
     if (account.password.toLowerCase() === hash.toLowerCase()) {
@@ -211,6 +206,11 @@ export async function verifyPassword(account: UserAccount, candidatePassword: st
     }
   } catch (_err) {
     // Ignore hash check failure
+  }
+
+  // Direct plaintext match (for development / legacy compatibility)
+  if (account.password === candidatePassword) {
+    return true;
   }
 
   return false;

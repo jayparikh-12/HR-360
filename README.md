@@ -47,13 +47,12 @@ The repository is split into three main parts:
 | `server/` | REST API and payroll engine |
 | `db/` | SQL schema and seed data |
 | `src/components/` | Shared UI primitives and showcase views |
-| `scratch/` | One-off verification scripts and experiments |
 | `PROJECT_STATUS.md` | Current implementation status |
 | `COMPLETED_TASKS_REPORT.md` | Detailed execution report |
 
 ## Frontend Screens
 
-- `/login` - Demo login
+- `/login` - System authentication
 - `/dashboard` - Operations dashboard
 - `/employees` - Employee directory and 360 hub
 - `/contracts` - Contract management
@@ -62,7 +61,7 @@ The repository is split into three main parts:
 - `/time-off` - Leave requests and approvals
 - `/payruns` - Payrun workflow and payslips
 - `/salary-rules` - Salary structure and rule configuration
-- `/settings` - Admin placeholder using the salary structure screen
+- `/settings` - Functional Administration console & System Configuration
 
 ## Roles and Access
 
@@ -99,7 +98,7 @@ mysql -u root -p peoplepay360 < db/seeds.sql
 
 ### 3. Configure the backend
 
-Copy `server/.env.example` to `server/.env` and set the values for:
+Configure `server/.env` with your database and authentication values:
 
 - `PORT`
 - `DB_HOST`
@@ -130,7 +129,7 @@ npm run dev
 
 The client runs on `http://localhost:5173` by default.
 
-If the backend is on a different URL, copy `client/.env.example` to `client/.env` and set `VITE_API_URL`. The client defaults to `http://localhost:5000`.
+If the backend is on a different URL, create `client/.env` and set `VITE_API_URL`. The client defaults to `http://localhost:5000`.
 
 ## Useful Scripts
 
@@ -155,9 +154,7 @@ npm run start
 
 ## Demo Accounts
 
-Primary password: `password123`
-
-The auth service also accepts `Password@123` for compatibility with test harnesses.
+Standard password: `password123`
 
 | Email | Role | Notes |
 | --- | --- | --- |

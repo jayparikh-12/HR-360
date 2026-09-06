@@ -12,7 +12,7 @@ Express + TypeScript API for PeoplePay360.
 
 ## Setup
 
-1. Copy `server/.env.example` to `server/.env`.
+1. Configure environment variables in `server/.env`.
 2. Configure MySQL and JWT values.
 3. Install dependencies and start the API.
 
