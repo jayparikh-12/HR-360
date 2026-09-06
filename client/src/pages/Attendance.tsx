@@ -203,22 +203,38 @@ export const Attendance: React.FC<AttendanceProps> = ({ onAddRecord }) => {
       )}
 
       {/* Summary Row */}
-      <div className="grid-4" style={{ marginBottom: '20px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '24px' }}>
         <div className="card">
-          <div className="metric-title">Present Today</div>
-          <div className="metric-val" style={{ color: '#047857' }}>{presentCount} Staff</div>
+          <div className="metric-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span>Present Today</span>
+            <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#059669' }} />
+          </div>
+          <div className="metric-val" style={{ color: '#059669' }}>{presentCount} Staff</div>
+          <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginTop: '6px' }}>On-schedule & active check-ins</div>
         </div>
         <div className="card">
-          <div className="metric-title">Late Arrivals</div>
-          <div className="metric-val" style={{ color: '#b45309' }}>{lateCount} Staff</div>
+          <div className="metric-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span>Late Arrivals</span>
+            <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#d97706' }} />
+          </div>
+          <div className="metric-val" style={{ color: '#d97706' }}>{lateCount} Staff</div>
+          <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginTop: '6px' }}>Clocked in past grace period</div>
         </div>
         <div className="card">
-          <div className="metric-title">Overtime Shifts</div>
+          <div className="metric-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span>Overtime Shifts</span>
+            <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--primary)' }} />
+          </div>
           <div className="metric-val" style={{ color: 'var(--primary)' }}>{overtimeCount} Staff</div>
+          <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginTop: '6px' }}>Shift duration exceeding 8 hrs</div>
         </div>
         <div className="card">
-          <div className="metric-title">Absences Recorded</div>
-          <div className="metric-val" style={{ color: '#be123c' }}>{absentCount} Staff</div>
+          <div className="metric-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span>Absences Recorded</span>
+            <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#e11d48' }} />
+          </div>
+          <div className="metric-val" style={{ color: '#e11d48' }}>{absentCount} Staff</div>
+          <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginTop: '6px' }}>No check-in or approved leave</div>
         </div>
       </div>
 

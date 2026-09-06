@@ -42,8 +42,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onSelectTab, emplo
       {/* Brand Header */}
       <div className="sidebar-header">
         <div className="logo-box">P</div>
-        <div>
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
           <div className="logo-text">PeoplePay360</div>
+          <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--primary)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+            HR-360 Platform
+          </span>
         </div>
       </div>
 
@@ -206,9 +209,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onSelectTab, emplo
       </div>
 
       {/* Footer live mode */}
-      <div style={{ padding: '14px 20px', borderTop: '1px solid var(--slate-100)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <Sparkles size={14} color="#10b981" />
-        <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--slate-600)' }}>Hackathon Live</span>
+      <div style={{ padding: '14px 20px', borderTop: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <Sparkles size={14} color="#10b981" />
+          <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)' }}>Hackathon Live</span>
+        </div>
+        <span style={{ fontSize: '10px', padding: '2px 7px', borderRadius: '999px', background: 'var(--primary-light)', color: 'var(--primary)', fontWeight: 700 }}>
+          v2.4
+        </span>
       </div>
     </aside>
   );

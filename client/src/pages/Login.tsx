@@ -8,8 +8,7 @@ import {
   Loader2, 
   AlertCircle,
   Sun,
-  Moon,
-  ShieldCheck
+  Moon
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -23,8 +22,8 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const { login, user, displayRole } = useAuth();
   const { theme, toggleTheme } = useTheme();
 
-  const [email, setEmail] = useState<string>('');
-  const [password, setPassword] = useState<string>('');
+  const [email, setEmail] = useState<string>('admin@company.com');
+  const [password, setPassword] = useState<string>('password123');
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -102,13 +101,15 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
             <span className="login-brand-title">PeoplePay360</span>
             <span className="login-brand-pill">Enterprise</span>
           </div>
-          <h2 style={{ fontSize: '22px', fontWeight: 800, color: 'var(--slate-900)', marginTop: '6px' }}>
+          <h2 style={{ fontSize: '22px', fontWeight: 800, color: 'var(--text-main)', marginTop: '6px' }}>
             Sign in to your account
           </h2>
           <p className="login-subtitle">
             Enter your corporate credentials to access your HR & payroll workspace.
           </p>
         </div>
+
+
 
         {/* Error Notification */}
         {errorMessage && (
@@ -225,7 +226,8 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
               fontWeight: 700, 
               justifyContent: 'center', 
               gap: '8px',
-              borderRadius: '10px'
+              borderRadius: '10px',
+              marginTop: '16px'
             }}
             disabled={isLoading}
           >
@@ -242,22 +244,6 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
             )}
           </button>
         </form>
-
-        {/* Security Footnote */}
-        <div style={{ 
-          marginTop: '24px', 
-          paddingTop: '16px', 
-          borderTop: '1px solid var(--slate-100)', 
-          display: 'flex', 
-          alignItems: 'center', 
-          justifyContent: 'center', 
-          gap: '6px',
-          color: 'var(--slate-400)', 
-          fontSize: '11px' 
-        }}>
-          <ShieldCheck size={14} color="#10b981" />
-          <span>Secured with JWT Token Session Authentication</span>
-        </div>
       </div>
     </div>
   );

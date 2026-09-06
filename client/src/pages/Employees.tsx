@@ -1647,50 +1647,82 @@ export const Employees: React.FC<EmployeesProps> = ({
                       </td>
                     </tr>
                   ) : (
-                    filtered.map((emp) => (
-                      <tr key={emp.id}>
-                        <td>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                            <div className="avatar">{emp.avatarInitials}</div>
-                            <div>
-                              <div style={{ fontWeight: 600, color: 'var(--slate-900)' }}>{emp.name}</div>
-                              <div style={{ fontSize: '11px', color: 'var(--slate-500)' }}>
-                                {emp.email} {emp.gender ? `• ${formatGender(emp.gender)}` : ''}
+                    filtered.map((emp, index) => {
+                      const colorStyles = [
+                        { bg: 'rgba(79, 70, 229, 0.12)', color: '#4f46e5' },
+                        { bg: 'rgba(16, 185, 129, 0.12)', color: '#059669' },
+                        { bg: 'rgba(217, 119, 6, 0.12)', color: '#d97706' },
+                        { bg: 'rgba(2, 132, 199, 0.12)', color: '#0284c7' },
+                        { bg: 'rgba(124, 58, 237, 0.12)', color: '#7c3aed' },
+                        { bg: 'rgba(225, 29, 72, 0.12)', color: '#e11d48' },
+                      ];
+                      const avatarStyle = colorStyles[index % colorStyles.length];
+
+                      return (
+                        <tr key={emp.id}>
+                          <td>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                              <div 
+                                className="avatar" 
+                                style={{ 
+                                  backgroundColor: avatarStyle.bg, 
+                                  color: avatarStyle.color,
+                                  border: `1.5px solid ${avatarStyle.color}40`,
+                                  fontWeight: 800
+                                }}
+                              >
+                                {emp.avatarInitials}
+                              </div>
+                              <div>
+                                <div style={{ fontWeight: 700, color: 'var(--text-main)' }}>{emp.name}</div>
+                                <div style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>
+                                  {emp.email} {emp.gender ? `• ${formatGender(emp.gender)}` : ''}
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        </td>
-                        <td>
-                          <div style={{ fontWeight: 500 }}>{emp.department}</div>
-                          <div style={{ fontSize: '11px', color: 'var(--slate-500)' }}>{emp.position}</div>
-                        </td>
-                        <td>
-                          <div style={{ fontSize: '13px', color: 'var(--slate-700)', fontWeight: 500 }}>
-                            {emp.dateOfBirth || '—'}
-                          </div>
-                        </td>
-                        <td>
-                          <div style={{ fontWeight: 600 }}>₹{emp.wage.toLocaleString('en-IN')}/mo</div>
-                          <div style={{ fontSize: '11px', color: 'var(--slate-500)' }}>{emp.schedule}</div>
-                        </td>
-                        <td>
-                          <span style={{ fontWeight: 600, color: emp.attendanceRate >= 95 ? '#047857' : '#b45309' }}>
-                            {emp.attendanceRate}%
-                          </span>
-                        </td>
-                        <td>
-                          <span className={`badge ${emp.status === 'ACTIVE' ? 'badge-success' : 'badge-warning'}`}>
-                            <span className="badge-dot" />
-                            {emp.status}
-                          </span>
-                        </td>
-                        <td>
-                          <button className="btn btn-secondary btn-sm" onClick={() => setSelectedEmpId(emp.id)}>
-                            Open 360 Hub
-                          </button>
-                        </td>
-                      </tr>
-                    ))
+                          </td>
+                          <td>
+                            <div style={{ fontWeight: 600, color: 'var(--text-main)' }}>{emp.department}</div>
+                            <div style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>{emp.position}</div>
+                          </td>
+                          <td>
+                            <div style={{ fontSize: '12.5px', color: 'var(--text-secondary)', fontWeight: 500 }}>
+                              {emp.dateOfBirth || '—'}
+                            </div>
+                          </td>
+                          <td>
+                            <div style={{ fontWeight: 700, color: 'var(--text-main)' }}>₹{emp.wage.toLocaleString('en-IN')}/mo</div>
+                            <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{emp.schedule}</div>
+                          </td>
+                          <td>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <div style={{ width: '54px', height: '6px', background: 'var(--border-color)', borderRadius: '99px', overflow: 'hidden' }}>
+                                <div style={{ width: `${emp.attendanceRate}%`, height: '100%', background: emp.attendanceRate >= 90 ? '#10b981' : emp.attendanceRate > 0 ? '#f59e0b' : 'var(--slate-300)', borderRadius: '99px' }} />
+                              </div>
+                              <span style={{ fontSize: '11.5px', fontWeight: 700, color: emp.attendanceRate >= 90 ? '#059669' : emp.attendanceRate > 0 ? '#b45309' : 'var(--text-subtle)' }}>
+                                {emp.attendanceRate}%
+                              </span>
+                            </div>
+                          </td>
+                          <td>
+                            <span className={`badge ${emp.status === 'ACTIVE' ? 'badge-success' : 'badge-warning'}`}>
+                              <span className="badge-dot" />
+                              {emp.status}
+                            </span>
+                          </td>
+                          <td>
+                            <button 
+                              className="btn btn-secondary btn-sm" 
+                              onClick={() => setSelectedEmpId(emp.id)}
+                              style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                            >
+                              <span>360 Hub</span>
+                              <ArrowLeft size={12} style={{ transform: 'rotate(180deg)' }} />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
               </table>

@@ -11,6 +11,7 @@ import { ThemeProvider } from './context/ThemeContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
+import { Landing } from './pages/Landing';
 import { Login } from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
 import { Employees } from './pages/Employees';
@@ -284,6 +285,10 @@ export const AppRoutes: React.FC = () => {
 
   return (
     <Routes>
+      {/* Public: Landing Page */}
+      <Route path="/" element={<Landing />} />
+      <Route path="/landing" element={<Landing />} />
+
       {/* Public: Login */}
       <Route
         path="/login"
