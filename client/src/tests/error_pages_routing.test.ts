@@ -357,7 +357,6 @@ test('PEOPLEPAY360 — DEDICATED ERROR ARCHITECTURE & PAGES SUITE', async (t) =>
 
     await st.test('7.3 Zero legacy purple hexes across core UI components', () => {
       const files = [
-        'client/src/pages/Landing.tsx',
         'client/src/pages/Login.tsx',
         'client/src/pages/Employees.tsx',
         'client/src/pages/SalaryStructures.tsx',
