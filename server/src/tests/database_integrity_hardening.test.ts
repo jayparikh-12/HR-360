@@ -111,8 +111,8 @@ describe('Phase 7.3: Database & Data Integrity Hardening', () => {
   describe('2. Primary Key & Unique Constraints', () => {
     it('creates a valid employee successfully', async () => {
       await executeQuery(
-        'INSERT INTO employees (id, empCode, firstName, lastName, email, department, jobPosition, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())',
-        [testEmpId, `CODE-${testSuffix}`, 'Integrity Test', 'Employee', testEmpEmail, 'Engineering', 'QA Engineer', 'ACTIVE']
+        'INSERT INTO employees (id, name, email, department, position, status, join_date, created_at) VALUES (?, ?, ?, ?, ?, ?, "2026-01-01", NOW())',
+        [testEmpId, 'Integrity Test Employee', testEmpEmail, 'Engineering', 'QA Engineer', 'ACTIVE']
       );
       const emp = await getEmployeeById(testEmpId);
       assert.ok(emp);
@@ -125,8 +125,8 @@ describe('Phase 7.3: Database & Data Integrity Hardening', () => {
       try {
         await assert.rejects(async () => {
           await conn.query(
-            'INSERT INTO employees (id, empCode, firstName, lastName, email, department, jobPosition, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-            [testEmpId, `CODE-DUP-${testSuffix}`, 'Duplicate PK', 'Employee', `other.${testSuffix}@example.com`, 'Engineering', 'QA', 'ACTIVE']
+            'INSERT INTO employees (id, name, email, department, position, status, join_date) VALUES (?, ?, ?, ?, ?, ?, "2026-01-01")',
+            [testEmpId, 'Duplicate PK Employee', `other.${testSuffix}@example.com`, 'Engineering', 'QA', 'ACTIVE']
           );
         }, (err: any) => err.code === 'ER_DUP_ENTRY');
       } finally {
@@ -139,8 +139,8 @@ describe('Phase 7.3: Database & Data Integrity Hardening', () => {
       try {
         await assert.rejects(async () => {
           await conn.query(
-            'INSERT INTO employees (id, empCode, firstName, lastName, email, department, jobPosition, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-            [`${testEmpId}-DIFF`, `CODE-DIFF-${testSuffix}`, 'Duplicate Email', 'Employee', testEmpEmail, 'Engineering', 'QA', 'ACTIVE']
+            'INSERT INTO employees (id, name, email, department, position, status, join_date) VALUES (?, ?, ?, ?, ?, ?, "2026-01-01")',
+            [`${testEmpId}-DIFF`, 'Duplicate Email Employee', testEmpEmail, 'Engineering', 'QA', 'ACTIVE']
           );
         }, (err: any) => err.code === 'ER_DUP_ENTRY');
       } finally {

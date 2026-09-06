@@ -76,9 +76,9 @@ describe('PHASE 5.2 — Payrun Compute Workflow', () => {
 
     // Insert an INACTIVE employee fixture to test exclusion
     await executeQuery(
-      `INSERT INTO employees (id, empCode, firstName, lastName, email, department, jobPosition, status, bankAccountNo)
-       VALUES (?, ?, 'Terminated', ?, ?, 'Engineering', 'Former Engineer', 'INACTIVE', '•••• 9999')`,
-      [terminatedEmpId, terminatedEmpId, `User ${testSuffix}`, `term_${testSuffix}@company.com`]
+      `INSERT INTO employees (id, name, email, department, position, status, join_date, bank_account)
+       VALUES (?, ?, ?, 'Engineering', 'Former Engineer', 'INACTIVE', '2026-01-01', '•••• 9999')`,
+      [terminatedEmpId, `Terminated User ${testSuffix}`, `term_${testSuffix}@company.com`]
     );
     await executeQuery(
       `INSERT INTO contracts (id, employee_id, salary_structure_id, working_schedule_id, wage, start_date, status)
@@ -88,9 +88,9 @@ describe('PHASE 5.2 — Payrun Compute Workflow', () => {
 
     // Insert an ACTIVE employee whose contract is FUTURE (starts 2027-01-01, outside 2026-09)
     await executeQuery(
-      `INSERT INTO employees (id, empCode, firstName, lastName, email, department, jobPosition, status, bankAccountNo)
-       VALUES (?, ?, 'Future', ?, ?, 'Product', 'Future PM', 'ACTIVE', '•••• 8888')`,
-      [futureContractEmpId, futureContractEmpId, `Hire ${testSuffix}`, `future_${testSuffix}@company.com`]
+      `INSERT INTO employees (id, name, email, department, position, status, join_date, bank_account)
+       VALUES (?, ?, ?, 'Product', 'Future PM', 'ACTIVE', '2026-01-01', '•••• 8888')`,
+      [futureContractEmpId, `Future Hire ${testSuffix}`, `future_${testSuffix}@company.com`]
     );
     await executeQuery(
       `INSERT INTO contracts (id, employee_id, salary_structure_id, working_schedule_id, wage, start_date, status)
