@@ -131,6 +131,14 @@ router.post('/', requireAdmin, async (req: Request, res: Response): Promise<void
     }
   }
 
+  // ── Optional dateOfBirth format validation ──
+  if (body.dateOfBirth !== undefined && body.dateOfBirth !== null && body.dateOfBirth !== '') {
+    if (!isValidDateString(body.dateOfBirth)) {
+      res.status(400).json({ success: false, message: 'dateOfBirth must be a valid date in YYYY-MM-DD format.' });
+      return;
+    }
+  }
+
   // ── Optional employeeType validation ──
   const rawEmpType = (body.employeeType || (req.body as Record<string, unknown>).employee_type) as string | undefined;
   if (rawEmpType !== undefined && rawEmpType !== null && rawEmpType !== '') {
@@ -171,16 +179,24 @@ router.post('/', requireAdmin, async (req: Request, res: Response): Promise<void
       ? (req.body.bankAccountNo as string).trim()
       : null;
 
+  const rawReq = req.body as Record<string, unknown>;
   const input: CreateEmployeeInput = {
     name:        fullName,
+    firstName:   isNonEmptyString(rawReq.firstName as string) ? (rawReq.firstName as string).trim() : undefined,
+    lastName:    isNonEmptyString(rawReq.lastName as string) ? (rawReq.lastName as string).trim() : undefined,
     email:       emailStr,
     department:  (body.department as string).trim(),
     position,
+    jobPosition: position,
     gender:      body.gender ? String(body.gender).trim().toUpperCase() : null,
+    dateOfBirth: isNonEmptyString(body.dateOfBirth) ? body.dateOfBirth.trim() : undefined,
     status:      body.status,
     employeeType: rawEmpType ? String(rawEmpType).trim().toUpperCase() : undefined,
     joinDate:    isNonEmptyString(body.joinDate) ? body.joinDate.trim() : undefined,
+    workingSchedule: isNonEmptyString(rawReq.workingSchedule as string) ? (rawReq.workingSchedule as string).trim() : undefined,
+    bankName:    isNonEmptyString(rawReq.bankName as string) ? (rawReq.bankName as string).trim() : undefined,
     bankAccount,
+    bankAccountNo: bankAccount,
   };
 
   try {
@@ -249,19 +265,30 @@ router.patch('/:id', authorize(PERMISSIONS.EMPLOYEE_WRITE), async (req: Request,
     }
   }
 
+  if (body.dateOfBirth !== undefined && body.dateOfBirth !== null && body.dateOfBirth !== '') {
+    if (!isValidDateString(body.dateOfBirth)) {
+      res.status(400).json({ success: false, message: 'dateOfBirth must be a valid date in YYYY-MM-DD format.' });
+      return;
+    }
+  }
+
   // Accept legacy field names from older clients
   const rawBody = req.body as Record<string, unknown>;
   const input: UpdateEmployeeInput = {
     name:        isNonEmptyString(body.name) ? body.name.trim() : undefined,
+    firstName:   isNonEmptyString(rawBody.firstName as string) ? (rawBody.firstName as string).trim() : undefined,
+    lastName:    isNonEmptyString(rawBody.lastName as string) ? (rawBody.lastName as string).trim() : undefined,
     email:       isNonEmptyString(body.email) ? body.email.trim().toLowerCase() : undefined,
     department:  isNonEmptyString(body.department) ? body.department.trim() : undefined,
     position:    isNonEmptyString(body.position) ? body.position.trim()
                    : isNonEmptyString(rawBody.jobPosition as string) ? (rawBody.jobPosition as string).trim()
                    : undefined,
     gender:      body.gender !== undefined ? (body.gender ? String(body.gender).trim().toUpperCase() : null) : undefined,
+    dateOfBirth: isNonEmptyString(body.dateOfBirth) ? body.dateOfBirth.trim() : undefined,
     status:      isNonEmptyString(body.status) ? body.status.trim().toUpperCase() : undefined,
     employeeType: body.employeeType ? String(body.employeeType).trim().toUpperCase() : undefined,
     joinDate:    isNonEmptyString(body.joinDate) ? body.joinDate.trim() : undefined,
+    bankName:    isNonEmptyString(rawBody.bankName as string) ? (rawBody.bankName as string).trim() : undefined,
     bankAccount: isNonEmptyString(body.bankAccount) ? body.bankAccount.trim()
                    : isNonEmptyString(rawBody.bankAccountNo as string) ? (rawBody.bankAccountNo as string).trim()
                    : undefined,

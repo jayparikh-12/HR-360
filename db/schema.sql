@@ -13,8 +13,10 @@ CREATE TABLE IF NOT EXISTS employees (
     department VARCHAR(100) NOT NULL,
     position VARCHAR(100) NOT NULL,
     gender VARCHAR(20) DEFAULT NULL,
+    dateOfBirth DATE DEFAULT NULL,
     status VARCHAR(20) DEFAULT 'ACTIVE', -- ACTIVE, PROBATION, TERMINATED, INACTIVE
     join_date DATE NOT NULL,
+    bank_name VARCHAR(100) DEFAULT NULL,
     bank_account VARCHAR(50),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_employees_dept_status (department, status)

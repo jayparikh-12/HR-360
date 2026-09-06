@@ -55,6 +55,53 @@ interface EmployeesProps {
   onRefresh?: () => void;
 }
 
+// ── Standard Selection Options ────────────────────────────────────────────────
+
+export const DEFAULT_DEPARTMENTS = [
+  'Engineering',
+  'Product',
+  'Finance',
+  'Human Resources',
+  'Operations',
+  'Sales & Marketing',
+  'Management',
+  'Quality Assurance',
+  'General',
+];
+
+export const DEFAULT_JOB_POSITIONS = [
+  'Senior Backend Engineer',
+  'Senior Full-Stack Engineer',
+  'DevOps Architect',
+  'Lead Product Manager',
+  'Product Designer',
+  'Finance Director',
+  'Senior Payroll Specialist',
+  'Accounts Associate',
+  'HR Director',
+  'HR Operations Specialist',
+  'VP of People Operations',
+  'Site Reliability Lead',
+  'QA Engineer',
+  'QA Automation Engineer',
+  'Regional Sales Director',
+  'Senior Account Executive',
+  'Staff',
+];
+
+export const DEFAULT_BANK_NAMES = [
+  'Chase',
+  'Bank of America',
+  'Wells Fargo',
+  'Citibank',
+  'Capital One',
+  'PNC Bank',
+  'Silicon Valley Bank',
+  'M&T Bank',
+  'US Bank',
+  'Truist',
+];
+
 // ── Add Employee Form ─────────────────────────────────────────────────────────
 
 const EMPTY_FORM: CreateEmployeePayload = {
@@ -64,23 +111,42 @@ const EMPTY_FORM: CreateEmployeePayload = {
   department: '',
   jobPosition: '',
   gender: null,
+  dateOfBirth: '',
   employeeType: 'FULL_TIME',
   status: 'ACTIVE',
   workingSchedule: 'Standard 40h Full-Time',
+  bankName: '',
+  bankAccountNo: '',
 };
 
 interface AddEmployeeFormProps {
   onClose: () => void;
   onCreated: () => void;
+  employees?: Employee[];
 }
 
-const AddEmployeeForm: React.FC<AddEmployeeFormProps> = ({ onClose, onCreated }) => {
+const AddEmployeeForm: React.FC<AddEmployeeFormProps> = ({ onClose, onCreated, employees = [] }) => {
   const [form, setForm] = useState<CreateEmployeePayload>({ ...EMPTY_FORM });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const set = (field: keyof CreateEmployeePayload, value: any) =>
     setForm((prev) => ({ ...prev, [field]: value }));
+
+  const departmentList = useMemo(() => {
+    const list = Array.from(new Set([...DEFAULT_DEPARTMENTS, ...employees.map((e) => e.department).filter(Boolean)]));
+    return list.sort();
+  }, [employees]);
+
+  const positionList = useMemo(() => {
+    const list = Array.from(new Set([...DEFAULT_JOB_POSITIONS, ...employees.map((e) => e.position).filter(Boolean)]));
+    return list.sort();
+  }, [employees]);
+
+  const bankList = useMemo(() => {
+    const list = Array.from(new Set([...DEFAULT_BANK_NAMES, ...employees.map((e) => e.bankName).filter(Boolean) as string[]]));
+    return list.sort();
+  }, [employees]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -105,11 +171,11 @@ const AddEmployeeForm: React.FC<AddEmployeeFormProps> = ({ onClose, onCreated })
       return;
     }
     if (!form.department.trim()) {
-      setError('Department is required.');
+      setError('Department is required. Please select a department.');
       return;
     }
     if (!form.jobPosition.trim()) {
-      setError('Job position is required.');
+      setError('Job position is required. Please select a job position.');
       return;
     }
 
@@ -122,6 +188,7 @@ const AddEmployeeForm: React.FC<AddEmployeeFormProps> = ({ onClose, onCreated })
         department: form.department.trim(),
         jobPosition: form.jobPosition.trim(),
         ...(form.gender ? { gender: form.gender } : {}),
+        ...(form.dateOfBirth?.trim() ? { dateOfBirth: form.dateOfBirth.trim() } : {}),
         employeeType: form.employeeType || 'FULL_TIME',
         status: form.status || 'ACTIVE',
         ...(form.workingSchedule?.trim() ? { workingSchedule: form.workingSchedule.trim() } : {}),
@@ -164,6 +231,8 @@ const AddEmployeeForm: React.FC<AddEmployeeFormProps> = ({ onClose, onCreated })
     color: 'var(--slate-900)',
     outline: 'none',
     background: '#fff',
+    width: '100%',
+    boxSizing: 'border-box',
   };
 
   return (
@@ -176,7 +245,7 @@ const AddEmployeeForm: React.FC<AddEmployeeFormProps> = ({ onClose, onCreated })
     >
       <div
         className="card"
-        style={{ width: '100%', maxWidth: '520px', maxHeight: '90vh', overflowY: 'auto', padding: '28px', margin: '16px' }}
+        style={{ width: '100%', maxWidth: '540px', maxHeight: '90vh', overflowY: 'auto', padding: '28px', margin: '16px' }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
           <h2 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--slate-900)' }}>Add New Employee</h2>
@@ -209,19 +278,56 @@ const AddEmployeeForm: React.FC<AddEmployeeFormProps> = ({ onClose, onCreated })
             </div>
           </div>
 
-          <div style={fieldStyle}>
-            <label style={labelStyle}>Work Email *</label>
-            <input style={inputStyle} type="email" value={form.email} onChange={(e) => set('email', e.target.value)} placeholder="john.doe@company.com" required disabled={submitting} />
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            <div style={fieldStyle}>
+              <label style={labelStyle}>Work Email *</label>
+              <input style={inputStyle} type="email" value={form.email} onChange={(e) => set('email', e.target.value)} placeholder="john.doe@company.com" required disabled={submitting} />
+            </div>
+            <div style={fieldStyle}>
+              <label style={labelStyle}>Date of Birth</label>
+              <input
+                style={inputStyle}
+                type="date"
+                value={form.dateOfBirth ?? ''}
+                onChange={(e) => set('dateOfBirth', e.target.value)}
+                max={new Date().toISOString().split('T')[0]}
+                disabled={submitting}
+              />
+            </div>
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
             <div style={fieldStyle}>
               <label style={labelStyle}>Department *</label>
-              <input style={inputStyle} value={form.department} onChange={(e) => set('department', e.target.value)} placeholder="Engineering" required disabled={submitting} />
+              <select
+                className="role-select"
+                style={{ ...inputStyle, cursor: 'pointer' }}
+                value={form.department}
+                onChange={(e) => set('department', e.target.value)}
+                required
+                disabled={submitting}
+              >
+                <option value="">Select Department</option>
+                {departmentList.map((d) => (
+                  <option key={d} value={d}>{d}</option>
+                ))}
+              </select>
             </div>
             <div style={fieldStyle}>
               <label style={labelStyle}>Job Position *</label>
-              <input style={inputStyle} value={form.jobPosition} onChange={(e) => set('jobPosition', e.target.value)} placeholder="Senior Engineer" required disabled={submitting} />
+              <select
+                className="role-select"
+                style={{ ...inputStyle, cursor: 'pointer' }}
+                value={form.jobPosition}
+                onChange={(e) => set('jobPosition', e.target.value)}
+                required
+                disabled={submitting}
+              >
+                <option value="">Select Job Position</option>
+                {positionList.map((p) => (
+                  <option key={p} value={p}>{p}</option>
+                ))}
+              </select>
             </div>
           </div>
 
@@ -230,7 +336,7 @@ const AddEmployeeForm: React.FC<AddEmployeeFormProps> = ({ onClose, onCreated })
               <label style={labelStyle}>Gender</label>
               <select
                 className="role-select"
-                style={{ fontSize: '13px', padding: '7px 10px' }}
+                style={{ ...inputStyle, cursor: 'pointer' }}
                 value={form.gender || ''}
                 onChange={(e) => set('gender', (e.target.value as Gender) || null)}
                 disabled={submitting}
@@ -245,7 +351,7 @@ const AddEmployeeForm: React.FC<AddEmployeeFormProps> = ({ onClose, onCreated })
             </div>
             <div style={fieldStyle}>
               <label style={labelStyle}>Employee Type</label>
-              <select className="role-select" style={{ fontSize: '13px', padding: '7px 10px' }} value={form.employeeType} onChange={(e) => set('employeeType', e.target.value as CreateEmployeePayload['employeeType'])} disabled={submitting}>
+              <select className="role-select" style={{ ...inputStyle, cursor: 'pointer' }} value={form.employeeType} onChange={(e) => set('employeeType', e.target.value as CreateEmployeePayload['employeeType'])} disabled={submitting}>
                 <option value="FULL_TIME">Full Time</option>
                 <option value="PART_TIME">Part Time</option>
                 <option value="CONTRACT">Contract</option>
@@ -256,7 +362,7 @@ const AddEmployeeForm: React.FC<AddEmployeeFormProps> = ({ onClose, onCreated })
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
             <div style={fieldStyle}>
               <label style={labelStyle}>Status</label>
-              <select className="role-select" style={{ fontSize: '13px', padding: '7px 10px' }} value={form.status} onChange={(e) => set('status', e.target.value as CreateEmployeePayload['status'])} disabled={submitting}>
+              <select className="role-select" style={{ ...inputStyle, cursor: 'pointer' }} value={form.status} onChange={(e) => set('status', e.target.value as CreateEmployeePayload['status'])} disabled={submitting}>
                 <option value="ACTIVE">Active</option>
                 <option value="INACTIVE">Inactive</option>
               </select>
@@ -270,7 +376,18 @@ const AddEmployeeForm: React.FC<AddEmployeeFormProps> = ({ onClose, onCreated })
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
             <div style={fieldStyle}>
               <label style={labelStyle}>Bank Name</label>
-              <input style={inputStyle} value={form.bankName ?? ''} onChange={(e) => set('bankName', e.target.value)} placeholder="Chase" disabled={submitting} />
+              <select
+                className="role-select"
+                style={{ ...inputStyle, cursor: 'pointer' }}
+                value={form.bankName ?? ''}
+                onChange={(e) => set('bankName', e.target.value)}
+                disabled={submitting}
+              >
+                <option value="">Select Bank Name</option>
+                {bankList.map((b) => (
+                  <option key={b} value={b}>{b}</option>
+                ))}
+              </select>
             </div>
             <div style={fieldStyle}>
               <label style={labelStyle}>Bank Account No.</label>
@@ -299,18 +416,36 @@ interface EditEmployeeModalProps {
   employee: Employee;
   onClose: () => void;
   onUpdated: (updated?: Employee) => void;
+  employees?: Employee[];
 }
 
-const EditEmployeeModal: React.FC<EditEmployeeModalProps> = ({ employee, onClose, onUpdated }) => {
+const EditEmployeeModal: React.FC<EditEmployeeModalProps> = ({ employee, onClose, onUpdated, employees = [] }) => {
   const [status, setStatus] = useState<'ACTIVE' | 'INACTIVE'>(
     employee.status === 'TERMINATED' ? 'INACTIVE' : 'ACTIVE'
   );
   const [department, setDepartment] = useState(employee.department || '');
   const [jobPosition, setJobPosition] = useState(employee.position || '');
   const [gender, setGender] = useState<Gender | ''>((employee.gender as Gender) || '');
+  const [dateOfBirth, setDateOfBirth] = useState(employee.dateOfBirth || '');
   const [workingSchedule, setWorkingSchedule] = useState(employee.schedule || '');
+  const [bankName, setBankName] = useState(employee.bankName || '');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const departmentList = useMemo(() => {
+    const list = Array.from(new Set([...DEFAULT_DEPARTMENTS, ...employees.map((e) => e.department).filter(Boolean)]));
+    return list.sort();
+  }, [employees]);
+
+  const positionList = useMemo(() => {
+    const list = Array.from(new Set([...DEFAULT_JOB_POSITIONS, ...employees.map((e) => e.position).filter(Boolean)]));
+    return list.sort();
+  }, [employees]);
+
+  const bankList = useMemo(() => {
+    const list = Array.from(new Set([...DEFAULT_BANK_NAMES, ...employees.map((e) => e.bankName).filter(Boolean) as string[]]));
+    return list.sort();
+  }, [employees]);
 
   const handleSave = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -332,6 +467,8 @@ const EditEmployeeModal: React.FC<EditEmployeeModalProps> = ({ employee, onClose
         department: department.trim(),
         jobPosition: jobPosition.trim(),
         gender: gender || null,
+        dateOfBirth: dateOfBirth ? dateOfBirth.trim() : null,
+        bankName: bankName ? bankName.trim() : null,
         ...(workingSchedule.trim() ? { workingSchedule: workingSchedule.trim() } : {}),
       };
       const updated = await employeesApi.update(employee.id, payload);
@@ -369,6 +506,8 @@ const EditEmployeeModal: React.FC<EditEmployeeModalProps> = ({ employee, onClose
     color: 'var(--slate-900)',
     outline: 'none',
     background: '#fff',
+    width: '100%',
+    boxSizing: 'border-box',
   };
 
   return (
@@ -379,7 +518,7 @@ const EditEmployeeModal: React.FC<EditEmployeeModalProps> = ({ employee, onClose
       }}
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="card" style={{ width: '100%', maxWidth: '420px', maxHeight: '90vh', overflowY: 'auto', padding: '24px', margin: '16px' }}>
+      <div className="card" style={{ width: '100%', maxWidth: '440px', maxHeight: '90vh', overflowY: 'auto', padding: '24px', margin: '16px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
           <h2 style={{ fontSize: '15px', fontWeight: 700 }}>Edit Employee Details</h2>
           <button type="button" className="btn btn-secondary btn-sm" onClick={onClose} disabled={submitting} style={{ padding: '4px 8px' }}>
@@ -402,7 +541,7 @@ const EditEmployeeModal: React.FC<EditEmployeeModalProps> = ({ employee, onClose
             <label style={labelStyle}>Status</label>
             <select
               className="role-select"
-              style={{ width: '100%', fontSize: '13px', padding: '7px 10px' }}
+              style={{ ...inputStyle, cursor: 'pointer' }}
               value={status}
               onChange={(e) => setStatus(e.target.value as 'ACTIVE' | 'INACTIVE')}
               disabled={submitting}
@@ -414,33 +553,43 @@ const EditEmployeeModal: React.FC<EditEmployeeModalProps> = ({ employee, onClose
 
           <div style={fieldStyle}>
             <label style={labelStyle}>Department *</label>
-            <input
-              style={inputStyle}
+            <select
+              className="role-select"
+              style={{ ...inputStyle, cursor: 'pointer' }}
               value={department}
               onChange={(e) => setDepartment(e.target.value)}
-              placeholder="e.g. Engineering"
               required
               disabled={submitting}
-            />
+            >
+              <option value="">Select Department</option>
+              {departmentList.map((d) => (
+                <option key={d} value={d}>{d}</option>
+              ))}
+            </select>
           </div>
 
           <div style={fieldStyle}>
             <label style={labelStyle}>Job Position *</label>
-            <input
-              style={inputStyle}
+            <select
+              className="role-select"
+              style={{ ...inputStyle, cursor: 'pointer' }}
               value={jobPosition}
               onChange={(e) => setJobPosition(e.target.value)}
-              placeholder="e.g. Senior Backend Engineer"
               required
               disabled={submitting}
-            />
+            >
+              <option value="">Select Job Position</option>
+              {positionList.map((p) => (
+                <option key={p} value={p}>{p}</option>
+              ))}
+            </select>
           </div>
 
           <div style={fieldStyle}>
             <label style={labelStyle}>Gender</label>
             <select
               className="role-select"
-              style={{ width: '100%', fontSize: '13px', padding: '7px 10px' }}
+              style={{ ...inputStyle, cursor: 'pointer' }}
               value={gender}
               onChange={(e) => setGender((e.target.value as Gender) || '')}
               disabled={submitting}
@@ -455,6 +604,18 @@ const EditEmployeeModal: React.FC<EditEmployeeModalProps> = ({ employee, onClose
           </div>
 
           <div style={fieldStyle}>
+            <label style={labelStyle}>Date of Birth</label>
+            <input
+              style={inputStyle}
+              type="date"
+              value={dateOfBirth}
+              onChange={(e) => setDateOfBirth(e.target.value)}
+              max={new Date().toISOString().split('T')[0]}
+              disabled={submitting}
+            />
+          </div>
+
+          <div style={fieldStyle}>
             <label style={labelStyle}>Working Schedule</label>
             <input
               style={inputStyle}
@@ -463,6 +624,22 @@ const EditEmployeeModal: React.FC<EditEmployeeModalProps> = ({ employee, onClose
               placeholder="e.g. Standard 40h Full-Time"
               disabled={submitting}
             />
+          </div>
+
+          <div style={fieldStyle}>
+            <label style={labelStyle}>Bank Name</label>
+            <select
+              className="role-select"
+              style={{ ...inputStyle, cursor: 'pointer' }}
+              value={bankName}
+              onChange={(e) => setBankName(e.target.value)}
+              disabled={submitting}
+            >
+              <option value="">Select Bank Name</option>
+              {bankList.map((b) => (
+                <option key={b} value={b}>{b}</option>
+              ))}
+            </select>
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '16px' }}>
@@ -862,6 +1039,10 @@ const Employee360Hub: React.FC<Employee360HubProps> = ({
                 <span style={{ fontWeight: 600 }}>{formatGender(employee.gender)}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: 'var(--slate-500)' }}>Date of Birth</span>
+                <span style={{ fontWeight: 600 }}>{employee.dateOfBirth || '—'}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span style={{ color: 'var(--slate-500)' }}>Work Email</span>
                 <span style={{ fontWeight: 600 }}>{employee.email}</span>
               </div>
@@ -900,7 +1081,9 @@ const Employee360Hub: React.FC<Employee360HubProps> = ({
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span style={{ color: 'var(--slate-500)' }}>Disbursement Bank</span>
-                <span style={{ fontWeight: 600 }}>{employee.bankAccount || '—'}</span>
+                <span style={{ fontWeight: 600 }}>
+                  {employee.bankName ? `${employee.bankName} (${employee.bankAccount || '—'})` : (employee.bankAccount || '—')}
+                </span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span style={{ color: 'var(--slate-500)' }}>Status</span>
@@ -1303,6 +1486,7 @@ export const Employees: React.FC<EmployeesProps> = ({
         <AddEmployeeForm
           onClose={() => setShowAddForm(false)}
           onCreated={handleCreated}
+          employees={employees}
         />
       )}
 
@@ -1417,6 +1601,7 @@ export const Employees: React.FC<EmployeesProps> = ({
                   <tr>
                     <th>Employee</th>
                     <th>Department &amp; Role</th>
+                    <th>Date of Birth</th>
                     <th>Contract Wage</th>
                     <th>Attendance</th>
                     <th>Status</th>
@@ -1426,7 +1611,7 @@ export const Employees: React.FC<EmployeesProps> = ({
                 <tbody>
                   {filtered.length === 0 ? (
                     <tr>
-                      <td colSpan={6} style={{ textAlign: 'center', padding: '48px 20px', color: 'var(--slate-400)' }}>
+                      <td colSpan={7} style={{ textAlign: 'center', padding: '48px 20px', color: 'var(--slate-400)' }}>
                         {employees.length === 0 ? (
                           <div>
                             <div style={{ fontSize: '15px', fontWeight: 600, color: 'var(--slate-700)', marginBottom: '4px' }}>
@@ -1478,6 +1663,11 @@ export const Employees: React.FC<EmployeesProps> = ({
                         <td>
                           <div style={{ fontWeight: 500 }}>{emp.department}</div>
                           <div style={{ fontSize: '11px', color: 'var(--slate-500)' }}>{emp.position}</div>
+                        </td>
+                        <td>
+                          <div style={{ fontSize: '13px', color: 'var(--slate-700)', fontWeight: 500 }}>
+                            {emp.dateOfBirth || '—'}
+                          </div>
                         </td>
                         <td>
                           <div style={{ fontWeight: 600 }}>₹{emp.wage.toLocaleString('en-IN')}/mo</div>

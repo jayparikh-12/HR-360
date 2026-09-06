@@ -29,12 +29,13 @@ export interface CreateEmployeePayload {
   department: string;
   jobPosition: string;
   gender?: Gender | null;
+  dateOfBirth?: string | null;
   employeeType?: 'FULL_TIME' | 'PART_TIME' | 'CONTRACT';
   status?: 'ACTIVE' | 'INACTIVE';
   phone?: string;
   workingSchedule?: string;
-  bankName?: string;
-  bankAccountNo?: string;
+  bankName?: string | null;
+  bankAccountNo?: string | null;
 }
 
 /** Fields accepted by PATCH /api/employees/:id — all optional */

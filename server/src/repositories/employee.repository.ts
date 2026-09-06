@@ -22,8 +22,10 @@ export interface EmployeeRow extends RowDataPacket {
   department: string;
   position: string;
   gender: string | null;
+  date_of_birth: Date | string | null;
   status: string;
   join_date: Date | string | null;
+  bank_name: string | null;
   bank_account: string | null;
   created_at: Date | string | null;
   active_contract_id: string | null;
@@ -39,12 +41,14 @@ export interface EmployeeRecord {
   department: string;
   position: string;
   gender?: 'MALE' | 'FEMALE' | 'NON_BINARY' | 'OTHER' | 'PREFER_NOT_TO_SAY' | null;
+  dateOfBirth?: string | null;
   status: 'ACTIVE' | 'PROBATION' | 'TERMINATED';
   avatarInitials: string;
   joinDate: string;
   activeContractId: string | null;
   wage: number;
   schedule: string;
+  bankName?: string | null;
   bankAccount: string;
   attendanceRate: number;
   leaveBalance: number;
@@ -60,6 +64,7 @@ export interface CreateEmployeeInput {
   position?: string;
   jobPosition?: string;
   gender?: string | null;
+  dateOfBirth?: string | null;
   status?: string;
   joinDate?: string | null;
   bankAccount?: string | null;
@@ -81,6 +86,7 @@ export interface UpdateEmployeeInput {
   position?: string;
   jobPosition?: string;
   gender?: string | null;
+  dateOfBirth?: string | null;
   status?: string;
   joinDate?: string | null;
   bankAccount?: string | null;
@@ -131,12 +137,14 @@ function mapRowToRecord(row: EmployeeRow): EmployeeRecord {
     department: row.department,
     position: row.position,
     gender: (row.gender as EmployeeRecord['gender']) ?? null,
+    dateOfBirth: normalizeDate(row.date_of_birth),
     status: normalizeStatus(row.status),
     avatarInitials: deriveInitials(fullName),
     joinDate: normalizeDate(row.join_date || row.created_at),
     activeContractId: row.active_contract_id ?? null,
     wage,
     schedule: row.working_schedule || 'Standard 40h',
+    bankName: row.bank_name || null,
     bankAccount: row.bank_account || '—',
     attendanceRate: 0,
     leaveBalance: 0,
@@ -154,8 +162,10 @@ const EMPLOYEE_SELECT = `
     e.department,
     e.jobPosition AS position,
     e.gender,
+    e.dateOfBirth AS date_of_birth,
     e.status,
     COALESCE(ws.name, e.workingSchedule, 'Standard 40h') AS working_schedule,
+    e.bankName AS bank_name,
     e.bankAccountNo AS bank_account,
     e.createdAt AS join_date,
     e.createdAt AS created_at,
@@ -247,9 +257,9 @@ export async function createEmployee(input: CreateEmployeeInput): Promise<Employ
   await executeQuery<ResultSetHeader>(
     `INSERT INTO employees
        (id, empCode, firstName, lastName, email, phone, department, jobPosition,
-        gender, employeeType, status, workingSchedule, managerId, bankName, bankAccountNo,
+        gender, dateOfBirth, employeeType, status, workingSchedule, managerId, bankName, bankAccountNo,
         ifscRouting, createdAt, updatedAt)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       id,
       empCode,
@@ -260,11 +270,12 @@ export async function createEmployee(input: CreateEmployeeInput): Promise<Employ
       department,
       position,
       gender,
+      input.dateOfBirth ? input.dateOfBirth.trim() : null,
       input.employeeType ?? 'FULL_TIME',
       dbStatus,
       schedule,
       input.managerId?.trim() ?? null,
-      input.bankName?.trim() ?? null,
+      input.bankName ? input.bankName.trim() : null,
       bankAccount,
       input.ifscRouting?.trim() ?? null,
       createdAt,
@@ -327,6 +338,11 @@ export async function updateEmployee(
     values.push(input.gender ? input.gender.trim().toUpperCase() : null);
   }
 
+  if (input.dateOfBirth !== undefined) {
+    setClauses.push('dateOfBirth = ?');
+    values.push(input.dateOfBirth ? input.dateOfBirth.trim() : null);
+  }
+
   if (input.status !== undefined) {
     const s = input.status.trim().toUpperCase();
     setClauses.push('status = ?');
@@ -336,6 +352,11 @@ export async function updateEmployee(
   if (input.workingSchedule !== undefined) {
     setClauses.push('workingSchedule = ?');
     values.push(input.workingSchedule ? input.workingSchedule.trim() : null);
+  }
+
+  if (input.bankName !== undefined) {
+    setClauses.push('bankName = ?');
+    values.push(input.bankName ? input.bankName.trim() : null);
   }
 
   const bank = input.bankAccountNo || input.bankAccount;

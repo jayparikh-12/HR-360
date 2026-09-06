@@ -19,12 +19,14 @@ export interface Employee {
   department: string;
   position: string;
   gender?: Gender | null;
+  dateOfBirth?: string | null;
   status: 'ACTIVE' | 'PROBATION' | 'TERMINATED';
   avatarInitials: string;
   joinDate: string;
   activeContractId?: string;
   wage: number;
   schedule: string;
+  bankName?: string | null;
   bankAccount: string;
   attendanceRate: number;
   leaveBalance: number;
