@@ -118,9 +118,7 @@ export const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ childr
   return <>{children}</>;
 };
 
-// ── Main authenticated shell ───────────────────────────────────────────────────
-
-const AppShell: React.FC = () => {
+export const AppShell: React.FC = () => {
   const { isAuthenticated, isLoading, user, displayRole, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -320,20 +318,15 @@ export const AppRoutes: React.FC = () => {
       <Route path="/404" element={<Navigate to="/not-found" replace />} />
       <Route path="/500" element={<Navigate to="/server-error" replace />} />
 
-      {/* Authenticated ERP Application Routes (Protected inside AppLayout) */}
-      <Route path="/dashboard" element={<ProtectedRoute><AppShell /></ProtectedRoute>} />
-      <Route path="/employees" element={<ProtectedRoute><AppShell /></ProtectedRoute>} />
-      <Route path="/payruns" element={<ProtectedRoute><AppShell /></ProtectedRoute>} />
-      <Route path="/payslips" element={<ProtectedRoute><AppShell /></ProtectedRoute>} />
-      <Route path="/contracts" element={<ProtectedRoute><AppShell /></ProtectedRoute>} />
-      <Route path="/schedules" element={<ProtectedRoute><AppShell /></ProtectedRoute>} />
-      <Route path="/attendance" element={<ProtectedRoute><AppShell /></ProtectedRoute>} />
-      <Route path="/time-off" element={<ProtectedRoute><AppShell /></ProtectedRoute>} />
-      <Route path="/salary-rules" element={<ProtectedRoute><AppShell /></ProtectedRoute>} />
-      <Route path="/settings" element={<ProtectedRoute><AppShell /></ProtectedRoute>} />
-
-      {/* Unknown root routes outside AppLayout navigate to standalone /not-found */}
-      <Route path="*" element={<Navigate to="/not-found" replace />} />
+      {/* Authenticated ERP Application Routes (Protected inside AppShell) */}
+      <Route
+        path="/*"
+        element={
+          <ProtectedRoute>
+            <AppShell />
+          </ProtectedRoute>
+        }
+      />
     </Routes>
   );
 };
