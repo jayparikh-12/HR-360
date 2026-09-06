@@ -176,7 +176,7 @@ const AddEmployeeForm: React.FC<AddEmployeeFormProps> = ({ onClose, onCreated })
     >
       <div
         className="card"
-        style={{ width: '520px', maxHeight: '90vh', overflowY: 'auto', padding: '28px' }}
+        style={{ width: '100%', maxWidth: '520px', maxHeight: '90vh', overflowY: 'auto', padding: '28px', margin: '16px' }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
           <h2 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--slate-900)' }}>Add New Employee</h2>
@@ -379,7 +379,7 @@ const EditEmployeeModal: React.FC<EditEmployeeModalProps> = ({ employee, onClose
       }}
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="card" style={{ width: '420px', padding: '24px' }}>
+      <div className="card" style={{ width: '100%', maxWidth: '420px', maxHeight: '90vh', overflowY: 'auto', padding: '24px', margin: '16px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
           <h2 style={{ fontSize: '15px', fontWeight: 700 }}>Edit Employee Details</h2>
           <button type="button" className="btn btn-secondary btn-sm" onClick={onClose} disabled={submitting} style={{ padding: '4px 8px' }}>
