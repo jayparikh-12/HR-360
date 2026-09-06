@@ -30,7 +30,7 @@ import { DetailedPayslipModal } from '../components/DetailedPayslipModal';
 import { formatCurrency, formatDate } from '../utils/formatters';
 import { getMaxDobString, validateDateOfBirth } from '../utils/validators';
 
-export function formatGender(gender?: string | null): string {
+function formatGender(gender?: string | null): string {
   if (!gender) return '—';
   switch (gender.toUpperCase()) {
     case 'MALE':
@@ -58,7 +58,7 @@ interface EmployeesProps {
 
 // ── Standard Selection Options ────────────────────────────────────────────────
 
-export const DEFAULT_DEPARTMENTS = [
+const DEFAULT_DEPARTMENTS = [
   'Engineering',
   'Product',
   'Finance',
@@ -70,7 +70,7 @@ export const DEFAULT_DEPARTMENTS = [
   'General',
 ];
 
-export const DEFAULT_JOB_POSITIONS = [
+const DEFAULT_JOB_POSITIONS = [
   'Senior Backend Engineer',
   'Senior Full-Stack Engineer',
   'DevOps Architect',
@@ -90,7 +90,7 @@ export const DEFAULT_JOB_POSITIONS = [
   'Staff',
 ];
 
-export const DEFAULT_BANK_NAMES = [
+const DEFAULT_BANK_NAMES = [
   'Chase',
   'Bank of America',
   'Wells Fargo',

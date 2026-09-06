@@ -66,9 +66,11 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
 
   return (
     <div className="login-page">
-      {/* Background Decorative Ambient Glows */}
+      {/* Background Decorative Ambient Glows & Grid */}
+      <div className="login-grid-overlay" />
       <div className="login-ambient-orb-1" />
       <div className="login-ambient-orb-2" />
+      <div className="login-ambient-orb-3" />
 
       {/* Top Bar Theme Toggle */}
       <div className="login-theme-toggle">
@@ -92,11 +94,13 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
         </button>
       </div>
 
-      {/* Centered Login Card */}
-      <div className="login-center-card">
-        {/* Header Branding */}
-        <div className="login-header">
-          <div className="login-logo-badge">P</div>
+      {/* Centered Login Card with Halo Glow */}
+      <div className="login-card-wrapper">
+        <div className="login-card-glow" />
+        <div className="login-center-card">
+          {/* Header Branding */}
+          <div className="login-header">
+            <div className="login-logo-badge">P</div>
           <div className="login-brand-name">
             <span className="login-brand-title">PeoplePay360</span>
             <span className="login-brand-pill">Enterprise</span>
@@ -217,7 +221,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
           {/* Submit Action */}
           <button
             type="submit"
-            className="btn btn-primary"
+            className="btn btn-primary login-submit-btn"
             style={{ 
               width: '100%', 
               height: '44px', 
@@ -238,11 +242,12 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
             ) : (
               <>
                 <span>Sign In</span>
-                <ArrowRight size={16} />
+                <ArrowRight size={16} className="login-btn-arrow" />
               </>
             )}
           </button>
         </form>
+      </div>
       </div>
     </div>
   );
