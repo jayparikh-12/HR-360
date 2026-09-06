@@ -18,13 +18,6 @@ import { getStoredToken } from '../api/client';
 import { getTokenRemainingMs } from '../utils/jwt';
 import type { UserRole } from '../types';
 
-interface HeaderProps {
-  currentRole: UserRole;
-  userName: string;
-  onRoleChange?: (role: UserRole) => void;
-  onLogout: () => void;
-}
-
 interface RoleProfile {
   initials: string;
   name: string;
@@ -37,9 +30,32 @@ interface RoleProfile {
   badgeBg: string;
 }
 
+interface HeaderProps {
+  currentRole: UserRole;
+  userName: string;
+  currentTab?: string;
+  onRoleChange?: (role: UserRole) => void;
+  onLogout: () => void;
+}
+
+const TAB_LABELS: Record<string, string> = {
+  dashboard: 'Dashboard',
+  employees: 'Employees',
+  contracts: 'Contracts',
+  schedules: 'Working Schedules',
+  attendance: 'Attendance',
+  'time-off': 'Time Off',
+  payruns: 'Payruns & Payroll',
+  payslips: 'Payslips',
+  'salary-rules': 'Salary Rules',
+  'salary-structures': 'Salary Structures',
+  settings: 'System Settings',
+};
+
 export const Header: React.FC<HeaderProps> = ({ 
   currentRole, 
   userName, 
+  currentTab,
   onLogout
 }) => {
   const { theme, toggleTheme } = useTheme();
@@ -190,26 +206,35 @@ export const Header: React.FC<HeaderProps> = ({
 
   return (
     <header className="header">
-      {/* Search */}
-      <div className="search-box">
-        <Search size={15} color="var(--text-subtle)" />
-        <input type="text" placeholder="Search employees, payroll, records..." aria-label="Global search" />
-        <kbd
-          style={{
-            fontSize: '10px',
-            padding: '2px 6px',
-            borderRadius: '4px',
-            background: 'var(--border-subtle)',
-            border: '1px solid var(--border-color)',
-            color: 'var(--text-subtle)',
-            fontWeight: 700,
-            letterSpacing: '0.05em',
-            lineHeight: '1.2',
-            userSelect: 'none',
-          }}
-        >
-          ⌘K
-        </kbd>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '18px' }}>
+        {currentTab && (
+          <div className="header-breadcrumb" style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: 600, color: 'var(--text-muted)' }}>
+            <span style={{ color: 'var(--primary)', fontWeight: 700 }}>ERP</span>
+            <span style={{ color: 'var(--slate-300)' }}>/</span>
+            <span style={{ color: 'var(--text-main)', fontWeight: 700 }}>{TAB_LABELS[currentTab] || 'Workspace'}</span>
+          </div>
+        )}
+        {/* Search */}
+        <div className="search-box">
+          <Search size={15} color="var(--text-subtle)" />
+          <input type="text" placeholder="Search employees, payroll, records..." aria-label="Global search" />
+          <kbd
+            style={{
+              fontSize: '10px',
+              padding: '2px 6px',
+              borderRadius: '4px',
+              background: 'var(--border-subtle)',
+              border: '1px solid var(--border-color)',
+              color: 'var(--text-subtle)',
+              fontWeight: 700,
+              letterSpacing: '0.05em',
+              lineHeight: '1.2',
+              userSelect: 'none',
+            }}
+          >
+            ⌘K
+          </kbd>
+        </div>
       </div>
 
       {/* Actions */}

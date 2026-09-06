@@ -22,6 +22,12 @@ import { TimeOff } from './pages/TimeOff';
 import { Contracts } from './pages/Contracts';
 import { Schedules } from './pages/Schedules';
 import { SalaryStructures } from './pages/SalaryStructures';
+import {
+  UnauthorizedPage,
+  ForbiddenPage,
+  NotFoundPage,
+  ServerErrorPage,
+} from './pages/errors';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { employeesApi } from './api/employees';
 import { payrollApi } from './api/payroll';
@@ -96,7 +102,7 @@ export const RoleRoute: React.FC<{ tab: string; children: React.ReactNode }> = (
   const { displayRole } = useAuth();
 
   if (!isTabAllowed(tab, displayRole)) {
-    return <Navigate to="/dashboard" replace />;
+    return <ForbiddenPage />;
   }
 
   return <>{children}</>;
@@ -109,7 +115,7 @@ export const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ childr
   const location = useLocation();
 
   if (isLoading) return <SessionRestoreLoader />;
-  if (!isAuthenticated) return <Navigate to="/login" state={{ from: location }} replace />;
+  if (!isAuthenticated) return <Navigate to="/401" state={{ from: location }} replace />;
   return <>{children}</>;
 };
 
@@ -120,6 +126,7 @@ const AppShell: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [activePayrunId, setActivePayrunId] = useState<string | null>(null);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   // Derive the active sidebar tab from the current URL path
   const currentTab = PATH_TO_TAB[location.pathname] ?? 'dashboard';
@@ -195,16 +202,19 @@ const AppShell: React.FC = () => {
   }
 
   return (
-    <div className="app-container">
+    <div className={`app-container ${isSidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
       <Sidebar
         currentTab={currentTab}
         employeeCount={employees.length}
         onSelectTab={handleSelectTab}
+        isCollapsed={isSidebarCollapsed}
+        onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
       />
       <div className="main-wrapper">
         <Header
           currentRole={displayRole}
           userName={user?.name || 'User'}
+          currentTab={currentTab}
           onLogout={logout}
         />
         <main className="content">
@@ -261,8 +271,13 @@ const AppShell: React.FC = () => {
                 <SalaryStructures onNavigateTab={(tab) => navigate(TAB_TO_PATH[tab] ?? '/dashboard')} />
               </RoleRoute>
             } />
-            {/* Catch-all → dashboard */}
-            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+
+            {/* Dedicated in-shell error routes */}
+            <Route path="/403" element={<ForbiddenPage />} />
+            <Route path="/500" element={<ServerErrorPage />} />
+
+            {/* Catch-all unknown routes inside shell */}
+            <Route path="*" element={<NotFoundPage />} />
           </Routes>
         </main>
       </div>
@@ -294,6 +309,13 @@ export const AppRoutes: React.FC = () => {
         path="/login"
         element={isAuthenticated ? <Navigate to={destination} replace /> : <Login />}
       />
+
+      {/* Dedicated Error Pages */}
+      <Route path="/401" element={<UnauthorizedPage />} />
+      <Route path="/403" element={<ForbiddenPage />} />
+      <Route path="/404" element={<NotFoundPage />} />
+      <Route path="/500" element={<ServerErrorPage />} />
+
       {/* Protected: everything else renders inside AppShell */}
       <Route
         path="/*"

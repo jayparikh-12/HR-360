@@ -345,6 +345,37 @@ body {
   transition: width 0.2s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.2s ease;
 }
 
+/* Collapsed Desktop Sidebar (Odoo-style compact icon dock) */
+.sidebar.collapsed {
+  width: 68px;
+}
+
+.sidebar.collapsed .logo-text,
+.sidebar.collapsed .menu-group-title,
+.sidebar.collapsed .nav-link span,
+.sidebar.collapsed .nav-badge {
+  display: none !important;
+}
+
+.sidebar.collapsed .sidebar-header {
+  justify-content: center !important;
+  padding: 0 8px !important;
+}
+
+.sidebar.collapsed .nav-link {
+  justify-content: center !important;
+  padding: 10px !important;
+}
+
+.sidebar.collapsed .nav-link-left {
+  gap: 0 !important;
+}
+
+.app-container.sidebar-collapsed .main-wrapper {
+  margin-left: 68px;
+  width: calc(100% - 68px);
+}
+
 .sidebar-header {
   height: 68px;
   display: flex;
@@ -1421,10 +1452,14 @@ select {
     display: inline-block !important;
     font-size: 10px;
   }
-  .main-wrapper {
+  .main-wrapper,
+  .app-container.sidebar-collapsed .main-wrapper {
     margin-left: 0 !important;
     width: 100% !important;
     min-width: 0;
+  }
+  .header-breadcrumb {
+    display: none !important;
   }
   .header {
     height: auto;
