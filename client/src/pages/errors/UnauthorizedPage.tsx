@@ -1,18 +1,17 @@
 import React from 'react';
 import { LogIn, LockKeyhole } from 'lucide-react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { ErrorPage } from './ErrorPage';
 import { useAuth } from '../../context/AuthContext';
 
 export const UnauthorizedPage: React.FC = () => {
   const navigate = useNavigate();
-  const location = useLocation();
   const { logout } = useAuth();
 
   const handleSignIn = () => {
     // Clear any residual invalid tokens
     logout();
-    navigate('/login', { state: { from: location } });
+    navigate('/login', { replace: true });
   };
 
   return (
@@ -29,6 +28,15 @@ export const UnauthorizedPage: React.FC = () => {
         variant: 'primary',
         icon: <LogIn size={16} />,
         onClick: handleSignIn,
+      }}
+      secondaryAction={{
+        label: 'Return to Login',
+        variant: 'secondary',
+        icon: <LogIn size={16} />,
+        onClick: () => {
+          logout();
+          navigate('/login', { replace: true });
+        },
       }}
     />
   );

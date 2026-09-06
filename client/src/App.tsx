@@ -114,7 +114,7 @@ export const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ childr
   const location = useLocation();
 
   if (isLoading) return <SessionRestoreLoader />;
-  if (!isAuthenticated) return <Navigate to="/unauthorized" state={{ from: location }} replace />;
+  if (!isAuthenticated) return <Navigate to="/login" state={{ from: location }} replace />;
   return <>{children}</>;
 };
 
@@ -187,12 +187,21 @@ export const AppShell: React.FC = () => {
   };
 
   const handleSelectTab = (tab: string) => {
-    if (tab === 'login') { logout(); return; }
+    if (tab === 'login') {
+      logout();
+      navigate('/login', { replace: true });
+      return;
+    }
     if (!isTabAllowed(tab, displayRole)) return;
     const path = TAB_TO_PATH[tab] ?? '/dashboard';
     navigate(path);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
+
+  const handleLogout = useCallback(() => {
+    logout();
+    navigate('/login', { replace: true });
+  }, [logout, navigate]);
 
   if (isLoading) {
     return <SessionRestoreLoader />;
@@ -212,7 +221,7 @@ export const AppShell: React.FC = () => {
           currentRole={displayRole}
           userName={user?.name || 'User'}
           currentTab={currentTab}
-          onLogout={logout}
+          onLogout={handleLogout}
         />
         <main className="content">
           <Routes>
