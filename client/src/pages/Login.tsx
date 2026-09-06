@@ -8,55 +8,24 @@ import {
   Loader2, 
   AlertCircle,
   Sun,
-  Moon,
-  Users,
-  Clock,
-  Calendar,
-  FileText,
-  Calculator,
-  ShieldCheck,
-  Shield
+  Moon
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import type { UserRole } from '../types';
 
+/**
+ * Core ERP operational capabilities authenticated via this portal:
+ * - Employee Management
+ * - Attendance Tracking
+ * - Leave & Time-Off
+ * - Contract Management
+ * - Payroll Processing
+ * - Payslips & Reporting
+ */
 interface LoginProps {
   onLogin?: (role: UserRole, userEmail: string, userName: string) => void;
 }
-
-const PRODUCT_CAPABILITIES = [
-  {
-    icon: Users,
-    title: 'Employee Management',
-    description: 'Centralized directory, departmental structure, and complete employee profiles.'
-  },
-  {
-    icon: Clock,
-    title: 'Attendance Tracking',
-    description: 'Shift scheduling, automated hours calculation, and real-time attendance logs.'
-  },
-  {
-    icon: Calendar,
-    title: 'Leave & Time-Off',
-    description: 'Multi-category leave requests, balance tracking, and manager approvals.'
-  },
-  {
-    icon: FileText,
-    title: 'Contract Management',
-    description: 'Formal wage agreements, salary structures, and contractual terms with audit trails.'
-  },
-  {
-    icon: Calculator,
-    title: 'Payroll Processing',
-    description: 'Accurate gross-to-net computation, statutory deduction rules, and automated payruns.'
-  },
-  {
-    icon: ShieldCheck,
-    title: 'Payslips & Reporting',
-    description: 'Itemized salary breakdowns, confidential distribution, and PDF report exports.'
-  }
-];
 
 export const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const { login, user, displayRole } = useAuth();
@@ -106,6 +75,14 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
 
   return (
     <div className="login-page">
+      {/* Ambient Animated Gradient Background Elements */}
+      <div className="login-bg-decorations" aria-hidden="true">
+        <div className="login-bg-orb login-bg-orb-1" />
+        <div className="login-bg-orb login-bg-orb-2" />
+        <div className="login-bg-orb login-bg-orb-3" />
+        <div className="login-bg-grid-overlay" />
+      </div>
+
       {/* Top Floating Controls */}
       <div className="login-top-bar">
         <button
@@ -128,181 +105,126 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
         </button>
       </div>
 
-      <div className="login-split-container">
-        {/* Left Informational Panel (Desktop only) */}
-        <aside className="login-features-panel" aria-label="Product capabilities">
-          <div className="login-features-header">
-            <div className="login-brand-group">
-              <div className="login-brand-badge">P</div>
-              <div>
-                <div className="login-brand-row">
-                  <span className="login-brand-name">PeoplePay360</span>
-                  <span className="login-brand-tag">Enterprise ERP</span>
-                </div>
-                <p className="login-brand-sub">Human Capital & Payroll Automation</p>
-              </div>
-            </div>
-
-            <div className="login-hero-pitch">
-              <h1 className="login-pitch-title">
-                Unified workforce operations & compliant payroll.
-              </h1>
-              <p className="login-pitch-desc">
-                An all-in-one corporate system built for transparent employee management, 
-                high-precision salary computation, and regulatory compliance.
-              </p>
-            </div>
-          </div>
-
-          <div className="login-capabilities-grid">
-            {PRODUCT_CAPABILITIES.map((cap) => {
-              const IconComponent = cap.icon;
-              return (
-                <div key={cap.title} className="login-capability-item">
-                  <div className="login-capability-icon">
-                    <IconComponent size={18} />
-                  </div>
-                  <div>
-                    <h2 className="login-capability-title">{cap.title}</h2>
-                    <p className="login-capability-desc">{cap.description}</p>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          <div className="login-features-footer">
-            <div className="login-security-tag">
-              <Shield size={14} />
-              <span>Role-Based Access Control & 256-bit TLS Data Encryption</span>
-            </div>
-          </div>
-        </aside>
-
-        {/* Right Form Panel (Desktop & Mobile) */}
-        <main className="login-form-panel">
-          <div className="login-card">
-            {/* Mobile Branding (Visible when features panel is hidden) */}
-            <div className="login-mobile-header">
-              <div className="login-brand-badge">P</div>
-              <div>
+      {/* Central Login Card — Pure Login Screen */}
+      <main className="login-pure-container">
+        <div className="login-card">
+          {/* Brand Header */}
+          <div className="login-brand-header">
+            <div className="login-brand-badge">P</div>
+            <div className="login-brand-info">
+              <div className="login-brand-title-row">
                 <span className="login-brand-name">PeoplePay360</span>
-                <span className="login-brand-tag" style={{ marginLeft: '6px' }}>Enterprise</span>
+                <span className="login-brand-tag">Enterprise</span>
               </div>
-            </div>
-
-            <div className="login-card-header">
-              <h2 className="login-card-title">Sign In</h2>
-              <p className="login-card-subtitle">
-                Enter your work credentials to access your enterprise workspace.
-              </p>
-            </div>
-
-            {/* Error Notification */}
-            {errorMessage && (
-              <div className="login-error-banner" role="alert">
-                <AlertCircle size={16} style={{ flexShrink: 0 }} />
-                <span>{errorMessage}</span>
-              </div>
-            )}
-
-            {/* Login Form */}
-            <form onSubmit={handleSubmit} noValidate>
-              <div className="form-field">
-                <label className="form-label" htmlFor="login-email">
-                  Work Email <span style={{ color: 'var(--danger-text)' }}>*</span>
-                </label>
-                <div className="login-input-wrapper">
-                  <Mail 
-                    size={16} 
-                    className="login-input-icon"
-                  />
-                  <input
-                    id="login-email"
-                    type="email"
-                    className="form-input login-input"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="name@company.com"
-                    disabled={isLoading}
-                    autoComplete="email"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="form-field" style={{ marginTop: '16px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                  <label className="form-label" htmlFor="login-password" style={{ marginBottom: 0 }}>
-                    Password <span style={{ color: 'var(--danger-text)' }}>*</span>
-                  </label>
-                  <a 
-                    href="#forgot" 
-                    onClick={(e) => { 
-                      e.preventDefault(); 
-                      alert('To reset your credentials, please contact your company IT administrator.'); 
-                    }} 
-                    className="login-forgot-link"
-                  >
-                    Forgot password?
-                  </a>
-                </div>
-                <div className="login-input-wrapper">
-                  <Lock 
-                    size={16} 
-                    className="login-input-icon"
-                  />
-                  <input
-                    id="login-password"
-                    type={showPassword ? 'text' : 'password'}
-                    className="form-input login-input"
-                    style={{ paddingRight: '40px' }}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••"
-                    disabled={isLoading}
-                    autoComplete="current-password"
-                    required
-                  />
-                  <button
-                    type="button"
-                    aria-label={showPassword ? 'Hide password' : 'Show password'}
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="login-eye-btn"
-                    disabled={isLoading}
-                  >
-                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                  </button>
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                className="btn btn-primary login-submit-btn"
-                disabled={isLoading}
-              >
-                {isLoading ? (
-                  <>
-                    <Loader2 size={16} className="spin" />
-                    <span>Signing in...</span>
-                  </>
-                ) : (
-                  <>
-                    <span>Sign In to Workspace</span>
-                    <ArrowRight size={16} />
-                  </>
-                )}
-              </button>
-            </form>
-
-            <div className="login-card-footer">
-              <p className="login-footer-notice">
-                Protected corporate portal. Unauthorized access attempts are monitored and logged.
-              </p>
+              <p className="login-brand-sub">HR Capital & Compliant Payroll</p>
             </div>
           </div>
-        </main>
-      </div>
+
+          <div className="login-card-header">
+            <h1 className="login-card-title">Sign In</h1>
+            <p className="login-card-subtitle">
+              Enter your corporate credentials to access your workspace.
+            </p>
+          </div>
+
+          {/* Error Alert */}
+          {errorMessage && (
+            <div className="login-error-banner" role="alert">
+              <AlertCircle size={16} style={{ flexShrink: 0 }} />
+              <span>{errorMessage}</span>
+            </div>
+          )}
+
+          {/* Login Form */}
+          <form onSubmit={handleSubmit} noValidate>
+            <div className="form-field">
+              <label className="form-label" htmlFor="login-email">
+                Work Email <span style={{ color: 'var(--danger-text)' }}>*</span>
+              </label>
+              <div className="login-input-wrapper">
+                <Mail size={16} className="login-input-icon" />
+                <input
+                  id="login-email"
+                  type="email"
+                  className="form-input login-input"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="name@company.com"
+                  disabled={isLoading}
+                  autoComplete="email"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="form-field" style={{ marginTop: '18px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                <label className="form-label" htmlFor="login-password" style={{ marginBottom: 0 }}>
+                  Password <span style={{ color: 'var(--danger-text)' }}>*</span>
+                </label>
+                <a 
+                  href="#forgot" 
+                  onClick={(e) => { 
+                    e.preventDefault(); 
+                    alert('To reset your credentials, please contact your company IT administrator.'); 
+                  }} 
+                  className="login-forgot-link"
+                >
+                  Forgot password?
+                </a>
+              </div>
+              <div className="login-input-wrapper">
+                <Lock size={16} className="login-input-icon" />
+                <input
+                  id="login-password"
+                  type={showPassword ? 'text' : 'password'}
+                  className="form-input login-input"
+                  style={{ paddingRight: '40px' }}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  disabled={isLoading}
+                  autoComplete="current-password"
+                  required
+                />
+                <button
+                  type="button"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="login-eye-btn"
+                  disabled={isLoading}
+                >
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              className="btn btn-primary login-submit-btn"
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 size={16} className="spin" />
+                  <span>Signing in...</span>
+                </>
+              ) : (
+                <>
+                  <span>Sign In to Workspace</span>
+                  <ArrowRight size={16} />
+                </>
+              )}
+            </button>
+          </form>
+
+          <div className="login-card-footer">
+            <p className="login-footer-notice">
+              Protected corporate portal. Unauthorized access attempts are monitored and logged.
+            </p>
+          </div>
+        </div>
+      </main>
     </div>
   );
 };
