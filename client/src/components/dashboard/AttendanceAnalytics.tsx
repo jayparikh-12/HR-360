@@ -190,12 +190,12 @@ export const AttendanceAnalytics: React.FC<AttendanceAnalyticsProps> = ({
             </div>
 
             {/* Overtime */}
-            <div style={{ padding: '10px 12px', background: 'rgba(124, 58, 237, 0.08)', border: '1px solid rgba(124, 58, 237, 0.2)', borderRadius: 'var(--radius)' }}>
-              <div style={{ fontSize: '11px', fontWeight: 600, color: '#6d28d9', display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <div style={{ padding: '10px 12px', background: 'rgba(8, 145, 178, 0.08)', border: '1px solid rgba(8, 145, 178, 0.2)', borderRadius: 'var(--radius)' }}>
+              <div style={{ fontSize: '11px', fontWeight: 600, color: '#0e7490', display: 'flex', alignItems: 'center', gap: '4px' }}>
                 <Flame size={12} />
                 <span>Overtime</span>
               </div>
-              <div style={{ fontSize: '18px', fontWeight: 700, color: '#6d28d9', marginTop: '2px' }}>
+              <div style={{ fontSize: '18px', fontWeight: 700, color: '#0e7490', marginTop: '2px' }}>
                 {statusCounts.overtime}
               </div>
               <div style={{ fontSize: '10px', color: 'var(--slate-500)' }}>
@@ -283,7 +283,7 @@ export const AttendanceAnalytics: React.FC<AttendanceAnalyticsProps> = ({
                       cy="65"
                       r={radius}
                       fill="transparent"
-                      stroke="#7c3aed"
+                      stroke="#0891b2"
                       strokeWidth={strokeWidth}
                       strokeDasharray={`${strokeOvertime} ${circumference}`}
                       strokeDashoffset={offsetOvertime}
@@ -351,7 +351,7 @@ export const AttendanceAnalytics: React.FC<AttendanceAnalyticsProps> = ({
 
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#7c3aed', display: 'inline-block' }} />
+                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#0891b2', display: 'inline-block' }} />
                     <span style={{ color: 'var(--slate-700)' }}>Overtime</span>
                   </div>
                   <strong>{statusCounts.overtime}</strong>
@@ -455,7 +455,7 @@ export const AttendanceAnalytics: React.FC<AttendanceAnalyticsProps> = ({
                             y={padTop}
                             width={slotWidth}
                             height={plotHeight}
-                            fill={isHovered ? 'rgba(79, 70, 229, 0.06)' : 'transparent'}
+                            fill={isHovered ? 'rgba(15, 118, 110, 0.06)' : 'transparent'}
                             rx={4}
                           />
 
@@ -490,7 +490,7 @@ export const AttendanceAnalytics: React.FC<AttendanceAnalyticsProps> = ({
                               y={yOvertime}
                               width={barWidth}
                               height={hOvertime}
-                              fill="#7c3aed"
+                              fill="#0891b2"
                               rx={1}
                             />
                           )}
@@ -546,7 +546,7 @@ export const AttendanceAnalytics: React.FC<AttendanceAnalyticsProps> = ({
                       <strong style={{ color: 'var(--text-main)' }}>{trends[hoveredDayIdx].date}</strong>
                       <span style={{ color: '#059669' }}>Present: {trends[hoveredDayIdx].present}</span>
                       {trends[hoveredDayIdx].late > 0 && <span style={{ color: '#d97706' }}>Late: {trends[hoveredDayIdx].late}</span>}
-                      {trends[hoveredDayIdx].overtime > 0 && <span style={{ color: '#7c3aed' }}>Overtime: {trends[hoveredDayIdx].overtime}</span>}
+                      {trends[hoveredDayIdx].overtime > 0 && <span style={{ color: '#0891b2' }}>Overtime: {trends[hoveredDayIdx].overtime}</span>}
                       {trends[hoveredDayIdx].absent > 0 && <span style={{ color: '#e11d48' }}>Absent: {trends[hoveredDayIdx].absent}</span>}
                       <span style={{ color: 'var(--slate-500)', borderTop: '1px solid var(--slate-100)', paddingTop: '2px' }}>
                         Total: {trends[hoveredDayIdx].total} shifts

@@ -1,6 +1,8 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Home, Shield } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
+import { getDefaultWorkspacePath } from '../../utils/routes';
 
 export interface ErrorAction {
   label: string;
@@ -34,6 +36,8 @@ export const ErrorPage: React.FC<ErrorPageProps> = ({
   badgeType = 'danger',
 }) => {
   const navigate = useNavigate();
+  const { displayRole, isAuthenticated } = useAuth();
+  const workspacePath = getDefaultWorkspacePath(displayRole, isAuthenticated);
 
   const handleActionClick = (action?: ErrorAction, defaultFallback?: () => void) => {
     if (action?.onClick) {
@@ -46,10 +50,10 @@ export const ErrorPage: React.FC<ErrorPageProps> = ({
   };
 
   const badgeStyles = {
-    danger: { bg: '#fee2e2', text: '#b91c1c', border: '#fca5a5' },
-    warning: { bg: '#fef3c7', text: '#b45309', border: '#fcd34d' },
-    info: { bg: '#e0f2fe', text: '#0369a1', border: '#7dd3fc' },
-    neutral: { bg: '#f1f5f9', text: '#475569', border: '#cbd5e1' },
+    danger: { bg: '#fff1f2', text: '#be123c', border: '#fecdd3' },
+    warning: { bg: '#fffbeb', text: '#b45309', border: '#fde68a' },
+    info: { bg: '#f0fdfa', text: '#0f766e', border: '#99f6e4' },
+    neutral: { bg: '#f8fafc', text: '#475569', border: '#cbd5e1' },
   }[badgeType];
 
   return (
@@ -76,21 +80,21 @@ export const ErrorPage: React.FC<ErrorPageProps> = ({
           marginBottom: '32px',
           cursor: 'pointer',
         }}
-        onClick={() => navigate('/dashboard')}
+        onClick={() => navigate(workspacePath)}
       >
         <div
           style={{
             width: '38px',
             height: '38px',
             borderRadius: '10px',
-            background: 'linear-gradient(135deg, var(--primary, #4f46e5) 0%, #3730a3 100%)',
+            background: 'linear-gradient(135deg, var(--primary, #0f766e) 0%, #0d9488 100%)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             color: '#ffffff',
             fontWeight: 800,
             fontSize: '18px',
-            boxShadow: '0 4px 10px rgba(79, 70, 229, 0.25)',
+            boxShadow: '0 4px 12px rgba(15, 118, 110, 0.3)',
           }}
         >
           P
@@ -99,7 +103,7 @@ export const ErrorPage: React.FC<ErrorPageProps> = ({
           <span style={{ fontSize: '18px', fontWeight: 800, letterSpacing: '-0.02em', color: 'var(--text-main, #0f172a)' }}>
             PeoplePay360
           </span>
-          <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--primary, #4f46e5)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+          <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--primary, #0f766e)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
             Enterprise HR & Payroll
           </span>
         </div>
@@ -133,7 +137,7 @@ export const ErrorPage: React.FC<ErrorPageProps> = ({
               ? 'linear-gradient(90deg, #ef4444, #f43f5e)'
               : badgeType === 'warning'
               ? 'linear-gradient(90deg, #f59e0b, #d97706)'
-              : 'linear-gradient(90deg, var(--primary, #4f46e5), #6366f1)',
+              : 'linear-gradient(90deg, var(--primary, #0f766e), #14b8a6)',
           }}
         />
 
@@ -258,7 +262,7 @@ export const ErrorPage: React.FC<ErrorPageProps> = ({
             <button
               type="button"
               className={`btn btn-${primaryAction.variant || 'primary'}`}
-              onClick={() => handleActionClick(primaryAction, () => navigate('/dashboard'))}
+              onClick={() => handleActionClick(primaryAction, () => navigate(workspacePath))}
               style={{
                 padding: '10px 24px',
                 fontSize: '13.5px',

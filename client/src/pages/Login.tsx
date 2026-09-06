@@ -85,7 +85,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
             </>
           ) : (
             <>
-              <Moon size={15} color="#6366f1" />
+              <Moon size={15} color="#0f766e" />
               <span>Dark Mode</span>
             </>
           )}

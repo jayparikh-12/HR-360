@@ -62,7 +62,7 @@ export const PayrollTrendChart: React.FC<PayrollTrendChartProps> = ({
       case 'VALIDATED':
         return '#0284c7';
       case 'COMPUTED':
-        return '#4f46e5';
+        return '#0f766e';
       case 'DRAFT':
         return '#b45309';
       default:
@@ -94,7 +94,7 @@ export const PayrollTrendChart: React.FC<PayrollTrendChartProps> = ({
         {/* Legend */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px', fontSize: '12px', fontWeight: 600 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <span style={{ width: '10px', height: '10px', borderRadius: '2px', background: '#4f46e5', display: 'inline-block' }} />
+            <span style={{ width: '10px', height: '10px', borderRadius: '2px', background: '#0284c7', display: 'inline-block' }} />
             <span style={{ color: 'var(--slate-700)' }}>Gross</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -212,7 +212,7 @@ export const PayrollTrendChart: React.FC<PayrollTrendChartProps> = ({
                       y={padTop}
                       width={colWidth * 0.9}
                       height={plotHeight}
-                      fill={isSelectedPeriod ? 'rgba(79, 70, 229, 0.08)' : 'rgba(148, 163, 184, 0.08)'}
+                      fill={isSelectedPeriod ? 'var(--primary-light)' : 'rgba(148, 163, 184, 0.08)'}
                       rx="6"
                       stroke={isSelectedPeriod ? 'var(--primary)' : 'none'}
                       strokeWidth="1"
@@ -226,7 +226,7 @@ export const PayrollTrendChart: React.FC<PayrollTrendChartProps> = ({
                     y={yGross}
                     width={barWidth}
                     height={hGross}
-                    fill="#4f46e5"
+                    fill="#0284c7"
                     rx="3"
                     style={{ transition: 'all 0.25s ease' }}
                   />

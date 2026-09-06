@@ -432,7 +432,7 @@ export const DetailedPayslipModal: React.FC<DetailedPayslipModalProps> = ({
               {/* Net Payout Banner */}
               <div style={{ 
                 background: 'var(--primary-light)', 
-                border: '1px solid rgba(99, 102, 241, 0.3)', 
+                border: '1px solid var(--primary-border)', 
                 padding: '16px', 
                 borderRadius: '6px', 
                 display: 'flex', 

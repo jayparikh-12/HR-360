@@ -147,8 +147,8 @@ export const Header: React.FC<HeaderProps> = ({
           department: 'Platform & Infrastructure',
           securityLevel: 'Superadmin (Full Access)',
           scope: 'System RBAC, Master Configuration & Employee 360',
-          badgeColor: '#6366f1',
-          badgeBg: 'rgba(99, 102, 241, 0.16)',
+          badgeColor: '#0f766e',
+          badgeBg: 'rgba(15, 118, 110, 0.14)',
         };
       case 'HR Manager':
         return {
@@ -171,8 +171,8 @@ export const Header: React.FC<HeaderProps> = ({
           department: 'Human Resources & Finance',
           securityLevel: 'Payroll Controller',
           scope: 'Deterministic Payrun Engine, Salary Rules & Approval',
-          badgeColor: '#8b5cf6',
-          badgeBg: 'rgba(139, 92, 246, 0.16)',
+          badgeColor: '#0284c7',
+          badgeBg: 'rgba(2, 132, 199, 0.14)',
         };
       case 'HR Payroll User':
         return {
@@ -253,7 +253,7 @@ export const Header: React.FC<HeaderProps> = ({
           aria-label={`Switch to ${theme === 'dark' ? 'Light' : 'Dark'} Mode`}
           style={{ padding: '6px 11px', display: 'flex', alignItems: 'center', gap: '6px' }}
         >
-          {theme === 'dark' ? <Sun size={14} color="#f59e0b" /> : <Moon size={14} color="#6366f1" />}
+          {theme === 'dark' ? <Sun size={14} color="#f59e0b" /> : <Moon size={14} color="#0f766e" />}
           <span style={{ fontSize: '12px', fontWeight: 600 }}>{theme === 'dark' ? 'Light' : 'Dark'}</span>
         </button>
 

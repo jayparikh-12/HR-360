@@ -110,8 +110,8 @@ export const PayrollBreakdownChart: React.FC<PayrollBreakdownChartProps> = ({
                 style={{
                   cursor: onSelectDepartment ? 'pointer' : 'default',
                   padding: isSelected ? '8px 10px' : '4px 0',
-                  background: isSelected ? 'rgba(79, 70, 229, 0.06)' : 'transparent',
-                  border: isSelected ? '1px solid rgba(79, 70, 229, 0.25)' : '1px solid transparent',
+                  background: isSelected ? 'var(--primary-light)' : 'transparent',
+                  border: isSelected ? '1px solid var(--primary-border)' : '1px solid transparent',
                   borderRadius: '6px',
                   transition: 'background 0.2s ease',
                 }}
@@ -146,7 +146,7 @@ export const PayrollBreakdownChart: React.FC<PayrollBreakdownChartProps> = ({
                       height: '100%',
                       background: isSelected
                         ? 'linear-gradient(90deg, var(--primary) 0%, #059669 100%)'
-                        : 'linear-gradient(90deg, var(--primary) 0%, #818cf8 100%)',
+                        : 'linear-gradient(90deg, var(--primary) 0%, #0d9488 100%)',
                       borderRadius: '999px',
                       transition: 'width 0.4s ease',
                     }}

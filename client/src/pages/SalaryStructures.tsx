@@ -35,7 +35,7 @@ function getCategoryBadge(category: string) {
   const cat = (category || '').toUpperCase();
   switch (cat) {
     case 'BASIC':
-      return { bg: '#e0e7ff', color: '#4338ca', border: '#c7d2fe', label: 'Basic' };
+      return { bg: '#f0fdfa', color: '#0f766e', border: '#99f6e4', label: 'Basic' };
     case 'ALLOWANCE':
       return { bg: '#dcfce7', color: '#15803d', border: '#bbf7d0', label: 'Allowance' };
     case 'GROSS':
@@ -43,7 +43,7 @@ function getCategoryBadge(category: string) {
     case 'DEDUCTION':
       return { bg: '#fee2e2', color: '#b91c1c', border: '#fecaca', label: 'Deduction' };
     case 'NET':
-      return { bg: '#f3e8ff', color: '#7e22ce', border: '#e9d5ff', label: 'Net' };
+      return { bg: '#ecfeff', color: '#0e7490', border: '#a5f3fc', label: 'Net' };
     default:
       return { bg: 'var(--slate-100)', color: 'var(--slate-700)', border: 'var(--slate-200)', label: category };
   }
@@ -205,7 +205,7 @@ export const StructureDetailModal: React.FC<StructureDetailModalProps> = ({
                   <span style={{ fontSize: '11px', fontFamily: 'monospace', background: 'var(--slate-100)', padding: '2px 8px', borderRadius: '4px', fontWeight: 600, color: 'var(--slate-700)' }}>
                     ID: {structure.id}
                   </span>
-                  <span style={{ fontSize: '11px', fontFamily: 'monospace', background: '#e0e7ff', color: '#4338ca', padding: '2px 8px', borderRadius: '4px', fontWeight: 700 }}>
+                  <span style={{ fontSize: '11px', fontFamily: 'monospace', background: 'var(--primary-light)', color: 'var(--primary)', border: '1px solid var(--primary-border)', padding: '2px 8px', borderRadius: '4px', fontWeight: 700 }}>
                     CODE: {structure.code}
                   </span>
                 </div>
@@ -431,7 +431,7 @@ export const RuleDetailModal: React.FC<RuleDetailModalProps> = ({ ruleId, onClos
                   <span style={{ fontSize: '11px', fontFamily: 'monospace', background: 'var(--slate-100)', padding: '2px 8px', borderRadius: '4px', fontWeight: 600, color: 'var(--slate-700)' }}>
                     ID: {rule.id}
                   </span>
-                  <span style={{ fontSize: '11px', fontFamily: 'monospace', background: '#e0e7ff', color: '#4338ca', padding: '2px 8px', borderRadius: '4px', fontWeight: 700 }}>
+                  <span style={{ fontSize: '11px', fontFamily: 'monospace', background: 'var(--primary-light)', color: 'var(--primary)', border: '1px solid var(--primary-border)', padding: '2px 8px', borderRadius: '4px', fontWeight: 700 }}>
                     CODE: {rule.code}
                   </span>
                   <span style={{ fontSize: '11px', background: 'var(--slate-100)', color: 'var(--slate-600)', padding: '2px 8px', borderRadius: '4px', fontWeight: 600 }}>
@@ -1301,7 +1301,7 @@ export const SalaryStructures: React.FC<SalaryStructuresProps> = () => {
         }}
       >
         <div className="stat-card">
-          <div className="stat-icon" style={{ backgroundColor: '#e0e7ff', color: '#4338ca' }}>
+          <div className="stat-icon" style={{ backgroundColor: 'var(--primary-light)', color: 'var(--primary)' }}>
             <Layers size={18} />
           </div>
           <div>
@@ -1311,7 +1311,7 @@ export const SalaryStructures: React.FC<SalaryStructuresProps> = () => {
         </div>
 
         <div className="stat-card">
-          <div className="stat-icon" style={{ backgroundColor: '#f3e8ff', color: '#7e22ce' }}>
+          <div className="stat-icon" style={{ backgroundColor: '#ecfeff', color: '#0e7490' }}>
             <FileCode size={18} />
           </div>
           <div>
@@ -1511,8 +1511,9 @@ export const SalaryStructures: React.FC<SalaryStructuresProps> = () => {
                             fontWeight: 700,
                             padding: '2px 8px',
                             borderRadius: '4px',
-                            background: '#e0e7ff',
-                            color: '#4338ca',
+                            background: 'var(--primary-light)',
+                            color: 'var(--primary)',
+                            border: '1px solid var(--primary-border)',
                           }}
                         >
                           {struct.code}
@@ -1569,13 +1570,13 @@ export const SalaryStructures: React.FC<SalaryStructuresProps> = () => {
             <div
               style={{
                 padding: '10px 16px',
-                background: '#eef2ff',
-                borderBottom: '1px solid #c7d2fe',
+                background: 'var(--primary-light)',
+                borderBottom: '1px solid var(--primary-border)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
                 fontSize: '12px',
-                color: '#3730a3',
+                color: 'var(--primary-dark)',
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -1592,7 +1593,7 @@ export const SalaryStructures: React.FC<SalaryStructuresProps> = () => {
                 style={{
                   border: 'none',
                   background: 'transparent',
-                  color: '#4338ca',
+                  color: 'var(--primary)',
                   fontWeight: 600,
                   cursor: 'pointer',
                   fontSize: '12px',

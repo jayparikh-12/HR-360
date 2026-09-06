@@ -117,7 +117,7 @@ export const PayrollStatusChart: React.FC<PayrollStatusChartProps> = ({
                       cy="80"
                       r={radius}
                       fill="transparent"
-                      stroke="#4f46e5"
+                      stroke="#0f766e"
                       strokeWidth={strokeWidth}
                       strokeDasharray={`${strokeComputed} ${circumference}`}
                       strokeDashoffset={offsetComputed}
@@ -213,15 +213,15 @@ export const PayrollStatusChart: React.FC<PayrollStatusChartProps> = ({
               justifyContent: 'space-between',
               alignItems: 'center',
               padding: '7px 10px',
-              background: 'rgba(79, 70, 229, 0.08)',
-              border: '1px solid rgba(79, 70, 229, 0.2)',
+              background: 'rgba(15, 118, 110, 0.08)',
+              border: '1px solid rgba(15, 118, 110, 0.2)',
               borderRadius: '6px'
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
-                <Cog size={14} color="#4f46e5" />
-                <span style={{ fontSize: '12px', fontWeight: 600, color: '#4338ca' }}>COMPUTED</span>
+                <Cog size={14} color="#0f766e" />
+                <span style={{ fontSize: '12px', fontWeight: 600, color: '#0f766e' }}>COMPUTED</span>
               </div>
-              <div style={{ fontSize: '12px', fontWeight: 700, color: '#4338ca' }}>
+              <div style={{ fontSize: '12px', fontWeight: 700, color: '#0f766e' }}>
                 {computed} <span style={{ fontSize: '11px', fontWeight: 400, opacity: 0.85 }}>({pctComputed}%)</span>
               </div>
             </div>

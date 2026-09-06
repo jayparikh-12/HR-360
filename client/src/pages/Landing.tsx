@@ -21,16 +21,17 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
+import { getDefaultWorkspacePath } from '../utils/routes';
 
 export const Landing: React.FC = () => {
   const navigate = useNavigate();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const [activePreviewTab, setActivePreviewTab] = useState<'metrics' | 'payruns' | 'activity'>('metrics');
 
   const handleCtaClick = () => {
     if (isAuthenticated) {
-      navigate('/dashboard');
+      navigate(getDefaultWorkspacePath(user?.role, true));
     } else {
       navigate('/login');
     }
@@ -83,16 +84,16 @@ export const Landing: React.FC = () => {
               aria-label={`Switch to ${theme === 'dark' ? 'Light' : 'Dark'} Mode`}
               title="Toggle Theme"
             >
-              {theme === 'dark' ? <Sun size={16} color="#f59e0b" /> : <Moon size={16} color="#6366f1" />}
+              {theme === 'dark' ? <Sun size={16} color="#f59e0b" /> : <Moon size={16} color="#0f766e" />}
             </button>
 
             {isAuthenticated ? (
               <button
                 type="button"
                 className="btn btn-primary btn-sm landing-cta-nav"
-                onClick={() => navigate('/dashboard')}
+                onClick={() => navigate(getDefaultWorkspacePath(user?.role, true))}
               >
-                <span>Go to Dashboard</span>
+                <span>Go to Workspace</span>
                 <ArrowRight size={14} />
               </button>
             ) : (
@@ -251,7 +252,7 @@ export const Landing: React.FC = () => {
         <div className="landing-features-grid">
           {/* Card 1 */}
           <div className="landing-feature-card">
-            <div className="landing-feature-icon-box" style={{ background: 'rgba(99, 102, 241, 0.1)', color: '#4f46e5' }}>
+            <div className="landing-feature-icon-box" style={{ background: 'rgba(15, 118, 110, 0.1)', color: '#0f766e' }}>
               <Users size={22} />
             </div>
             <h3 className="landing-feature-title">Employee 360 Hub</h3>
@@ -311,7 +312,7 @@ export const Landing: React.FC = () => {
 
           {/* Card 5 */}
           <div className="landing-feature-card">
-            <div className="landing-feature-icon-box" style={{ background: 'rgba(168, 85, 247, 0.1)', color: '#9333ea' }}>
+            <div className="landing-feature-icon-box" style={{ background: 'rgba(14, 116, 144, 0.1)', color: '#0e7490' }}>
               <FileText size={22} />
             </div>
             <h3 className="landing-feature-title">Contracts &amp; Salary Rules</h3>
@@ -483,7 +484,7 @@ export const Landing: React.FC = () => {
                     </div>
                   </div>
                   <div className="preview-feed-item">
-                    <span className="feed-dot purple" />
+                    <span className="feed-dot teal" />
                     <div className="feed-info">
                       <div className="feed-title">New contract generated: Senior Full-Stack Engineer (CTR-2026-042)</div>
                       <div className="feed-time">1 hour ago • Admin Workspace</div>
