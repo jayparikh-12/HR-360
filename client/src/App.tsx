@@ -118,6 +118,8 @@ export const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ childr
   return <>{children}</>;
 };
 
+// ── Main authenticated shell ───────────────────────────────────────────────────
+
 export const AppShell: React.FC = () => {
   const { isAuthenticated, isLoading, user, displayRole, logout } = useAuth();
   const navigate = useNavigate();

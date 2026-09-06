@@ -148,11 +148,11 @@ test('PeoplePay360 — Phase 6.6 Final Dashboard Verification Suite', async () =
     `);
 
     // Clean any prior run seeds
-    await executeQuery('DELETE FROM payslips WHERE id LIKE ?', [`${seedPrefix}%`]);
+    await executeQuery('DELETE FROM payslips WHERE id LIKE ? OR employee_id LIKE ?', [`${seedPrefix}%`, `${seedPrefix}%`]);
     await executeQuery('DELETE FROM payruns WHERE id LIKE ?', [`${seedPrefix}%`]);
-    await executeQuery('DELETE FROM attendance_records WHERE id LIKE ?', [`${seedPrefix}%`]);
-    await executeQuery('DELETE FROM time_off_requests WHERE id LIKE ?', [`${seedPrefix}%`]);
-    await executeQuery('DELETE FROM contracts WHERE id LIKE ?', [`${seedPrefix}%`]);
+    await executeQuery('DELETE FROM attendance_records WHERE id LIKE ? OR employee_id LIKE ?', [`${seedPrefix}%`, `${seedPrefix}%`]);
+    await executeQuery('DELETE FROM time_off_requests WHERE id LIKE ? OR employee_id LIKE ?', [`${seedPrefix}%`, `${seedPrefix}%`]);
+    await executeQuery('DELETE FROM contracts WHERE id LIKE ? OR employee_id LIKE ?', [`${seedPrefix}%`, `${seedPrefix}%`]);
     await executeQuery('DELETE FROM employees WHERE id LIKE ?', [`${seedPrefix}%`]);
 
     // 3. Insert Employees:
@@ -160,10 +160,10 @@ test('PeoplePay360 — Phase 6.6 Final Dashboard Verification Suite', async () =
     // Emp 2: Quantum Engineering, PT
     // Emp 3: Operations, FT
     await executeQuery(`
-      INSERT INTO employees (id, empCode, firstName, lastName, email, department, jobPosition, createdAt, status) VALUES
-      ('${seedPrefix}EMP1', '${seedPrefix}EC1', 'Diana', 'Prince', 'diana.p66@internal.com', 'Quantum Engineering', 'Lead Architect', '2026-01-01', 'ACTIVE'),
-      ('${seedPrefix}EMP2', '${seedPrefix}EC2', 'Clark', 'Kent', 'clark.p66@internal.com', 'Quantum Engineering', 'Staff Writer', '2026-02-01', 'ACTIVE'),
-      ('${seedPrefix}EMP3', '${seedPrefix}EC3', 'Bruce', 'Wayne', 'bruce.p66@internal.com', 'Operations', 'Director', '2026-03-01', 'ACTIVE')
+      INSERT INTO employees (id, name, email, department, position, join_date, created_at, status) VALUES
+      ('${seedPrefix}EMP1', 'Diana Prince', 'diana.p66@internal.com', 'Quantum Engineering', 'Lead Architect', '2026-01-01', '2026-01-01', 'ACTIVE'),
+      ('${seedPrefix}EMP2', 'Clark Kent', 'clark.p66@internal.com', 'Quantum Engineering', 'Staff Writer', '2026-02-01', '2026-02-01', 'ACTIVE'),
+      ('${seedPrefix}EMP3', 'Bruce Wayne', 'bruce.p66@internal.com', 'Operations', 'Director', '2026-03-01', '2026-03-01', 'ACTIVE')
     `);
 
     // 4. Contracts:
@@ -348,11 +348,11 @@ test('PeoplePay360 — Phase 6.6 Final Dashboard Verification Suite', async () =
     }
   } finally {
     // Clean up seed data
-    await executeQuery('DELETE FROM payslips WHERE id LIKE ?', [`${seedPrefix}%`]);
+    await executeQuery('DELETE FROM payslips WHERE id LIKE ? OR employee_id LIKE ?', [`${seedPrefix}%`, `${seedPrefix}%`]);
     await executeQuery('DELETE FROM payruns WHERE id LIKE ?', [`${seedPrefix}%`]);
-    await executeQuery('DELETE FROM attendance_records WHERE id LIKE ?', [`${seedPrefix}%`]);
-    await executeQuery('DELETE FROM time_off_requests WHERE id LIKE ?', [`${seedPrefix}%`]);
-    await executeQuery('DELETE FROM contracts WHERE id LIKE ?', [`${seedPrefix}%`]);
+    await executeQuery('DELETE FROM attendance_records WHERE id LIKE ? OR employee_id LIKE ?', [`${seedPrefix}%`, `${seedPrefix}%`]);
+    await executeQuery('DELETE FROM time_off_requests WHERE id LIKE ? OR employee_id LIKE ?', [`${seedPrefix}%`, `${seedPrefix}%`]);
+    await executeQuery('DELETE FROM contracts WHERE id LIKE ? OR employee_id LIKE ?', [`${seedPrefix}%`, `${seedPrefix}%`]);
     await executeQuery('DELETE FROM employees WHERE id LIKE ?', [`${seedPrefix}%`]);
     await pool.end();
   }
