@@ -28,7 +28,7 @@ import {
   type CreateEmployeeInput,
   type UpdateEmployeeInput,
 } from '../repositories/employee.repository.js';
-import { isValidDateString, isValidEmail, isNonEmptyString } from '../utils/validators.js';
+import { isValidDateString, isValidEmail, isNonEmptyString, validateDateOfBirth } from '../utils/validators.js';
 import { handleDatabaseError } from '../middleware/errorHandler.js';
 
 const router = Router();
@@ -131,11 +131,16 @@ router.post('/', requireAdmin, async (req: Request, res: Response): Promise<void
     }
   }
 
-  // ── Optional dateOfBirth format validation ──
-  if (body.dateOfBirth !== undefined && body.dateOfBirth !== null && body.dateOfBirth !== '') {
-    if (!isValidDateString(body.dateOfBirth)) {
-      res.status(400).json({ success: false, message: 'dateOfBirth must be a valid date in YYYY-MM-DD format.' });
-      return;
+  // ── Date of Birth validation (Strict: Valid date, not in future, at least 18 years old) ──
+  if (body.dateOfBirth !== undefined && body.dateOfBirth !== null) {
+    if (typeof body.dateOfBirth === 'string' && body.dateOfBirth.trim() === '') {
+      // Empty string is allowed as empty/omitted for optional DOB
+    } else {
+      const dobResult = validateDateOfBirth(body.dateOfBirth);
+      if (!dobResult.isValid) {
+        res.status(400).json({ success: false, message: dobResult.error || 'Please enter a valid date of birth.' });
+        return;
+      }
     }
   }
 
@@ -203,6 +208,10 @@ router.post('/', requireAdmin, async (req: Request, res: Response): Promise<void
     const created = await createEmployee(input);
     res.status(201).json({ success: true, data: created });
   } catch (err) {
+    if (err instanceof Error && err.message.startsWith('INVALID_DOB:')) {
+      res.status(400).json({ success: false, message: err.message.replace('INVALID_DOB: ', '') });
+      return;
+    }
     if (err instanceof Error && err.message === 'DUPLICATE_EMAIL') {
       res.status(409).json({ success: false, message: 'An employee with this email address already exists.' });
       return;
@@ -265,10 +274,15 @@ router.patch('/:id', authorize(PERMISSIONS.EMPLOYEE_WRITE), async (req: Request,
     }
   }
 
-  if (body.dateOfBirth !== undefined && body.dateOfBirth !== null && body.dateOfBirth !== '') {
-    if (!isValidDateString(body.dateOfBirth)) {
-      res.status(400).json({ success: false, message: 'dateOfBirth must be a valid date in YYYY-MM-DD format.' });
-      return;
+  if (body.dateOfBirth !== undefined && body.dateOfBirth !== null) {
+    if (typeof body.dateOfBirth === 'string' && body.dateOfBirth.trim() === '') {
+      // Empty string allows clearing optional DOB
+    } else {
+      const dobResult = validateDateOfBirth(body.dateOfBirth);
+      if (!dobResult.isValid) {
+        res.status(400).json({ success: false, message: dobResult.error || 'Please enter a valid date of birth.' });
+        return;
+      }
     }
   }
 
@@ -309,6 +323,10 @@ router.patch('/:id', authorize(PERMISSIONS.EMPLOYEE_WRITE), async (req: Request,
     }
     res.json({ success: true, data: updated });
   } catch (err) {
+    if (err instanceof Error && err.message.startsWith('INVALID_DOB:')) {
+      res.status(400).json({ success: false, message: err.message.replace('INVALID_DOB: ', '') });
+      return;
+    }
     if (err instanceof Error && err.message === 'DUPLICATE_EMAIL') {
       res.status(409).json({ success: false, message: 'An employee with this email address already exists.' });
       return;

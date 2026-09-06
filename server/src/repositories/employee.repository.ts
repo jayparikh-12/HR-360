@@ -11,6 +11,7 @@
 import { RowDataPacket, ResultSetHeader } from 'mysql2/promise';
 import { executeQuery } from '../config/database.js';
 import { randomUUID } from 'node:crypto';
+import { validateDateOfBirth } from '../utils/validators.js';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -111,7 +112,12 @@ function deriveInitials(name: string): string {
 
 function normalizeDate(value: Date | string | null | undefined): string {
   if (!value) return '';
-  if (value instanceof Date) return value.toISOString().split('T')[0];
+  if (value instanceof Date) {
+    const y = value.getFullYear();
+    const m = String(value.getMonth() + 1).padStart(2, '0');
+    const d = String(value.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
   return String(value).split('T')[0];
 }
 
@@ -242,6 +248,12 @@ export async function createEmployee(input: CreateEmployeeInput): Promise<Employ
   const bankName = input.bankName ? input.bankName.trim() : null;
   const gender = input.gender ? input.gender.trim().toUpperCase() : null;
   const dateOfBirth = input.dateOfBirth ? input.dateOfBirth.trim() : null;
+  if (dateOfBirth) {
+    const dobValidation = validateDateOfBirth(dateOfBirth);
+    if (!dobValidation.isValid) {
+      throw new Error(`INVALID_DOB: ${dobValidation.error}`);
+    }
+  }
   const joinDate = input.joinDate ? input.joinDate.trim() : new Date().toISOString().split('T')[0];
 
   await executeQuery<ResultSetHeader>(
@@ -314,8 +326,18 @@ export async function updateEmployee(
   }
 
   if (input.dateOfBirth !== undefined) {
-    setClauses.push('dateOfBirth = ?');
-    values.push(input.dateOfBirth ? input.dateOfBirth.trim() : null);
+    const trimmedDob = input.dateOfBirth ? input.dateOfBirth.trim() : null;
+    if (trimmedDob) {
+      const dobValidation = validateDateOfBirth(trimmedDob);
+      if (!dobValidation.isValid) {
+        throw new Error(`INVALID_DOB: ${dobValidation.error}`);
+      }
+      setClauses.push('dateOfBirth = ?');
+      values.push(trimmedDob);
+    } else {
+      setClauses.push('dateOfBirth = ?');
+      values.push(null);
+    }
   }
 
   if (input.status !== undefined) {
