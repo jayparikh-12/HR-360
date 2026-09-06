@@ -30,8 +30,7 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import jwt from 'jsonwebtoken';
-import { executeQuery } from '../config/database.js';
+import { executeQuery, pool } from '../config/database.js';
 import {
   getDashboardSummary,
   getDashboardAnalytics,
@@ -161,10 +160,10 @@ test('PeoplePay360 — Phase 6.6 Final Dashboard Verification Suite', async () =
     // Emp 2: Quantum Engineering, PT
     // Emp 3: Operations, FT
     await executeQuery(`
-      INSERT INTO employees (id, name, email, department, position, join_date, status) VALUES
-      ('${seedPrefix}EMP1', 'Diana Prince', 'diana.p66@internal.com', 'Quantum Engineering', 'Lead Architect', '2026-01-01', 'ACTIVE'),
-      ('${seedPrefix}EMP2', 'Clark Kent', 'clark.p66@internal.com', 'Quantum Engineering', 'Staff Writer', '2026-02-01', 'ACTIVE'),
-      ('${seedPrefix}EMP3', 'Bruce Wayne', 'bruce.p66@internal.com', 'Operations', 'Director', '2026-03-01', 'ACTIVE')
+      INSERT INTO employees (id, empCode, firstName, lastName, email, department, jobPosition, createdAt, status) VALUES
+      ('${seedPrefix}EMP1', '${seedPrefix}EC1', 'Diana', 'Prince', 'diana.p66@internal.com', 'Quantum Engineering', 'Lead Architect', '2026-01-01', 'ACTIVE'),
+      ('${seedPrefix}EMP2', '${seedPrefix}EC2', 'Clark', 'Kent', 'clark.p66@internal.com', 'Quantum Engineering', 'Staff Writer', '2026-02-01', 'ACTIVE'),
+      ('${seedPrefix}EMP3', '${seedPrefix}EC3', 'Bruce', 'Wayne', 'bruce.p66@internal.com', 'Operations', 'Director', '2026-03-01', 'ACTIVE')
     `);
 
     // 4. Contracts:
@@ -355,6 +354,7 @@ test('PeoplePay360 — Phase 6.6 Final Dashboard Verification Suite', async () =
     await executeQuery('DELETE FROM time_off_requests WHERE id LIKE ?', [`${seedPrefix}%`]);
     await executeQuery('DELETE FROM contracts WHERE id LIKE ?', [`${seedPrefix}%`]);
     await executeQuery('DELETE FROM employees WHERE id LIKE ?', [`${seedPrefix}%`]);
+    await pool.end();
   }
 
   console.log('\n================================================================');

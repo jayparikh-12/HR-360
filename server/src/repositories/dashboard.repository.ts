@@ -195,9 +195,7 @@ export async function getEmployeeMetrics(
       SUM(CASE WHEN e.status = 'ACTIVE' THEN 1 ELSE 0 END) AS active,
       SUM(CASE WHEN e.status IN ('INACTIVE', 'TERMINATED') THEN 1 ELSE 0 END) AS inactive,
       SUM(CASE WHEN e.status = 'PROBATION' THEN 1 ELSE 0 END) AS probation,
-      SUM(CASE WHEN e.status = 'ACTIVE' AND NOT EXISTS (
-        SELECT 1 FROM contracts c2 WHERE c2.employee_id = e.id AND c2.status = 'ACTIVE'
-      ) THEN 1 ELSE 0 END) AS uncontracted,
+      SUM(CASE WHEN e.status = 'ACTIVE' AND c.id IS NULL THEN 1 ELSE 0 END) AS uncontracted,
       COUNT(DISTINCT e.department) AS department_count
     FROM employees e
     LEFT JOIN contracts c ON c.employee_id = e.id AND c.status = 'ACTIVE'

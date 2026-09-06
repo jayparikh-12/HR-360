@@ -24,8 +24,9 @@
  * 9. Payrun lifecycle state flow.
  */
 
-import { describe, it } from 'node:test';
+import { describe, it, after } from 'node:test';
 import assert from 'node:assert';
+import { pool } from '../config/database.js';
 import {
   PayrollEngine,
   calculateFixedRule,
@@ -429,5 +430,9 @@ describe('PHASE 4 INTEGRATION CHECKPOINT: Architecture & Pipeline Verification',
     assert.strictEqual(payslip.basic, 3900); // 60% of 6500
     assert.strictEqual(payslip.hra, 1625);   // 25% of 6500
     assert.strictEqual(payslip.net, 5395);
+  });
+
+  after(async () => {
+    await pool.end();
   });
 });

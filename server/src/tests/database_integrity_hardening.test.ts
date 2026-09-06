@@ -111,8 +111,8 @@ describe('Phase 7.3: Database & Data Integrity Hardening', () => {
   describe('2. Primary Key & Unique Constraints', () => {
     it('creates a valid employee successfully', async () => {
       await executeQuery(
-        'INSERT INTO employees (id, name, email, department, position, status, join_date) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        [testEmpId, 'Integrity Test Employee', testEmpEmail, 'Engineering', 'QA Engineer', 'ACTIVE', '2024-01-01']
+        'INSERT INTO employees (id, empCode, firstName, lastName, email, department, jobPosition, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())',
+        [testEmpId, `CODE-${testSuffix}`, 'Integrity Test', 'Employee', testEmpEmail, 'Engineering', 'QA Engineer', 'ACTIVE']
       );
       const emp = await getEmployeeById(testEmpId);
       assert.ok(emp);
@@ -125,8 +125,8 @@ describe('Phase 7.3: Database & Data Integrity Hardening', () => {
       try {
         await assert.rejects(async () => {
           await conn.query(
-            'INSERT INTO employees (id, name, email, department, position, status, join_date) VALUES (?, ?, ?, ?, ?, ?, ?)',
-            [testEmpId, 'Duplicate PK Employee', `other.${testSuffix}@example.com`, 'Engineering', 'QA', 'ACTIVE', '2024-01-01']
+            'INSERT INTO employees (id, empCode, firstName, lastName, email, department, jobPosition, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            [testEmpId, `CODE-DUP-${testSuffix}`, 'Duplicate PK', 'Employee', `other.${testSuffix}@example.com`, 'Engineering', 'QA', 'ACTIVE']
           );
         }, (err: any) => err.code === 'ER_DUP_ENTRY');
       } finally {
@@ -139,8 +139,8 @@ describe('Phase 7.3: Database & Data Integrity Hardening', () => {
       try {
         await assert.rejects(async () => {
           await conn.query(
-            'INSERT INTO employees (id, name, email, department, position, status, join_date) VALUES (?, ?, ?, ?, ?, ?, ?)',
-            [`${testEmpId}-DIFF`, 'Duplicate Email Employee', testEmpEmail, 'Engineering', 'QA', 'ACTIVE', '2024-01-01']
+            'INSERT INTO employees (id, empCode, firstName, lastName, email, department, jobPosition, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            [`${testEmpId}-DIFF`, `CODE-DIFF-${testSuffix}`, 'Duplicate Email', 'Employee', testEmpEmail, 'Engineering', 'QA', 'ACTIVE']
           );
         }, (err: any) => err.code === 'ER_DUP_ENTRY');
       } finally {
@@ -556,6 +556,10 @@ describe('Phase 7.3: Database & Data Integrity Hardening', () => {
       await executeQuery('DELETE FROM payslips WHERE payrun_id = ?', [lifecyclePayrunId]);
       await executeQuery('DELETE FROM payruns WHERE id = ?', [lifecyclePayrunId]);
     });
+  });
+
+  after(async () => {
+    await pool.end();
   });
 
 });

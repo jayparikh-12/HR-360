@@ -187,7 +187,8 @@ export class PayrunComputeService {
   public static async assembleEmployeePayrollInput(
     employeeRow: EligibleEmployeeRow,
     period: PayrollPeriod,
-    payrunSalaryStructureId?: string | null
+    payrunSalaryStructureId?: string | null,
+    rulesCache?: Map<string, any[]>
   ): Promise<PreparedPayrollData> {
     const employeeId = employeeRow.employeeId;
 
@@ -195,10 +196,18 @@ export class PayrunComputeService {
     const structureId =
       employeeRow.salaryStructureId || payrunSalaryStructureId || 'STR-001';
 
-    // 2. Fetch Ordered Salary Rules
+    // 2. Fetch Ordered Salary Rules (cached to prevent N+1 queries)
     let salaryRules: PayrollSalaryRule[] | undefined = undefined;
     if (structureId) {
-      const dbRules = await getSalaryRulesByStructureId(structureId);
+      let dbRules: any[] | null = null;
+      if (rulesCache && rulesCache.has(structureId)) {
+        dbRules = rulesCache.get(structureId)!;
+      } else {
+        dbRules = await getSalaryRulesByStructureId(structureId);
+        if (rulesCache) {
+          rulesCache.set(structureId, dbRules);
+        }
+      }
       if (dbRules && dbRules.length > 0) {
         salaryRules = dbRules.map((r) => ({
           id: r.id,
@@ -314,13 +323,15 @@ export class PayrunComputeService {
     // ── 4. Pure In-Memory Preparation & Calculation Phase ────────────────────
     // If ANY employee computation fails, NO database writes will occur.
     const computedItems: ComputedEmployeeItem[] = [];
+    const rulesCache = new Map<string, any[]>();
 
     for (const emp of eligibleEmployees) {
       try {
         const prepared = await PayrunComputeService.assembleEmployeePayrollInput(
           emp,
           period,
-          payrun.salaryStructureId
+          payrun.salaryStructureId,
+          rulesCache
         );
 
         // Execute deterministic payroll calculation

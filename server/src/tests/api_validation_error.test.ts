@@ -24,6 +24,7 @@ import assert from 'node:assert';
 import express, { Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import http from 'node:http';
+import { pool } from '../config/database.js';
 
 import authRoutes from '../routes/auth.routes.js';
 import employeeRoutes from '../routes/employee.routes.js';
@@ -819,5 +820,6 @@ test.after(async () => {
   if (server) {
     await new Promise<void>((resolve) => server.close(() => resolve()));
   }
+  await pool.end();
 });
 

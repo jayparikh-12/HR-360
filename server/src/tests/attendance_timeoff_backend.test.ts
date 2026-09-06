@@ -136,9 +136,9 @@ test('PeoplePay360 — Phase 6.5 Attendance & Time-Off Analytics Backend Verific
 
     if (employees.length === 0) {
       await executeQuery(
-        `INSERT INTO employees (id, name, email, department, position, join_date) VALUES 
-         (?, 'Alice Dev', 'alice.test@peoplepay360.internal', 'Engineering', 'Developer', '2026-01-01'),
-         (?, 'Bob Ops', 'bob.test@peoplepay360.internal', 'Operations', 'Coordinator', '2026-01-01')`,
+        `INSERT INTO employees (id, empCode, firstName, lastName, email, department, jobPosition, createdAt) VALUES 
+         (?, 'EMP-P65-01', 'Alice', 'Dev', 'alice.test@peoplepay360.internal', 'Engineering', 'Developer', '2026-01-01'),
+         (?, 'EMP-P65-02', 'Bob', 'Ops', 'bob.test@peoplepay360.internal', 'Operations', 'Coordinator', '2026-01-01')`,
         [emp1Id, emp2Id]
       );
     }
@@ -350,6 +350,7 @@ test('PeoplePay360 — Phase 6.5 Attendance & Time-Off Analytics Backend Verific
     // Clean up seeded test records
     await executeQuery('DELETE FROM attendance_records WHERE id LIKE ?', [`${testPrefix}%`]);
     await executeQuery('DELETE FROM time_off_requests WHERE id LIKE ?', [`${testPrefix}%`]);
+    await pool.end();
   }
 
   console.log('\n================================================================');
