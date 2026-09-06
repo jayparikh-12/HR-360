@@ -9,10 +9,13 @@ import {
   Building, 
   Key, 
   CheckCircle2, 
-  Clock
+  Clock,
+  ChevronDown
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
+import { getStoredToken } from '../api/client';
+import { getTokenRemainingMs } from '../utils/jwt';
 import type { UserRole } from '../types';
 
 interface HeaderProps {
@@ -40,10 +43,58 @@ export const Header: React.FC<HeaderProps> = ({
   onLogout
 }) => {
   const { theme, toggleTheme } = useTheme();
-  const { user } = useAuth();
+  const { user, token } = useAuth();
 
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const closeTimeoutRef = useRef<any>(null);
+
+  // Live session remaining time tracker
+  const [remainingTimeStr, setRemainingTimeStr] = useState<string>('20m 00s');
+  const [remainingColor, setRemainingColor] = useState<string>('#10b981');
+
+  useEffect(() => {
+    const updateRemaining = () => {
+      const activeToken = token || getStoredToken();
+      if (!activeToken) {
+        setRemainingTimeStr('Expired');
+        setRemainingColor('#ef4444');
+        return;
+      }
+
+      const ms = getTokenRemainingMs(activeToken);
+      if (ms <= 0) {
+        setRemainingTimeStr('Expired');
+        setRemainingColor('#ef4444');
+        return;
+      }
+
+      // Enforce strict 20-minute maximum session validity window
+      const MAX_SESSION_MS = 20 * 60 * 1000;
+      const effectiveMs = Math.min(ms, MAX_SESSION_MS);
+
+      const totalSec = Math.floor(effectiveMs / 1000);
+      const mins = Math.floor(totalSec / 60);
+      const secs = totalSec % 60;
+
+      if (mins < 2) {
+        setRemainingColor('#ef4444');
+      } else if (mins < 5) {
+        setRemainingColor('#f59e0b');
+      } else {
+        setRemainingColor('#10b981');
+      }
+
+      if (mins > 0) {
+        setRemainingTimeStr(`${mins}m ${secs.toString().padStart(2, '0')}s remaining`);
+      } else {
+        setRemainingTimeStr(`${secs}s remaining`);
+      }
+    };
+
+    updateRemaining();
+    const interval = setInterval(updateRemaining, 1000);
+    return () => clearInterval(interval);
+  }, [token]);
 
   // Clean up any pending dropdown close timeout on component unmount
   useEffect(() => {
@@ -141,53 +192,47 @@ export const Header: React.FC<HeaderProps> = ({
     <header className="header">
       {/* Search */}
       <div className="search-box">
-        <Search size={15} color="var(--slate-400)" />
-        <input type="text" placeholder="Search employees, payroll, records..." />
+        <Search size={15} color="var(--text-subtle)" />
+        <input type="text" placeholder="Search employees, payroll, records..." aria-label="Global search" />
+        <kbd
+          style={{
+            fontSize: '10px',
+            padding: '2px 6px',
+            borderRadius: '4px',
+            background: 'var(--border-subtle)',
+            border: '1px solid var(--border-color)',
+            color: 'var(--text-subtle)',
+            fontWeight: 700,
+            letterSpacing: '0.05em',
+            lineHeight: '1.2',
+            userSelect: 'none',
+          }}
+        >
+          ⌘K
+        </kbd>
       </div>
 
       {/* Actions */}
       <div className="header-actions">
-        {/* Theme Toggle (Light / Dark) */}
-        <button
-          className="btn btn-secondary btn-sm"
-          onClick={toggleTheme}
-          title={`Switch to ${theme === 'dark' ? 'Light' : 'Dark'} Mode`}
-          aria-label={`Switch to ${theme === 'dark' ? 'Light' : 'Dark'} Mode`}
-          style={{ padding: '6px 10px', display: 'flex', alignItems: 'center', gap: '6px' }}
-        >
-          {theme === 'dark' ? <Sun size={14} color="#f59e0b" /> : <Moon size={14} color="#6366f1" />}
-          <span style={{ fontSize: '12px' }}>{theme === 'dark' ? 'Light' : 'Dark'}</span>
-        </button>
-
         {/* Active Cycle */}
         <div className="cycle-pill">
           <span className="cycle-dot" />
           <span>Sep 2026 Cycle</span>
         </div>
 
-
-
-        {/* Authenticated Role Badge */}
-        <div 
-          className="role-badge" 
-          style={{ 
-            padding: '5px 12px', 
-            borderRadius: '6px', 
-            fontSize: '12px', 
-            fontWeight: 600, 
-            backgroundColor: 'var(--surface-color, #1e293b)',
-            color: 'var(--text-primary, #f8fafc)',
-            border: '1px solid var(--border-color, #334155)',
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '6px'
-          }}
+        {/* Theme Toggle (Light / Dark) */}
+        <button
+          className="btn btn-secondary btn-sm"
+          onClick={toggleTheme}
+          title={`Switch to ${theme === 'dark' ? 'Light' : 'Dark'} Mode`}
+          aria-label={`Switch to ${theme === 'dark' ? 'Light' : 'Dark'} Mode`}
+          style={{ padding: '6px 11px', display: 'flex', alignItems: 'center', gap: '6px' }}
         >
-          <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: profile.badgeColor }} />
-          <span>Role: {currentRole}</span>
-        </div>
+          {theme === 'dark' ? <Sun size={14} color="#f59e0b" /> : <Moon size={14} color="#6366f1" />}
+          <span style={{ fontSize: '12px', fontWeight: 600 }}>{theme === 'dark' ? 'Light' : 'Dark'}</span>
+        </button>
 
-        {/* User Profile Avatar with Hover Details Dropdown */}
+        {/* User Profile Trigger with Hover & Click Popover */}
         <div 
           className="user-profile-wrapper"
           style={{ position: 'relative' }}
@@ -195,15 +240,66 @@ export const Header: React.FC<HeaderProps> = ({
           onMouseLeave={handleMouseLeave}
         >
           <div 
-            className="avatar" 
+            className="user-profile-capsule"
+            onClick={() => setIsDropdownOpen(!isDropdownOpen)}
             style={{ 
               cursor: 'pointer',
-              transition: 'transform 0.15s ease, box-shadow 0.15s ease',
-              transform: isDropdownOpen ? 'scale(1.06)' : 'scale(1)',
-              boxShadow: isDropdownOpen ? `0 0 0 2px ${profile.badgeColor}` : 'none'
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '10px',
+              padding: '4px 12px 4px 6px',
+              borderRadius: 'var(--radius-full)',
+              border: '1px solid var(--border-color)',
+              backgroundColor: 'var(--bg-card)',
+              transition: 'all 0.15s cubic-bezier(0.16, 1, 0.3, 1)',
+              boxShadow: isDropdownOpen ? `0 0 0 2px ${profile.badgeColor}40` : 'var(--shadow-xs)'
             }}
           >
-            {profile.initials}
+            <div style={{ position: 'relative' }}>
+              <div 
+                className="avatar" 
+                style={{ 
+                  width: '32px', 
+                  height: '32px', 
+                  fontSize: '12.5px', 
+                  fontWeight: 800,
+                  backgroundColor: profile.badgeBg,
+                  color: profile.badgeColor,
+                  border: `1.5px solid ${profile.badgeColor}60`
+                }}
+              >
+                {profile.initials}
+              </div>
+              <span 
+                style={{
+                  position: 'absolute',
+                  bottom: '-1px',
+                  right: '-1px',
+                  width: '9px',
+                  height: '9px',
+                  borderRadius: '50%',
+                  backgroundColor: '#10b981',
+                  border: '2px solid var(--bg-card)',
+                }}
+              />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', textAlign: 'left', lineHeight: 1.2 }}>
+              <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-main)', maxWidth: '130px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {profile.name}
+              </span>
+              <span style={{ fontSize: '11px', fontWeight: 600, color: profile.badgeColor }}>
+                {currentRole}
+              </span>
+            </div>
+            <ChevronDown 
+              size={14} 
+              color="var(--text-muted)" 
+              style={{ 
+                transform: isDropdownOpen ? 'rotate(180deg)' : 'none', 
+                transition: 'transform 0.2s ease',
+                marginLeft: '2px'
+              }} 
+            />
           </div>
 
           {/* Hover Details Card */}
@@ -362,13 +458,8 @@ export const Header: React.FC<HeaderProps> = ({
                   <span style={{ color: theme === 'dark' ? '#94a3b8' : '#64748b', display: 'flex', alignItems: 'center', gap: '5px' }}>
                     <Clock size={13} /> Session Validity
                   </span>
-                  <span style={{ fontWeight: 600, color: '#10b981' }}>20 min JWT</span>
+                  <span style={{ fontWeight: 600, color: remainingColor }}>{remainingTimeStr}</span>
                 </div>
-              </div>
-
-              {/* Operational Scope Description */}
-              <div style={{ fontSize: '11px', color: theme === 'dark' ? '#94a3b8' : '#64748b', lineHeight: '1.4', marginBottom: '14px', padding: '0 2px' }}>
-                <strong style={{ color: theme === 'dark' ? '#cbd5e1' : '#334155' }}>Operational Access:</strong> {profile.scope}
               </div>
 
               {/* Quick Sign Out Action inside Popover */}

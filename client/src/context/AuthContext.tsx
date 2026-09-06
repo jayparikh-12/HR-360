@@ -78,10 +78,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return;
     }
 
+    const MAX_SESSION_MS = 20 * 60 * 1000;
+    const effectiveTimeoutMs = Math.min(remainingMs, MAX_SESSION_MS);
+
     sessionTimeoutTimerRef.current = setTimeout(() => {
       console.info('[AuthContext] 20-minute authenticated session lifetime expired. Logging out automatically.');
       logout();
-    }, remainingMs);
+    }, effectiveTimeoutMs);
   }, [clearSessionTimer, logout]);
 
   // --------------------------------------------------------------------------

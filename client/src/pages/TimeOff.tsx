@@ -151,30 +151,30 @@ export const TimeOff: React.FC<TimeOffProps> = ({ onApprove, onRefuse }) => {
       )}
 
       {/* Allocation Cards */}
-      <div className="grid-4" style={{ marginBottom: '20px' }}>
+      <div className="grid-4-stat" style={{ marginBottom: '20px' }}>
         <div className="card">
           <div className="metric-title">Annual Leave Quota</div>
           <div className="metric-val">20 Days</div>
-          <div style={{ fontSize: '12px', color: 'var(--slate-500)', marginTop: '4px' }}>Standard company allocation</div>
+          <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>Standard company allocation</div>
         </div>
         <div className="card">
           <div className="metric-title">Taken This Cycle</div>
           <div className="metric-val">{takenDays} Days</div>
-          <div style={{ fontSize: '12px', color: '#059669', marginTop: '4px' }}>
+          <div style={{ fontSize: '12px', color: 'var(--success)', marginTop: '4px' }}>
             Across {teamMemberCount} team member{teamMemberCount === 1 ? '' : 's'}
           </div>
         </div>
         <div className="card">
           <div className="metric-title">Pending Approvals</div>
-          <div className="metric-val" style={{ color: '#b45309' }}>
+          <div className="metric-val" style={{ color: 'var(--warning)' }}>
             {pendingCount} Request{pendingCount === 1 ? '' : 's'}
           </div>
-          <div style={{ fontSize: '12px', color: 'var(--slate-500)', marginTop: '4px' }}>Requires manager signoff</div>
+          <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>Requires manager signoff</div>
         </div>
         <div className="card">
           <div className="metric-title">Payroll Sync Status</div>
-          <div className="metric-val" style={{ color: '#047857' }}>Active</div>
-          <div style={{ fontSize: '12px', color: 'var(--slate-500)', marginTop: '4px' }}>Unpaid days synced to Payrun</div>
+          <div className="metric-val" style={{ color: 'var(--success)' }}>Active</div>
+          <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>Unpaid days synced to Payrun</div>
         </div>
       </div>
 

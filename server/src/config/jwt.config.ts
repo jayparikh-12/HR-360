@@ -20,7 +20,7 @@ function resolveJwtSecret(): string {
 export const JWT_SECRET = resolveJwtSecret();
 export const JWT_ALGORITHM: jwt.Algorithm = 'HS256';
 export const JWT_EXPIRES_IN: jwt.SignOptions['expiresIn'] =
-  (process.env.JWT_EXPIRES_IN as jwt.SignOptions['expiresIn']) || '24h';
+  (process.env.JWT_EXPIRES_IN as jwt.SignOptions['expiresIn']) || '20m';
 
 export const JWT_VERIFY_OPTIONS: jwt.VerifyOptions = {
   algorithms: [JWT_ALGORITHM],

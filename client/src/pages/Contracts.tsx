@@ -75,14 +75,14 @@ export const ContractDetailModal: React.FC<ContractDetailModalProps> = ({ contra
       <div
         className="card"
         style={{
-          width: '100%', maxWidth: '520px', background: '#fff',
+          width: '100%', maxWidth: '520px', background: 'var(--bg-card)',
           borderRadius: '12px', padding: '24px', boxShadow: 'var(--shadow-lg)',
         }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <FileText size={18} color="var(--primary)" />
-            <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--slate-900)' }}>
+            <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-main)' }}>
               Contract Details
             </h3>
           </div>
@@ -290,12 +290,12 @@ export const CreateContractModal: React.FC<CreateContractModalProps> = ({
   };
   const inputStyle: React.CSSProperties = {
     padding: '8px 10px',
-    border: '1px solid var(--slate-200)',
+    border: '1px solid var(--border-color)',
     borderRadius: '6px',
     fontSize: '13px',
-    color: 'var(--slate-900)',
+    color: 'var(--text-main)',
     outline: 'none',
-    background: '#fff',
+    background: 'var(--bg-card)',
   };
 
   return (
@@ -310,7 +310,7 @@ export const CreateContractModal: React.FC<CreateContractModalProps> = ({
       <div
         className="card"
         style={{
-          width: '100%', maxWidth: '520px', background: '#fff',
+          width: '100%', maxWidth: '520px', background: 'var(--bg-card)',
           borderRadius: '12px', padding: '24px', boxShadow: 'var(--shadow-lg)',
           maxHeight: '90vh', overflowY: 'auto',
         }}
@@ -318,7 +318,7 @@ export const CreateContractModal: React.FC<CreateContractModalProps> = ({
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <FileText size={18} color="var(--primary)" />
-            <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--slate-900)' }}>
+            <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-main)' }}>
               Create Employment Contract
             </h3>
           </div>
@@ -566,18 +566,18 @@ export const Contracts: React.FC<ContractsProps> = () => {
       </div>
 
       {/* Metric Cards */}
-      <div className="grid-4" style={{ marginBottom: '20px' }}>
+      <div className="grid-4-stat" style={{ marginBottom: '20px' }}>
         <div className="card">
           <div className="metric-title">Total Contracts</div>
           <div className="metric-val">{contracts.length}</div>
-          <div className="metric-trend" style={{ color: 'var(--slate-500)' }}>
+          <div className="metric-trend" style={{ color: 'var(--text-muted)' }}>
             Persisted MySQL records
           </div>
         </div>
         <div className="card">
           <div className="metric-title">Active Contracts</div>
-          <div className="metric-val" style={{ color: '#047857' }}>{activeCount}</div>
-          <div className="metric-trend">
+          <div className="metric-val" style={{ color: 'var(--success)' }}>{activeCount}</div>
+          <div className="metric-trend" style={{ color: 'var(--success)' }}>
             <CheckCircle2 size={12} /> Currently operating
           </div>
         </div>
@@ -590,10 +590,10 @@ export const Contracts: React.FC<ContractsProps> = () => {
         </div>
         <div className="card">
           <div className="metric-title">Future / Inactive</div>
-          <div className="metric-val" style={{ color: '#b45309' }}>
+          <div className="metric-val" style={{ color: 'var(--warning)' }}>
             {contracts.length - activeCount}
           </div>
-          <div className="metric-trend" style={{ color: '#b45309' }}>
+          <div className="metric-trend" style={{ color: 'var(--warning)' }}>
             Draft or Historical
           </div>
         </div>

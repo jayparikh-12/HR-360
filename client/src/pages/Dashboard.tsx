@@ -278,26 +278,27 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
       <div 
         className="card" 
         style={{ 
-          padding: '14px 18px', 
+          padding: '14px 20px', 
           display: 'flex', 
           alignItems: 'center', 
           justifyContent: 'space-between', 
           flexWrap: 'wrap', 
-          gap: '14px' 
+          gap: '14px',
+          backgroundColor: 'var(--bg-card)',
+          borderRadius: 'var(--radius-lg)'
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--slate-700)', fontWeight: 600, fontSize: '13px' }}>
-          <Filter size={15} color="var(--primary)" />
-          <span>Dashboard Filters:</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-main)', fontWeight: 700, fontSize: '13px' }}>
+          <Filter size={16} color="var(--primary)" />
+          <span>Dashboard Filters</span>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
           {/* Period Selector */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <Calendar size={13} color="var(--slate-500)" />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'var(--bg-page)', padding: '3px 8px', borderRadius: 'var(--radius)', border: '1px solid var(--border-color)' }}>
+            <Calendar size={14} color="var(--text-subtle)" />
             <select
-              className="form-control"
-              style={{ fontSize: '13px', padding: '6px 10px', height: 'auto', minWidth: '160px' }}
+              style={{ fontSize: '12.5px', padding: '5px 8px', border: 'none', background: 'transparent', outline: 'none', minWidth: '150px', color: 'var(--text-main)', fontWeight: 500 }}
               value={filters.period || 'ALL'}
               onChange={(e) => handleFilterChange('period', e.target.value)}
               disabled={loading}
@@ -311,11 +312,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
           </div>
 
           {/* Department Selector */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <Building2 size={13} color="var(--slate-500)" />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'var(--bg-page)', padding: '3px 8px', borderRadius: 'var(--radius)', border: '1px solid var(--border-color)' }}>
+            <Building2 size={14} color="var(--text-subtle)" />
             <select
-              className="form-control"
-              style={{ fontSize: '13px', padding: '6px 10px', height: 'auto', minWidth: '160px' }}
+              style={{ fontSize: '12.5px', padding: '5px 8px', border: 'none', background: 'transparent', outline: 'none', minWidth: '150px', color: 'var(--text-main)', fontWeight: 500 }}
               value={filters.department || 'ALL'}
               onChange={(e) => handleFilterChange('department', e.target.value)}
               disabled={loading}
@@ -329,15 +329,18 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
           </div>
 
           {/* Employee Type Selector */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <Briefcase size={13} color="var(--slate-500)" />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'var(--bg-page)', padding: '3px 8px', borderRadius: 'var(--radius)', border: '1px solid var(--border-color)' }}>
+            <Briefcase size={14} color="var(--text-subtle)" />
             <select
-              className="form-control"
               style={{ 
-                fontSize: '13px', 
-                padding: '6px 10px', 
-                height: 'auto', 
-                minWidth: '150px',
+                fontSize: '12.5px', 
+                padding: '5px 8px', 
+                border: 'none',
+                background: 'transparent',
+                outline: 'none',
+                minWidth: '140px',
+                color: 'var(--text-main)',
+                fontWeight: 500
               }}
               value={filters.employeeType || 'ALL'}
               onChange={(e) => handleFilterChange('employeeType', e.target.value)}
@@ -357,11 +360,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
             <button 
               className="btn btn-secondary btn-sm" 
               onClick={handleResetFilters}
-              style={{ fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}
+              style={{ fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px', height: '34px' }}
               title="Reset all filters to default"
             >
-              <X size={12} />
-              <span>Reset Filters</span>
+              <X size={13} />
+              <span>Reset</span>
             </button>
           )}
         </div>
@@ -425,12 +428,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
           <div className="card">
             <div className="metric-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span>Gross Payroll</span>
-              <CreditCard size={15} color="var(--primary)" />
+              <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'var(--primary-light)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <CreditCard size={16} color="var(--primary)" />
+              </div>
             </div>
             <div className="metric-val">
               {formatCurrency(metrics.grossPayroll)}
             </div>
-            <div style={{ fontSize: '11px', color: 'var(--slate-500)', marginTop: '6px' }}>
+            <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginTop: '8px' }}>
               Base wage + active rule earnings
             </div>
           </div>
@@ -439,12 +444,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
           <div className="card">
             <div className="metric-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span>Net Payable Salary</span>
-              <TrendingUp size={15} color="#047857" />
+              <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'var(--success-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <TrendingUp size={16} color="#059669" />
+              </div>
             </div>
-            <div className="metric-val" style={{ color: metrics.netPayroll > 0 ? '#047857' : 'inherit' }}>
+            <div className="metric-val" style={{ color: metrics.netPayroll > 0 ? '#059669' : 'inherit' }}>
               {formatCurrency(metrics.netPayroll)}
             </div>
-            <div style={{ fontSize: '11px', color: 'var(--slate-500)', marginTop: '6px' }}>
+            <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginTop: '8px' }}>
               Disbursable payroll post-deductions
             </div>
           </div>
@@ -453,12 +460,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
           <div className="card">
             <div className="metric-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span>Total Deductions</span>
-              <Layers size={15} color="#be123c" />
+              <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'var(--danger-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Layers size={16} color="#e11d48" />
+              </div>
             </div>
-            <div className="metric-val" style={{ color: metrics.totalDeductions > 0 ? '#be123c' : 'inherit' }}>
+            <div className="metric-val" style={{ color: metrics.totalDeductions > 0 ? '#e11d48' : 'inherit' }}>
               {formatCurrency(metrics.totalDeductions)}
             </div>
-            <div style={{ fontSize: '11px', color: 'var(--slate-500)', marginTop: '6px' }}>
+            <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginTop: '8px' }}>
               Taxes and statutory deductions
             </div>
           </div>
@@ -467,13 +476,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
           <div className="card">
             <div className="metric-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span>Active Headcount</span>
-              <Users size={15} color="var(--primary)" />
+              <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'var(--primary-light)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Users size={16} color="var(--primary)" />
+              </div>
             </div>
             <div className="metric-val">
               {metrics.activeEmployees} Staff
             </div>
-            <div style={{ fontSize: '11px', color: 'var(--slate-500)', marginTop: '6px' }}>
-              Across {metrics.departmentCount} department{metrics.departmentCount === 1 ? '' : 's'} ({metrics.totalEmployees} total enrolled)
+            <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginTop: '8px' }}>
+              Across {metrics.departmentCount} department{metrics.departmentCount === 1 ? '' : 's'} ({metrics.totalEmployees} enrolled)
             </div>
           </div>
 
@@ -481,7 +492,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
           <div className="card">
             <div className="metric-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span>Payroll Vouchers</span>
-              <Calendar size={15} color="var(--primary)" />
+              <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'var(--info-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Calendar size={16} color="#0284c7" />
+              </div>
             </div>
             <div className="metric-val" style={{ display: 'flex', alignItems: 'center', gap: '8px', minHeight: '32px' }}>
               {metrics.latestPayrun ? (
@@ -493,7 +506,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                 <span className="badge badge-warning">0 PAYSLIPS</span>
               )}
             </div>
-            <div style={{ fontSize: '11px', color: 'var(--slate-500)', marginTop: '6px' }}>
+            <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginTop: '8px' }}>
               {metrics.latestPayrun ? metrics.latestPayrun.period : 'No active payrun in scope'}
             </div>
           </div>
@@ -502,12 +515,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
           <div className="card">
             <div className="metric-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span>Attendance Health</span>
-              <CheckCircle2 size={15} color="#047857" />
+              <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'var(--success-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <CheckCircle2 size={16} color="#059669" />
+              </div>
             </div>
             <div className="metric-val">
               {metrics.attendanceRate !== null ? `${metrics.attendanceRate}%` : 'No Records'}
             </div>
-            <div style={{ fontSize: '11px', color: 'var(--slate-500)', marginTop: '6px' }}>
+            <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginTop: '8px' }}>
               {metrics.attendanceRate !== null
                 ? `${metrics.attendancePresentCount} of ${metrics.attendanceTotalRecords} check-ins logged`
                 : `${metrics.pendingTimeOffCount} pending leave request${metrics.pendingTimeOffCount === 1 ? '' : 's'}`}

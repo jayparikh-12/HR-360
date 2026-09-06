@@ -475,24 +475,33 @@ export const Payruns: React.FC<PayrunsProps> = ({
         </div>
 
         {/* Totals Ribbon */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '12px', marginTop: '20px', paddingTop: '16px', borderTop: '1px solid var(--slate-100)' }}>
+        <div style={{ 
+          display: 'grid', 
+          gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', 
+          gap: '16px', 
+          marginTop: '20px', 
+          padding: '16px 20px', 
+          background: 'var(--bg-app)', 
+          borderRadius: 'var(--radius-md)', 
+          border: '1px solid var(--border-color)' 
+        }}>
           <div>
-            <div style={{ fontSize: '11px', color: 'var(--slate-500)', textTransform: 'uppercase' }}>Employees</div>
-            <div style={{ fontSize: '16px', fontWeight: 700 }}>{activePayrun.employeeCount}</div>
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', fontWeight: 600 }}>Employees</div>
+            <div style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text-main)', marginTop: '2px' }}>{activePayrun.employeeCount}</div>
           </div>
           <div>
-            <div style={{ fontSize: '11px', color: 'var(--slate-500)', textTransform: 'uppercase' }}>Total Gross</div>
-            <div style={{ fontSize: '16px', fontWeight: 700 }}>₹{activePayrun.totalGross.toLocaleString('en-IN')}.00</div>
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', fontWeight: 600 }}>Total Gross</div>
+            <div style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text-main)', marginTop: '2px' }}>₹{activePayrun.totalGross.toLocaleString('en-IN')}.00</div>
           </div>
           <div>
-            <div style={{ fontSize: '11px', color: 'var(--slate-500)', textTransform: 'uppercase' }}>Total Deductions</div>
-            <div style={{ fontSize: '16px', fontWeight: 700, color: '#be123c' }}>
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', fontWeight: 600 }}>Total Deductions</div>
+            <div style={{ fontSize: '18px', fontWeight: 700, color: 'var(--danger)', marginTop: '2px' }}>
               -₹{(activePayrun.totalGross - activePayrun.totalNet).toLocaleString('en-IN')}.00
             </div>
           </div>
           <div>
-            <div style={{ fontSize: '11px', color: 'var(--slate-500)', textTransform: 'uppercase' }}>Net Disbursement</div>
-            <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--primary)' }}>
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', fontWeight: 600 }}>Net Disbursement</div>
+            <div style={{ fontSize: '20px', fontWeight: 800, color: 'var(--primary)', marginTop: '2px' }}>
               ₹{activePayrun.totalNet.toLocaleString('en-IN')}.00
             </div>
           </div>
