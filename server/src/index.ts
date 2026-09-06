@@ -20,13 +20,22 @@ import salaryStructureRoutes from './routes/salaryStructure.routes.js';
 import salaryRuleRoutes from './routes/salaryRule.routes.js';
 import payrollRoutes from './routes/payroll.routes.js';
 import dashboardRoutes from './routes/dashboard.routes.js';
-import { testDatabaseConnection } from './config/database.js';
+import { testDatabaseConnection, pool } from './config/database.js';
 import { apiNotFoundError, globalErrorHandler } from './middleware/errorHandler.js';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-app.use(cors());
+const allowedOrigins = process.env.CORS_ORIGIN
+  ? process.env.CORS_ORIGIN.split(',').map((o) => o.trim())
+  : '*';
+
+app.use(
+  cors({
+    origin: allowedOrigins === '*' ? true : allowedOrigins,
+    credentials: true,
+  })
+);
 app.use(express.json());
 
 // API Health Check
@@ -65,9 +74,8 @@ app.use(globalErrorHandler);
 
 export { app };
 
-// Start listening if run directly
 if (process.env.NODE_ENV !== 'test') {
-  app.listen(PORT, async () => {
+  const server = app.listen(PORT, async () => {
     console.log(`[PeoplePay360] Server running on http://localhost:${PORT}`);
     const dbResult = await testDatabaseConnection();
     if (dbResult.connected) {
@@ -76,4 +84,27 @@ if (process.env.NODE_ENV !== 'test') {
       console.error(`[Database] MySQL connection warning: ${dbResult.message}`);
     }
   });
+
+  const gracefulShutdown = (signal: string) => {
+    console.log(`[PeoplePay360] Received ${signal}. Initiating graceful shutdown...`);
+    server.close(async () => {
+      console.log('[PeoplePay360] HTTP server closed.');
+      try {
+        await pool.end();
+        console.log('[Database] MySQL connection pool closed.');
+        process.exit(0);
+      } catch (err) {
+        console.error('[Database] Error closing MySQL pool:', err);
+        process.exit(1);
+      }
+    });
+
+    setTimeout(() => {
+      console.error('[PeoplePay360] Forcefully shutting down after timeout.');
+      process.exit(1);
+    }, 10000).unref();
+  };
+
+  process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+  process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 }

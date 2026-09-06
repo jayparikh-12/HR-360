@@ -130,7 +130,7 @@ npm run dev
 
 The client runs on `http://localhost:5173` by default.
 
-If the backend is on a different URL, set `VITE_API_URL` in the frontend environment. The client defaults to `http://localhost:5000`.
+If the backend is on a different URL, copy `client/.env.example` to `client/.env` and set `VITE_API_URL`. The client defaults to `http://localhost:5000`.
 
 ## Useful Scripts
 

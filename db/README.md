@@ -10,6 +10,10 @@ MySQL schema and seed data for the PeoplePay360 HR and payroll platform.
   - `001_add_gender_to_employees.sql`: Adds gender column to employees.
   - `002_normalize_bcnf_and_foreign_keys.sql`: Normalizes `payslips` (drops redundant transitive `employee_name` & `department`), adds candidate keys, and applies explicit `FOREIGN KEY` constraints.
   - `003_add_payroll_snapshot_to_payslips.sql`: Adds historical calculation snapshot, period bounds, contract wage, and structured earnings/deductions breakdown columns to `payslips`.
+  - `004_add_validation_metadata_to_payruns.sql`: Adds validation audit metadata (`validated_at`, `validated_by`) to `payruns`.
+  - `005_add_payment_metadata_to_payruns.sql`: Adds payment audit metadata (`paid_at`, `paid_by`, `payment_reference`) to `payruns`.
+  - `006_database_integrity_hardening.sql`: Enforces historical payroll protection (`ON DELETE RESTRICT`), domain `CHECK` constraints, and performance indexes.
+  - `007_backend_performance_indexes.sql`: Enforces unique constraint on `working_schedules.name` and active contract lookup index on `contracts(employee_id, status)`.
 
 ## Quick Setup with MySQL
 
