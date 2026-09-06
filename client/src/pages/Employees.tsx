@@ -28,6 +28,7 @@ import { ApiError } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { DetailedPayslipModal } from '../components/DetailedPayslipModal';
 import { formatCurrency, formatDate } from '../utils/formatters';
+import { getMaxDobString, validateDateOfBirth } from '../utils/validators';
 
 export function formatGender(gender?: string | null): string {
   if (!gender) return '—';
@@ -129,6 +130,9 @@ const AddEmployeeForm: React.FC<AddEmployeeFormProps> = ({ onClose, onCreated, e
   const [form, setForm] = useState<CreateEmployeePayload>({ ...EMPTY_FORM });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [dobError, setDobError] = useState<string | null>(null);
+
+  const maxDob = useMemo(() => getMaxDobString(), []);
 
   const set = (field: keyof CreateEmployeePayload, value: any) =>
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -177,6 +181,17 @@ const AddEmployeeForm: React.FC<AddEmployeeFormProps> = ({ onClose, onCreated, e
     if (!form.jobPosition.trim()) {
       setError('Job position is required. Please select a job position.');
       return;
+    }
+
+    // Client-side date of birth validation (Strict: Valid date, not in future, at least 18 years old)
+    if (form.dateOfBirth && form.dateOfBirth.trim()) {
+      const dobValidation = validateDateOfBirth(form.dateOfBirth);
+      if (!dobValidation.isValid) {
+        const msg = dobValidation.error || 'Please enter a valid date of birth.';
+        setError(msg);
+        setDobError(msg);
+        return;
+      }
     }
 
     setSubmitting(true);
@@ -286,13 +301,30 @@ const AddEmployeeForm: React.FC<AddEmployeeFormProps> = ({ onClose, onCreated, e
             <div style={fieldStyle}>
               <label style={labelStyle}>Date of Birth</label>
               <input
-                style={inputStyle}
+                style={{
+                  ...inputStyle,
+                  borderColor: dobError ? '#ef4444' : 'var(--slate-200)',
+                }}
                 type="date"
                 value={form.dateOfBirth ?? ''}
-                onChange={(e) => set('dateOfBirth', e.target.value)}
-                max={new Date().toISOString().split('T')[0]}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  set('dateOfBirth', val);
+                  if (val) {
+                    const validation = validateDateOfBirth(val);
+                    setDobError(validation.isValid ? null : (validation.error || null));
+                  } else {
+                    setDobError(null);
+                  }
+                }}
+                max={maxDob}
                 disabled={submitting}
               />
+              {dobError && (
+                <span style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <AlertCircle size={12} /> {dobError}
+                </span>
+              )}
             </div>
           </div>
 
@@ -431,6 +463,9 @@ const EditEmployeeModal: React.FC<EditEmployeeModalProps> = ({ employee, onClose
   const [bankName, setBankName] = useState(employee.bankName || '');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [dobError, setDobError] = useState<string | null>(null);
+
+  const maxDob = useMemo(() => getMaxDobString(), []);
 
   const departmentList = useMemo(() => {
     const list = Array.from(new Set([...DEFAULT_DEPARTMENTS, ...employees.map((e) => e.department).filter(Boolean)]));
@@ -458,6 +493,17 @@ const EditEmployeeModal: React.FC<EditEmployeeModalProps> = ({ employee, onClose
     if (!jobPosition.trim()) {
       setError('Job position cannot be empty.');
       return;
+    }
+
+    // Client-side date of birth validation (Strict: Valid date, not in future, at least 18 years old)
+    if (dateOfBirth && dateOfBirth.trim()) {
+      const dobValidation = validateDateOfBirth(dateOfBirth);
+      if (!dobValidation.isValid) {
+        const msg = dobValidation.error || 'Please enter a valid date of birth.';
+        setError(msg);
+        setDobError(msg);
+        return;
+      }
     }
 
     setSubmitting(true);
@@ -606,13 +652,30 @@ const EditEmployeeModal: React.FC<EditEmployeeModalProps> = ({ employee, onClose
           <div style={fieldStyle}>
             <label style={labelStyle}>Date of Birth</label>
             <input
-              style={inputStyle}
+              style={{
+                ...inputStyle,
+                borderColor: dobError ? '#ef4444' : 'var(--slate-200)',
+              }}
               type="date"
               value={dateOfBirth}
-              onChange={(e) => setDateOfBirth(e.target.value)}
-              max={new Date().toISOString().split('T')[0]}
+              onChange={(e) => {
+                const val = e.target.value;
+                setDateOfBirth(val);
+                if (val) {
+                  const validation = validateDateOfBirth(val);
+                  setDobError(validation.isValid ? null : (validation.error || null));
+                } else {
+                  setDobError(null);
+                }
+              }}
+              max={maxDob}
               disabled={submitting}
             />
+            {dobError && (
+              <span style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <AlertCircle size={12} /> {dobError}
+              </span>
+            )}
           </div>
 
           <div style={fieldStyle}>
