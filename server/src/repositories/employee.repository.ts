@@ -156,24 +156,24 @@ function mapRowToRecord(row: EmployeeRow): EmployeeRecord {
 const EMPLOYEE_SELECT = `
   SELECT
     e.id,
-    e.empCode,
-    TRIM(CONCAT(COALESCE(e.firstName, ''), ' ', COALESCE(e.lastName, ''))) AS name,
+    e.id AS empCode,
+    e.name,
     e.email,
     e.department,
-    e.jobPosition AS position,
+    e.position,
     e.gender,
     e.dateOfBirth AS date_of_birth,
     e.status,
-    COALESCE(ws.name, e.workingSchedule, 'Standard 40h') AS working_schedule,
-    e.bankName AS bank_name,
-    e.bankAccountNo AS bank_account,
-    e.createdAt AS join_date,
-    e.createdAt AS created_at,
+    COALESCE(ws.name, 'Standard 40h') AS working_schedule,
+    e.bank_name,
+    e.bank_account,
+    e.join_date,
+    e.created_at,
     c.id AS active_contract_id,
     c.wage AS wage
   FROM employees e
   LEFT JOIN contracts c
-    ON (c.employee_id COLLATE utf8mb4_unicode_ci = e.id OR c.employee_id COLLATE utf8mb4_unicode_ci = e.empCode)
+    ON (c.employee_id COLLATE utf8mb4_unicode_ci = e.id)
     AND c.status = 'ACTIVE'
   LEFT JOIN working_schedules ws
     ON c.working_schedule_id = ws.id
@@ -190,11 +190,11 @@ export async function getAllEmployees(): Promise<EmployeeRecord[]> {
 export async function getEmployeeById(id: string): Promise<EmployeeRecord | null> {
   const trimmed = id.trim();
   const normalizedCode = trimmed.replace('-', '');
-  const sql = `${EMPLOYEE_SELECT} WHERE e.id = ? OR e.empCode = ? OR e.empCode = ? LIMIT 1`;
-  const rows = await executeQuery<EmployeeRow[]>(sql, [trimmed, trimmed, normalizedCode]);
+  const sql = `${EMPLOYEE_SELECT} WHERE e.id = ? OR REPLACE(e.id, '-', '') = ? LIMIT 1`;
+  const rows = await executeQuery<EmployeeRow[]>(sql, [trimmed, normalizedCode]);
   if (!rows || rows.length === 0) return null;
   const record = mapRowToRecord(rows[0]);
-  if (trimmed === 'EMP-001' || (trimmed.startsWith('EMP-') && rows[0].empCode === normalizedCode)) {
+  if (trimmed === 'EMP-001' || (trimmed.startsWith('EMP-') && rows[0].id.replace('-', '') === normalizedCode)) {
     return { ...record, id: trimmed };
   }
   return record;
@@ -216,70 +216,46 @@ export async function emailExists(email: string, excludeId?: string): Promise<bo
   return rows.length > 0;
 }
 
-async function generateEmpCode(): Promise<string> {
-  const rows = await executeQuery<RowDataPacket[]>(
-    "SELECT empCode FROM employees WHERE empCode REGEXP '^EMP[0-9]+$' ORDER BY CAST(SUBSTRING(empCode, 4) AS UNSIGNED) DESC LIMIT 1",
-    []
-  );
-  if (rows.length === 0) return 'EMP001';
-  const last = rows[0].empCode as string;
-  const num = parseInt(last.replace(/^EMP/, ''), 10) || 0;
-  return `EMP${String(num + 1).padStart(3, '0')}`;
-}
-
 export async function createEmployee(input: CreateEmployeeInput): Promise<EmployeeRecord> {
   const conflict = await emailExists(input.email);
   if (conflict) throw new Error('DUPLICATE_EMAIL');
 
   const id = input.id?.trim() || randomUUID();
-  const empCode = await generateEmpCode();
 
-  let firstName = (input.firstName || '').trim();
-  let lastName = (input.lastName || '').trim();
-  if (!firstName && !lastName && input.name) {
-    const parts = input.name.trim().split(/\s+/);
-    firstName = parts[0] || 'Employee';
-    lastName = parts.slice(1).join(' ') || 'Staff';
+  let fullName = '';
+  if (input.firstName || input.lastName) {
+    fullName = `${(input.firstName || '').trim()} ${(input.lastName || '').trim()}`.trim();
+  } else if (input.name) {
+    fullName = input.name.trim();
   }
-  if (!firstName) firstName = 'Employee';
-  if (!lastName) lastName = 'Staff';
+  if (!fullName) fullName = 'Employee Staff';
 
   const position = (input.jobPosition || input.position || 'Staff').trim();
   const department = (input.department || 'General').trim();
   const rawStatus = (input.status || 'ACTIVE').trim().toUpperCase();
-  const dbStatus = rawStatus === 'TERMINATED' || rawStatus === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE';
-  const schedule = (input.workingSchedule || 'Standard 40h').trim();
+  const dbStatus = rawStatus === 'TERMINATED' || rawStatus === 'INACTIVE' ? 'INACTIVE' : rawStatus === 'PROBATION' ? 'PROBATION' : 'ACTIVE';
   const bankAccount = input.bankAccountNo || input.bankAccount || null;
+  const bankName = input.bankName ? input.bankName.trim() : null;
   const gender = input.gender ? input.gender.trim().toUpperCase() : null;
-  const now = new Date();
-  const createdAt = input.joinDate ? new Date(input.joinDate) : now;
+  const dateOfBirth = input.dateOfBirth ? input.dateOfBirth.trim() : null;
+  const joinDate = input.joinDate || new Date().toISOString().split('T')[0];
 
   await executeQuery<ResultSetHeader>(
     `INSERT INTO employees
-       (id, empCode, firstName, lastName, email, phone, department, jobPosition,
-        gender, dateOfBirth, employeeType, status, workingSchedule, managerId, bankName, bankAccountNo,
-        ifscRouting, createdAt, updatedAt)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (id, name, email, department, position, gender, dateOfBirth, status, join_date, bank_name, bank_account)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       id,
-      empCode,
-      firstName,
-      lastName,
+      fullName,
       input.email.trim().toLowerCase(),
-      input.phone?.trim() ?? null,
       department,
       position,
       gender,
-      input.dateOfBirth ? input.dateOfBirth.trim() : null,
-      input.employeeType ?? 'FULL_TIME',
+      dateOfBirth,
       dbStatus,
-      schedule,
-      input.managerId?.trim() ?? null,
-      input.bankName ? input.bankName.trim() : null,
+      joinDate,
+      bankName,
       bankAccount,
-      input.ifscRouting?.trim() ?? null,
-      createdAt,
-      now,
     ]
   );
 
@@ -306,20 +282,18 @@ export async function updateEmployee(
   const setClauses: string[] = [];
   const values: unknown[] = [];
 
-  if (input.firstName !== undefined) {
-    setClauses.push('firstName = ?');
-    values.push(input.firstName.trim());
-  }
-  if (input.lastName !== undefined) {
-    setClauses.push('lastName = ?');
-    values.push(input.lastName.trim());
-  }
+  // Handle name update: support firstName+lastName or combined name
   if (input.name !== undefined && input.firstName === undefined && input.lastName === undefined) {
-    const parts = input.name.trim().split(/\s+/);
-    const first = parts[0] || 'Employee';
-    const last = parts.slice(1).join(' ') || 'Staff';
-    setClauses.push('firstName = ?', 'lastName = ?');
-    values.push(first, last);
+    setClauses.push('name = ?');
+    values.push(input.name.trim());
+  } else if (input.firstName !== undefined || input.lastName !== undefined) {
+    const first = (input.firstName ?? '').trim();
+    const last = (input.lastName ?? '').trim();
+    const combined = `${first} ${last}`.trim();
+    if (combined) {
+      setClauses.push('name = ?');
+      values.push(combined);
+    }
   }
 
   if (input.department !== undefined) {
@@ -329,7 +303,7 @@ export async function updateEmployee(
 
   const pos = input.jobPosition || input.position;
   if (pos !== undefined) {
-    setClauses.push('jobPosition = ?');
+    setClauses.push('position = ?');
     values.push(pos.trim());
   }
 
@@ -346,22 +320,17 @@ export async function updateEmployee(
   if (input.status !== undefined) {
     const s = input.status.trim().toUpperCase();
     setClauses.push('status = ?');
-    values.push(s === 'TERMINATED' || s === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE');
-  }
-
-  if (input.workingSchedule !== undefined) {
-    setClauses.push('workingSchedule = ?');
-    values.push(input.workingSchedule ? input.workingSchedule.trim() : null);
+    values.push(s === 'TERMINATED' || s === 'INACTIVE' ? 'INACTIVE' : s === 'PROBATION' ? 'PROBATION' : 'ACTIVE');
   }
 
   if (input.bankName !== undefined) {
-    setClauses.push('bankName = ?');
+    setClauses.push('bank_name = ?');
     values.push(input.bankName ? input.bankName.trim() : null);
   }
 
   const bank = input.bankAccountNo || input.bankAccount;
   if (bank !== undefined) {
-    setClauses.push('bankAccountNo = ?');
+    setClauses.push('bank_account = ?');
     values.push(bank ? bank.trim() : null);
   }
 
@@ -371,14 +340,11 @@ export async function updateEmployee(
   }
 
   if (input.joinDate !== undefined && input.joinDate) {
-    setClauses.push('createdAt = ?');
-    values.push(new Date(input.joinDate));
+    setClauses.push('join_date = ?');
+    values.push(input.joinDate);
   }
 
   if (setClauses.length === 0) return existing;
-
-  setClauses.push('updatedAt = ?');
-  values.push(new Date());
 
   values.push(existing.id);
 

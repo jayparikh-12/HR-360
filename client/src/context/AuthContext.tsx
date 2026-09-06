@@ -12,6 +12,7 @@ import {
   getStoredToken,
   setStoredToken,
   clearStoredToken,
+  getStoredUser,
   setStoredUser,
   clearStoredUser,
   onUnauthorized,
@@ -32,10 +33,25 @@ export type AuthContextType = ExtendedAuthContextValue;
 const AuthContext = createContext<ExtendedAuthContextValue | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(null);
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [token, setToken] = useState<string | null>(() => {
+    const t = getStoredToken();
+    return t && !isTokenExpired(t) ? t : null;
+  });
+  const [user, setUser] = useState<User | null>(() => {
+    const t = getStoredToken();
+    if (t && !isTokenExpired(t)) {
+      return getStoredUser();
+    }
+    return null;
+  });
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    const t = getStoredToken();
+    return !!t && !isTokenExpired(t);
+  });
+  const [isLoading, setIsLoading] = useState<boolean>(() => {
+    const t = getStoredToken();
+    return !!t && !isTokenExpired(t);
+  });
 
   // Prevent concurrent login requests
   const isLoggingInRef = useRef<boolean>(false);
@@ -79,7 +95,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     sessionTimeoutTimerRef.current = setTimeout(() => {
-      console.info('[AuthContext] 20-minute authenticated session lifetime expired. Logging out automatically.');
+      console.info('[AuthContext] Authenticated session lifetime expired. Logging out automatically.');
       logout();
     }, remainingMs);
   }, [clearSessionTimer, logout]);
@@ -98,22 +114,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.warn('[AuthContext] Storage read error:', storageError);
       }
 
-      // If no token exists, immediately unauthenticate
-      if (!storedToken) {
-        if (isMounted) {
-          setUser(null);
-          setToken(null);
-          setIsAuthenticated(false);
-          setIsLoading(false);
+      // If no token exists or is expired, immediately unauthenticate
+      if (!storedToken || isTokenExpired(storedToken)) {
+        if (storedToken) {
+          clearStoredToken();
+          clearStoredUser();
         }
-        return;
-      }
-
-      // Pre-flight check: Determine whether stored token is already expired
-      if (isTokenExpired(storedToken)) {
-        console.info('[AuthContext] Stored token has expired. Clearing session.');
-        clearStoredToken();
-        clearStoredUser();
         if (isMounted) {
           setUser(null);
           setToken(null);
@@ -136,23 +142,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             ...(response.user.employeeId ? { employeeId: response.user.employeeId } : {}),
           };
 
+          setStoredUser(safeUser);
           setToken(storedToken);
           setUser(safeUser);
           setIsAuthenticated(true);
 
-          // Schedule automatic logout based on the remaining JWT lifetime
+          // Schedule automatic logout based on remaining JWT lifetime
           scheduleSessionTimeout(storedToken);
         } else {
           throw new Error('Session invalid or unauthorized');
         }
-      } catch (err) {
+      } catch (err: any) {
         console.warn('[AuthContext] Stored session validation failed:', err);
-        clearStoredToken();
-        clearStoredUser();
-        if (isMounted) {
-          setToken(null);
-          setUser(null);
-          setIsAuthenticated(false);
+        // Only invalidate session if the token was explicitly rejected as unauthorized
+        if (err?.statusCode === 401 || err?.statusCode === 403 || isTokenExpired(storedToken)) {
+          clearStoredToken();
+          clearStoredUser();
+          if (isMounted) {
+            setToken(null);
+            setUser(null);
+            setIsAuthenticated(false);
+          }
         }
       } finally {
         if (isMounted) {

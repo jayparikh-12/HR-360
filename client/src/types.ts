@@ -44,8 +44,10 @@ export interface Contract {
   wage: number;
   structure?: string;
   salaryStructure: string;
+  salaryStructureId?: string | null;
   schedule?: string;
   workingSchedule: string;
+  workingScheduleId?: string | null;
   status: 'ACTIVE' | 'FUTURE' | 'HISTORICAL';
 }
 

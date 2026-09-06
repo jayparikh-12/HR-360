@@ -203,7 +203,7 @@ const AppShell: React.FC = () => {
       <div className="main-wrapper">
         <Header
           currentRole={displayRole}
-          userName={user?.name || 'Administrator'}
+          userName={user?.name || 'User'}
           onLogout={logout}
         />
         <main className="content">

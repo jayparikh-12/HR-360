@@ -34,3 +34,12 @@ INSERT INTO contracts (id, employee_id, salary_structure_id, working_schedule_id
 ('CON-004', 'EMP-004', 'STR-001', 'SCH-001', 8000.00, '2021-06-15', 'ACTIVE'),
 ('CON-005', 'EMP-005', 'STR-001', 'SCH-002', 6800.00, '2026-07-01', 'ACTIVE'),
 ('CON-006', 'EMP-006', 'STR-001', 'SCH-001', 6300.00, '2023-11-20', 'ACTIVE');
+
+-- Users (Authentication Accounts & Roles)
+INSERT INTO users (id, name, email, password, role, employee_id) VALUES
+('USR-999', 'System Administrator', 'admin@company.com', 'password123', 'Admin', NULL),
+('USR-004', 'Elena Rostova', 'elena@company.com', 'password123', 'HR Payroll Manager', 'EMP-004'),
+('USR-006', 'Sarah Connor', 'sarah@company.com', 'password123', 'HR Manager', 'EMP-006'),
+('USR-003', 'Alex Rivera', 'alex@company.com', 'password123', 'HR Payroll User', 'EMP-003'),
+('USR-001', 'John Doe', 'john.doe@company.com', 'password123', 'Employee', 'EMP-001');
+

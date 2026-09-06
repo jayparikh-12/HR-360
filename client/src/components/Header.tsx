@@ -74,9 +74,9 @@ export const Header: React.FC<HeaderProps> = ({
       case 'Admin':
         return {
           initials: 'SR',
-          name: user?.name || userName || 'System Administrator',
-          email: user?.email || 'admin@company.com',
-          id: user?.id || 'USR-999',
+          name: user?.name || userName || 'Administrator',
+          email: user?.email || '',
+          id: user?.id || '',
           department: 'Platform & Infrastructure',
           securityLevel: 'Superadmin (Full Access)',
           scope: 'System RBAC, Master Configuration & Employee 360',

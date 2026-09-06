@@ -21,6 +21,7 @@ import salaryRuleRoutes from './routes/salaryRule.routes.js';
 import payrollRoutes from './routes/payroll.routes.js';
 import dashboardRoutes from './routes/dashboard.routes.js';
 import { testDatabaseConnection, pool } from './config/database.js';
+import { syncUsersFromDb } from './models/user.model.js';
 import { apiNotFoundError, globalErrorHandler } from './middleware/errorHandler.js';
 
 const app = express();
@@ -80,6 +81,7 @@ if (process.env.NODE_ENV !== 'test') {
     const dbResult = await testDatabaseConnection();
     if (dbResult.connected) {
       console.log(`[Database] MySQL connection established (database: ${dbResult.details?.database})`);
+      await syncUsersFromDb();
     } else {
       console.error(`[Database] MySQL connection warning: ${dbResult.message}`);
     }

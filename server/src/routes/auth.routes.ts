@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import { authenticateToken } from '../middleware/auth.middleware.js';
 import { authorize } from '../middleware/authorize.js';
-import { findUserByEmail, verifyPassword, toSafeUser } from '../models/user.model.js';
+import { findUserByEmail, findUserByEmailAsync, verifyPassword, toSafeUser } from '../models/user.model.js';
 import { LoginRequest, LoginResponse, MeResponse, TokenPayload } from '../types/auth.types.js';
 import { PERMISSIONS } from '../types/rbac.js';
 import { getPermissionsForRole } from '../config/permissions.js';
@@ -51,8 +51,8 @@ router.post('/login', async (req: Request<{}, {}, LoginRequest>, res: Response<L
       return;
     }
 
-    // Authenticate against demo user repository
-    const userAccount = findUserByEmail(normalizedEmail);
+    // Authenticate against database user repository
+    const userAccount = (await findUserByEmailAsync(normalizedEmail)) || findUserByEmail(normalizedEmail);
     if (!userAccount) {
       // Return same generic message to prevent user enumeration
       res.status(401).json({

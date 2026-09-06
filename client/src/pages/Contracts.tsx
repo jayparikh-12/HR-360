@@ -13,9 +13,10 @@ import {
   RefreshCw,
   CheckCircle2,
   AlertTriangle,
+  Edit2,
 } from 'lucide-react';
 import type { Contract, Employee } from '../types';
-import { contractsApi, type CreateContractPayload } from '../api/contracts';
+import { contractsApi, type CreateContractPayload, type UpdateContractPayload } from '../api/contracts';
 import { employeesApi } from '../api/employees';
 import { schedulesApi, type ScheduleRecord } from '../api/schedules';
 import { ApiError } from '../api/client';
@@ -29,10 +30,12 @@ interface ContractsProps {
 
 interface ContractDetailModalProps {
   contractId: string;
+  canEdit?: boolean;
+  onEdit?: (contract: Contract) => void;
   onClose: () => void;
 }
 
-export const ContractDetailModal: React.FC<ContractDetailModalProps> = ({ contractId, onClose }) => {
+export const ContractDetailModal: React.FC<ContractDetailModalProps> = ({ contractId, canEdit, onEdit, onClose }) => {
   const [contract, setContract] = useState<Contract | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -177,7 +180,16 @@ export const ContractDetailModal: React.FC<ContractDetailModalProps> = ({ contra
               </div>
             </div>
 
-            <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'flex-end' }}>
+            <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+              {canEdit && onEdit && (
+                <button
+                  className="btn btn-primary btn-sm"
+                  onClick={() => onEdit(contract)}
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+                >
+                  <Edit2 size={13} /> Edit Contract
+                </button>
+              )}
               <button className="btn btn-secondary btn-sm" onClick={onClose}>
                 Close
               </button>
@@ -188,6 +200,243 @@ export const ContractDetailModal: React.FC<ContractDetailModalProps> = ({ contra
     </div>
   );
 };
+
+// ── Edit Contract Modal (Admin Only) ─────────────────────────────────────────
+
+interface EditContractModalProps {
+  contract: Contract;
+  schedules: ScheduleRecord[];
+  onClose: () => void;
+  onUpdated: () => void;
+}
+
+export const EditContractModal: React.FC<EditContractModalProps> = ({
+  contract,
+  schedules,
+  onClose,
+  onUpdated,
+}) => {
+  const [wage, setWage] = useState<string>(String(contract.wage || '0'));
+  const [startDate, setStartDate] = useState<string>(contract.startDate || '');
+  const [endDate, setEndDate] = useState<string>(contract.endDate || '');
+  const [status, setStatus] = useState<'ACTIVE' | 'FUTURE' | 'HISTORICAL'>(contract.status);
+  const [workingScheduleId, setWorkingScheduleId] = useState<string>(
+    contract.workingScheduleId || schedules[0]?.id || 'SCH-001'
+  );
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+
+    const numWage = parseFloat(wage);
+    if (isNaN(numWage) || numWage < 0) {
+      setError('Wage must be a non-negative number.');
+      return;
+    }
+    if (!startDate) {
+      setError('Start date is required.');
+      return;
+    }
+    if (endDate && endDate < startDate) {
+      setError('End date cannot be earlier than start date.');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const payload: UpdateContractPayload = {
+        wage: numWage,
+        startDate,
+        endDate: endDate ? endDate : null,
+        status,
+        workingScheduleId,
+      };
+
+      await contractsApi.update(contract.id, payload);
+      onUpdated();
+      onClose();
+    } catch (err) {
+      if (err instanceof ApiError) {
+        if (err.statusCode === 403) {
+          setError('Permission denied: Only administrators can edit contracts.');
+        } else if (err.statusCode === 409) {
+          setError(err.message || 'Conflict: Another active contract exists for this employee.');
+        } else if (err.statusCode === 404) {
+          setError('Contract not found.');
+        } else {
+          setError(err.message || 'Failed to update contract.');
+        }
+      } else {
+        setError('Failed to update contract. Please check connection.');
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const fieldStyle: React.CSSProperties = {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '4px',
+  };
+  const labelStyle: React.CSSProperties = {
+    fontSize: '11px',
+    fontWeight: 600,
+    color: 'var(--slate-500)',
+    textTransform: 'uppercase',
+    letterSpacing: '0.04em',
+  };
+  const inputStyle: React.CSSProperties = {
+    padding: '8px 10px',
+    border: '1px solid var(--slate-200)',
+    borderRadius: '6px',
+    fontSize: '13px',
+    color: 'var(--slate-900)',
+    outline: 'none',
+    background: '#fff',
+  };
+
+  return (
+    <div
+      style={{
+        position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.55)',
+        zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: '20px',
+      }}
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <div
+        className="card"
+        style={{
+          width: '100%', maxWidth: '520px', background: '#fff',
+          borderRadius: '12px', padding: '24px', boxShadow: 'var(--shadow-lg)',
+          maxHeight: '90vh', overflowY: 'auto',
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <FileText size={18} color="var(--primary)" />
+            <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--slate-900)' }}>
+              Edit Contract — {contract.id}
+            </h3>
+          </div>
+          <button
+            onClick={onClose}
+            style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--slate-400)' }}
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <div style={{ marginBottom: '14px', fontSize: '13px', color: 'var(--slate-600)' }}>
+          Employee: <strong>{contract.employeeName || contract.employeeId}</strong> ({contract.employeeId})
+        </div>
+
+        {error && (
+          <div
+            style={{
+              padding: '10px 14px', marginBottom: '16px', background: '#fef2f2',
+              border: '1px solid #f87171', borderRadius: '8px', color: '#b91c1c',
+              fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px',
+            }}
+          >
+            <AlertTriangle size={16} style={{ flexShrink: 0 }} />
+            <span>{error}</span>
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            <div style={fieldStyle}>
+              <label style={labelStyle}>Monthly Wage (₹) *</label>
+              <input
+                type="number"
+                min="0"
+                step="500"
+                style={inputStyle}
+                value={wage}
+                onChange={(e) => setWage(e.target.value)}
+                required
+              />
+            </div>
+
+            <div style={fieldStyle}>
+              <label style={labelStyle}>Status</label>
+              <select
+                style={inputStyle}
+                value={status}
+                onChange={(e) => setStatus(e.target.value as 'ACTIVE' | 'FUTURE' | 'HISTORICAL')}
+              >
+                <option value="ACTIVE">ACTIVE</option>
+                <option value="FUTURE">FUTURE</option>
+                <option value="HISTORICAL">HISTORICAL</option>
+              </select>
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            <div style={fieldStyle}>
+              <label style={labelStyle}>Start Date *</label>
+              <input
+                type="date"
+                style={inputStyle}
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                required
+              />
+            </div>
+
+            <div style={fieldStyle}>
+              <label style={labelStyle}>End Date (Optional)</label>
+              <input
+                type="date"
+                style={inputStyle}
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div style={fieldStyle}>
+            <label style={labelStyle}>Working Schedule</label>
+            <select
+              style={inputStyle}
+              value={workingScheduleId}
+              onChange={(e) => setWorkingScheduleId(e.target.value)}
+            >
+              {schedules.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name} ({s.weeklyHours}h / week)
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '10px' }}>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={onClose}
+              disabled={submitting}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="btn btn-primary btn-sm"
+              disabled={submitting}
+            >
+              {submitting ? 'Saving…' : 'Save Changes'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
 
 // ── Create Contract Modal ───────────────────────────────────────────────────
 
@@ -467,7 +716,8 @@ export const CreateContractModal: React.FC<CreateContractModalProps> = ({
 
 export const Contracts: React.FC<ContractsProps> = () => {
   const { displayRole } = useAuth();
-  const canCreateContract = displayRole === 'Admin' || displayRole === 'HR Manager';
+  const isAdmin = displayRole === 'Admin';
+  const canCreateContract = isAdmin || displayRole === 'HR Manager';
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [schedules, setSchedules] = useState<ScheduleRecord[]>([]);
@@ -478,6 +728,7 @@ export const Contracts: React.FC<ContractsProps> = () => {
   const [searchTerm, setSearchTerm] = useState('');
 
   const [selectedContractId, setSelectedContractId] = useState<string | null>(null);
+  const [editingContract, setEditingContract] = useState<Contract | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
 
   // Load contracts, employees, and schedules
@@ -532,7 +783,22 @@ export const Contracts: React.FC<ContractsProps> = () => {
       {selectedContractId && (
         <ContractDetailModal
           contractId={selectedContractId}
+          canEdit={isAdmin}
+          onEdit={(c) => {
+            setSelectedContractId(null);
+            setEditingContract(c);
+          }}
           onClose={() => setSelectedContractId(null)}
+        />
+      )}
+
+      {/* Edit Modal (Admin Only) */}
+      {isAdmin && editingContract && (
+        <EditContractModal
+          contract={editingContract}
+          schedules={schedules}
+          onClose={() => setEditingContract(null)}
+          onUpdated={loadData}
         />
       )}
 
@@ -732,15 +998,29 @@ export const Contracts: React.FC<ContractsProps> = () => {
                       </span>
                     </td>
                     <td style={{ padding: '12px 16px', textAlign: 'right' }}>
-                      <button
-                        className="btn btn-secondary btn-sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedContractId(c.id);
-                        }}
-                      >
-                        View Details
-                      </button>
+                      <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                        {isAdmin && (
+                          <button
+                            className="btn btn-secondary btn-sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEditingContract(c);
+                            }}
+                            style={{ display: 'flex', alignItems: 'center', gap: '4px' }}
+                          >
+                            <Edit2 size={12} /> Edit
+                          </button>
+                        )}
+                        <button
+                          className="btn btn-secondary btn-sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedContractId(c.id);
+                          }}
+                        >
+                          View Details
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}

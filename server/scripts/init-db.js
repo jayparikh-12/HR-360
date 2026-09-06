@@ -45,7 +45,26 @@ async function run() {
     await rootConn.query(seedsSql);
     console.log('Seeds applied successfully.');
   } else {
-    console.log(`Employees already present (${existingEmployees[0].count} records), skipping seed insertion.`);
+    console.log(`Employees already present (${existingEmployees[0].count} records), skipping employee seed.`);
+  }
+
+  // Ensure users table is populated with seeded admin and demo accounts
+  try {
+    const [existingUsers] = await rootConn.query('SELECT COUNT(*) as count FROM users');
+    if (existingUsers[0].count === 0) {
+      console.log('Seeding users table...');
+      await rootConn.query(`
+        INSERT INTO users (id, name, email, password, role, employee_id) VALUES
+        ('USR-999', 'System Administrator', 'admin@company.com', 'password123', 'Admin', NULL),
+        ('USR-004', 'Elena Rostova', 'elena@company.com', 'password123', 'HR Payroll Manager', 'EMP-004'),
+        ('USR-006', 'Sarah Connor', 'sarah@company.com', 'password123', 'HR Manager', 'EMP-006'),
+        ('USR-003', 'Alex Rivera', 'alex@company.com', 'password123', 'HR Payroll User', 'EMP-003'),
+        ('USR-001', 'John Doe', 'john.doe@company.com', 'password123', 'Employee', 'EMP-001')
+      `);
+      console.log('Users seeded successfully.');
+    }
+  } catch (userSeedErr) {
+    console.warn('Note on user seed:', userSeedErr.message);
   }
 
   const [tables] = await rootConn.query('SHOW TABLES');

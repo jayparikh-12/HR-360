@@ -15,7 +15,7 @@
 
 import { Router, Request, Response } from 'express';
 import { authenticateToken } from '../middleware/auth.middleware.js';
-import { authorize } from '../middleware/authorize.js';
+import { authorize, requireAdmin } from '../middleware/authorize.js';
 import { PERMISSIONS } from '../types/rbac.js';
 import {
   getAllContracts,
@@ -24,7 +24,9 @@ import {
   findEmployeeByIdOrCode,
   contractIdExists,
   createContract,
+  updateContract,
   type CreateContractInput,
+  type UpdateContractInput,
 } from '../repositories/contract.repository.js';
 import {
   getAllSchedules,
@@ -250,4 +252,119 @@ router.post('/', authorize(PERMISSIONS.CONTRACT_WRITE), async (req: Request, res
   }
 });
 
+// ── PUT /api/contracts/:id ────────────────────────────────────────────────────
+// Only Admin is authorized to edit contracts. Non-admins receive 403 Forbidden.
+
+router.put('/:id', requireAdmin, async (req: Request, res: Response): Promise<void> => {
+  const { id } = req.params;
+
+  if (!isNonEmptyString(id)) {
+    res.status(400).json({ success: false, message: 'Invalid contract ID.' });
+    return;
+  }
+
+  const sanitizedId = id.trim().slice(0, 50);
+
+  try {
+    const existing = await getContractById(sanitizedId);
+    if (!existing) {
+      res.status(404).json({ success: false, message: 'Contract not found.' });
+      return;
+    }
+
+    const body = req.body;
+    if (!body || typeof body !== 'object') {
+      res.status(400).json({ success: false, message: 'Request body must be a JSON object.' });
+      return;
+    }
+
+    const updateInput: UpdateContractInput = {};
+
+    // 1. Validate wage if provided
+    if (body.wage !== undefined && body.wage !== null && body.wage !== '') {
+      const numericWage = Number(body.wage);
+      if (isNaN(numericWage) || !isFinite(numericWage) || numericWage < 0 || numericWage > 999999999.99) {
+        res.status(400).json({ success: false, message: 'wage must be a non-negative number and cannot exceed 999,999,999.99.' });
+        return;
+      }
+      updateInput.wage = numericWage;
+    }
+
+    // 2. Validate startDate if provided
+    const startDateInput = body.startDate || body.start_date;
+    let effectiveStartDate = existing.startDate;
+    if (startDateInput !== undefined && startDateInput !== null && startDateInput !== '') {
+      if (!isValidDateString(startDateInput)) {
+        res.status(400).json({ success: false, message: 'startDate must be a valid date in YYYY-MM-DD format.' });
+        return;
+      }
+      effectiveStartDate = startDateInput.trim();
+      updateInput.startDate = effectiveStartDate;
+    }
+
+    // 3. Validate endDate if provided
+    const endDateInput = body.endDate !== undefined ? body.endDate : body.end_date;
+    if (endDateInput !== undefined) {
+      if (endDateInput === null || endDateInput === '') {
+        updateInput.endDate = null;
+      } else {
+        if (!isValidDateString(endDateInput)) {
+          res.status(400).json({ success: false, message: 'endDate must be a valid date in YYYY-MM-DD format.' });
+          return;
+        }
+        const formattedEndDate = String(endDateInput).trim();
+        if (new Date(formattedEndDate) < new Date(effectiveStartDate)) {
+          res.status(400).json({ success: false, message: 'endDate cannot be before startDate.' });
+          return;
+        }
+        updateInput.endDate = formattedEndDate;
+      }
+    }
+
+    // 4. Validate status if provided
+    const statusInput = body.status;
+    if (statusInput !== undefined && statusInput !== null && statusInput !== '') {
+      const upperStatus = String(statusInput).trim().toUpperCase();
+      if (!VALID_STATUSES.has(upperStatus)) {
+        res.status(400).json({
+          success: false,
+          message: 'status must be ACTIVE, FUTURE, or HISTORICAL.',
+        });
+        return;
+      }
+      const newStatus = upperStatus as 'ACTIVE' | 'FUTURE' | 'HISTORICAL';
+
+      // Check active conflict if status is changing to ACTIVE
+      if (newStatus === 'ACTIVE' && existing.status !== 'ACTIVE') {
+        const existingActive = await getActiveContractByEmployeeId(existing.employeeId);
+        if (existingActive && existingActive.id !== existing.id) {
+          res.status(409).json({
+            success: false,
+            message: `Employee already has an active contract (${existingActive.id}). Cannot have multiple active contracts for the same employee.`,
+          });
+          return;
+        }
+      }
+      updateInput.status = newStatus;
+    }
+
+    // 5. Validate working schedule if provided
+    const workingScheduleInput = body.workingScheduleId || body.working_schedule_id || body.workingSchedule || body.schedule;
+    if (isNonEmptyString(workingScheduleInput)) {
+      const schedule = await getScheduleById(workingScheduleInput.trim());
+      if (!schedule) {
+        res.status(400).json({ success: false, message: 'Referenced working schedule does not exist.' });
+        return;
+      }
+      updateInput.workingScheduleId = schedule.id;
+    }
+
+    const updated = await updateContract(sanitizedId, updateInput);
+    res.json({ success: true, data: updated });
+  } catch (err) {
+    handleDatabaseError(err, res, 'Failed to update contract');
+  }
+});
+
 export default router;
+

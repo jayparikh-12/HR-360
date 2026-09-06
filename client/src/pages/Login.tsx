@@ -213,14 +213,6 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
             </div>
           </div>
 
-          {/* Session Persistence Checkbox */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '14px 0 20px 0' }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: 'var(--slate-600)', cursor: 'pointer' }}>
-              <input type="checkbox" defaultChecked disabled={isLoading} />
-              <span>Keep session active across reloads</span>
-            </label>
-          </div>
-
           {/* Submit Action */}
           <button
             type="submit"
@@ -228,6 +220,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
             style={{ 
               width: '100%', 
               height: '44px', 
+              marginTop: '20px',
               fontSize: '14px', 
               fontWeight: 700, 
               justifyContent: 'center', 

@@ -74,6 +74,18 @@ export interface CreateContractInput {
   status?: 'ACTIVE' | 'FUTURE' | 'HISTORICAL';
 }
 
+/**
+ * Input shape for updating an existing contract.
+ */
+export interface UpdateContractInput {
+  wage?: number;
+  startDate?: string;
+  endDate?: string | null;
+  status?: 'ACTIVE' | 'FUTURE' | 'HISTORICAL';
+  salaryStructureId?: string | null;
+  workingScheduleId?: string | null;
+}
+
 export interface EmployeeLookupResult {
   id: string;
   name: string;
@@ -323,3 +335,53 @@ export async function createContract(input: CreateContractInput): Promise<Contra
 
   return created;
 }
+
+/**
+ * Updates an existing contract record in MySQL.
+ */
+export async function updateContract(
+  id: string,
+  input: UpdateContractInput
+): Promise<ContractRecord | null> {
+  const existing = await getContractById(id);
+  if (!existing) {
+    return null;
+  }
+
+  const updates: string[] = [];
+  const params: unknown[] = [];
+
+  if (input.wage !== undefined) {
+    updates.push('wage = ?');
+    params.push(input.wage);
+  }
+  if (input.startDate !== undefined) {
+    updates.push('start_date = ?');
+    params.push(input.startDate);
+  }
+  if (input.endDate !== undefined) {
+    updates.push('end_date = ?');
+    params.push(input.endDate);
+  }
+  if (input.status !== undefined) {
+    updates.push('status = ?');
+    params.push(input.status);
+  }
+  if (input.salaryStructureId !== undefined) {
+    updates.push('salary_structure_id = ?');
+    params.push(input.salaryStructureId);
+  }
+  if (input.workingScheduleId !== undefined) {
+    updates.push('working_schedule_id = ?');
+    params.push(input.workingScheduleId);
+  }
+
+  if (updates.length > 0) {
+    params.push(id);
+    const sql = `UPDATE contracts SET ${updates.join(', ')} WHERE id = ?`;
+    await executeQuery(sql, params);
+  }
+
+  return await getContractById(id);
+}
+

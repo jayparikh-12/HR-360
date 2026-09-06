@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { TokenPayload } from '../types/auth.types.js';
-import { findUserById, toSafeUser } from '../models/user.model.js';
+import { findUserById, findUserByIdAsync, toSafeUser } from '../models/user.model.js';
 import { JWT_SECRET, JWT_VERIFY_OPTIONS } from '../config/jwt.config.js';
 
 /**
@@ -32,7 +32,7 @@ export function authenticateToken(req: Request, res: Response, next: NextFunctio
 
     const token = parts[1].trim();
 
-    jwt.verify(token, JWT_SECRET, JWT_VERIFY_OPTIONS, (err, decoded) => {
+    jwt.verify(token, JWT_SECRET, JWT_VERIFY_OPTIONS, async (err, decoded) => {
       if (err || !decoded || typeof decoded !== 'object') {
         res.status(401).json({ success: false, message: 'Unauthorized' });
         return;
@@ -44,7 +44,7 @@ export function authenticateToken(req: Request, res: Response, next: NextFunctio
         return;
       }
 
-      const userAccount = findUserById(payload.userId);
+      const userAccount = (await findUserByIdAsync(payload.userId)) || findUserById(payload.userId);
       if (!userAccount) {
         // If the user referenced by the token no longer exists, reject
         res.status(401).json({ success: false, message: 'Unauthorized' });

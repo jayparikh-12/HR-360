@@ -33,6 +33,16 @@ export interface CreateContractPayload {
   workingScheduleId?: string;
 }
 
+/** Fields accepted by PUT /api/contracts/:id */
+export interface UpdateContractPayload {
+  wage?: number;
+  startDate?: string;
+  endDate?: string | null;
+  status?: 'ACTIVE' | 'FUTURE' | 'HISTORICAL';
+  salaryStructureId?: string;
+  workingScheduleId?: string;
+}
+
 export const contractsApi = {
   /**
    * Fetch all contracts from MySQL-backed API.
@@ -65,4 +75,19 @@ export const contractsApi = {
     });
     return response.data;
   },
+
+  /**
+   * Update an existing contract (Admin only).
+   * Throws ApiError with statusCode 403 if user is not an Admin.
+   * Throws ApiError with statusCode 404 if contract is not found.
+   * Throws ApiError with statusCode 409 for overlapping active contract.
+   */
+  async update(id: string, payload: UpdateContractPayload): Promise<Contract> {
+    const response = await apiFetch<ContractDetailResponse>(`/api/contracts/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+    return response.data;
+  },
 };
+

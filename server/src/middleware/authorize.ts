@@ -93,12 +93,10 @@ export function requireAdmin(req: Request, res: Response, next: NextFunction): v
     return;
   }
 
-  const email = (req.user.email || '').toLowerCase().trim();
-  const isAdminEmail = email === 'admin@company.com' || email === 'admin@peoplepay360.com';
   const normalizedRole = normalizeRoleString(req.user.role);
   const isAdminRole = normalizedRole === ROLES.ADMIN || (req.user.role || '').toUpperCase().trim() === 'ADMIN';
 
-  if (!isAdminEmail && !isAdminRole) {
+  if (!isAdminRole) {
     res.status(403).json({
       success: false,
       message: 'Forbidden: Only administrators can access this resource.',
