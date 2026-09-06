@@ -107,7 +107,12 @@ async function runDashboardTests() {
 
       const { req, res, getStatus } = createMockReqRes(`Bearer ${adminToken}`);
       let nextCalled = false;
-      authenticateToken(req, res, () => { nextCalled = true; });
+      await new Promise<void>((resolve) => {
+        authenticateToken(req, res, () => {
+          nextCalled = true;
+          resolve();
+        });
+      });
 
       assert.strictEqual(nextCalled, true, 'Valid token must call next()');
       assert.strictEqual(getStatus(), 200);
